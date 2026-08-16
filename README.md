@@ -26,26 +26,26 @@ a worker runs the graph and records per-stage progress.
 
 ## Requirements
 
-- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) for dependency and environment management.
+- Python 3.13 (pinned in `.python-version`; uv installs it for you). `>=3.12` works.
 - For real STT/TTS: a CUDA GPU and the `[gpu]` extra (`torch`, `faster-whisper`,
-  `f5-tts`, `pyannote.audio`). Without it, run in **fake mode** (`USE_FAKES=true`).
-- `ffmpeg` on PATH (for MP3 export).
+  `f5-tts`, `pyannote.audio`, `audioseal`). Without it, run in **fake mode**
+  (`USE_FAKES=true`).
+- `ffmpeg` on PATH (for MP3 export and reference-clip extraction).
 - Redis and (optionally) Postgres for a production-like run.
 
 ## Setup
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"        # core + test deps
-# On a GPU host, also: pip install -e ".[gpu]"
+uv sync                 # creates .venv, installs core + dev deps from uv.lock
+uv sync --extra gpu     # on a GPU host, add the real ML backends
 cp .env.example .env
 ```
 
 ## Run the tests
 
 ```bash
-pytest
+uv run pytest
 ```
 
 The default test suite runs entirely on CPU with no network — STT/LLM/TTS are faked.
@@ -53,9 +53,9 @@ The default test suite runs entirely on CPU with no network — STT/LLM/TTS are 
 ## Run the service (fake mode)
 
 ```bash
-docker compose up -d                                              # Redis (+ Postgres)
-uvicorn --factory podcast_compactor.api.app:build_default_app     # API
-arq podcast_compactor.worker.main.WorkerSettings                  # worker
+docker compose up -d                                                   # Redis (+ Postgres)
+uv run uvicorn --factory podcast_compactor.api.app:build_default_app   # API
+uv run arq podcast_compactor.worker.main.WorkerSettings                # worker
 ```
 
 Then:

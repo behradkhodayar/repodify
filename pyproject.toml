@@ -23,16 +23,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "respx>=0.21",
-    "ruff>=0.4",
-]
+# Heavy ML backends, only needed on a GPU host (imported lazily).
 gpu = [
     "torch",
     "faster-whisper",
     "f5-tts",
     "pyannote.audio",
+    "audioseal",
+]
+
+[dependency-groups]
+# Dev tooling — installed by `uv sync` by default, excluded from the built wheel.
+dev = [
+    "pytest>=8.0",
+    "respx>=0.21",
+    "ruff>=0.4",
 ]
 
 [tool.setuptools.packages.find]
