@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>My Test Show</title>
+    <itunes:author>Jane Host</itunes:author>
+    <link>https://example.com</link>
+    <description>A show for testing.</description>
+
+    <item>
+      <title>Bonus chat (no audio)</title>
+      <guid>ep-bonus</guid>
+      <pubDate>Sat, 20 Jan 2024 09:00:00 +0000</pubDate>
+      <itunes:duration>12:00</itunes:duration>
+    </item>
+
+    <item>
+      <title>Episode 2: The Middle</title>
+      <guid>ep-2</guid>
+      <pubDate>Mon, 15 Jan 2024 09:00:00 +0000</pubDate>
+      <enclosure url="https://cdn.example.com/ep2.mp3" length="1000" type="audio/mpeg"/>
+      <itunes:duration>1:05:00</itunes:duration>
+    </item>
+
+    <item>
+      <title>Episode 1: The Beginning</title>
+      <guid>ep-1</guid>
+      <pubDate>Mon, 08 Jan 2024 09:00:00 +0000</pubDate>
+      <enclosure url="https://cdn.example.com/ep1.mp3" length="1000" type="audio/mpeg"/>
+      <itunes:duration>40:00</itunes:duration>
+    </item>
+
+    <item>
+      <title>Trailer</title>
+      <guid>ep-trailer</guid>
+      <pubDate>Mon, 01 Jan 2024 09:00:00 +0000</pubDate>
+      <enclosure url="https://cdn.example.com/trailer.mp3" length="100" type="audio/mpeg"/>
+      <itunes:duration>0:45</itunes:duration>
+    </item>
+  </channel>
+</rss>
