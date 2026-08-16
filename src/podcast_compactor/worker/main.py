@@ -41,7 +41,11 @@ def build_deps(settings: Settings) -> Deps:
         llm_map = LocalStubLLM()
         llm_reduce = LocalStubLLM()
         tts = FakeTTS()
-        voices = {"narrator": Voice(name="narrator")}
+        voices = {
+            "narrator": Voice(name="narrator"),
+            "host_a": Voice(name="host_a"),
+            "host_b": Voice(name="host_b"),
+        }
     else:
         from podcast_compactor.ports.llm import AnthropicStructuredLLM
         from podcast_compactor.synth.f5_tts import F5TTS
@@ -58,7 +62,17 @@ def build_deps(settings: Settings) -> Deps:
                 name="narrator",
                 ref_audio_path=settings.narrator_ref_audio,
                 ref_text=settings.narrator_ref_text,
-            )
+            ),
+            "host_a": Voice(
+                name="host_a",
+                ref_audio_path=settings.host_a_ref_audio,
+                ref_text=settings.host_a_ref_text,
+            ),
+            "host_b": Voice(
+                name="host_b",
+                ref_audio_path=settings.host_b_ref_audio,
+                ref_text=settings.host_b_ref_text,
+            ),
         }
 
     return Deps(

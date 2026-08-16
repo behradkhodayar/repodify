@@ -80,7 +80,12 @@ class LocalStubLLM:
             )
         if schema is Script:
             line = "This is a placeholder digest generated in fake mode. "
+            # Emit both hosts: single-host mode normalizes these to the narrator,
+            # two-host mode uses them as-is.
             return Script(  # type: ignore[return-value]
-                segments=[ScriptSegment(speaker="narrator", text=line * 20)]
+                segments=[
+                    ScriptSegment(speaker="host_a", text=line * 10),
+                    ScriptSegment(speaker="host_b", text=line * 10),
+                ]
             )
         return schema()  # best-effort for unknown schemas

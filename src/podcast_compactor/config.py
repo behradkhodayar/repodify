@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     narrator_ref_audio: Path | None = None
     narrator_ref_text: str | None = None
 
+    # Two-host mode: reference clip + text for each stock host voice.
+    host_a_ref_audio: Path | None = None
+    host_a_ref_text: str | None = None
+    host_b_ref_audio: Path | None = None
+    host_b_ref_text: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
