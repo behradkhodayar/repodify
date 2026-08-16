@@ -31,6 +31,8 @@ def build_deps(settings: Settings) -> Deps:
     if settings.use_fakes:
         from podcast_compactor.ports.llm import LocalStubLLM
         from podcast_compactor.ports.transcriber import FakeTranscriber
+        from podcast_compactor.ports.voice_cloner import FakeVoiceCloner
+        from podcast_compactor.ports.watermarker import FakeWatermarker
 
         transcriber = FakeTranscriber(
             Transcript(
@@ -46,9 +48,13 @@ def build_deps(settings: Settings) -> Deps:
             "host_a": Voice(name="host_a"),
             "host_b": Voice(name="host_b"),
         }
+        voice_cloner = FakeVoiceCloner()
+        watermarker = FakeWatermarker()
     else:
         from podcast_compactor.ports.llm import AnthropicStructuredLLM
+        from podcast_compactor.synth.cloning import PyannoteVoiceCloner
         from podcast_compactor.synth.f5_tts import F5TTS
+        from podcast_compactor.synth.watermark import AudioSealWatermarker
         from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
 
         if not settings.anthropic_api_key:
@@ -74,6 +80,8 @@ def build_deps(settings: Settings) -> Deps:
                 ref_text=settings.host_b_ref_text,
             ),
         }
+        voice_cloner = PyannoteVoiceCloner(transcriber, settings.hf_token)
+        watermarker = AudioSealWatermarker()
 
     return Deps(
         resolver_resolve=resolve,
@@ -84,6 +92,8 @@ def build_deps(settings: Settings) -> Deps:
         llm_reduce=llm_reduce,
         tts=tts,
         voices=voices,
+        voice_cloner=voice_cloner,
+        watermarker=watermarker,
         repo=repo,
         settings=settings,
     )

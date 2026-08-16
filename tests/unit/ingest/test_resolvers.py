@@ -39,6 +39,20 @@ def test_castbox_scrapes_rss_link():
     assert got == "https://rss.castbox.fm/everest/abc.xml"
 
 
+def test_castbox_falls_back_to_json_feed_url():
+    # No <link rss> on the page, but an embedded JSON blob carries the feed URL.
+    html = (
+        '<html><body><script>window.__INITIAL_STATE__='
+        '{"channel":{"feed_url":"https://rss.castbox.fm/everest/xyz.xml"}}'
+        '</script></body></html>'
+    )
+    with respx.mock:
+        respx.get("https://castbox.fm/channel/id777").respond(text=html)
+        with httpx.Client() as http:
+            got = resolve("https://castbox.fm/channel/id777", http)
+    assert got == "https://rss.castbox.fm/everest/xyz.xml"
+
+
 def test_unresolvable_raises():
     with httpx.Client() as http:
         with pytest.raises(UnresolvableFeedError):

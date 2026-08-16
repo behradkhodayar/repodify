@@ -8,7 +8,13 @@ import tempfile
 import wave
 from pathlib import Path
 
-from podcast_compactor.models.domain import ArcOutline, Chapter, Script, ShowNotes
+from podcast_compactor.models.domain import (
+    ArcOutline,
+    Chapter,
+    Script,
+    ScriptSegment,
+    ShowNotes,
+)
 from podcast_compactor.ports.tts import TTS, Voice
 
 
@@ -64,8 +70,15 @@ def build_show_notes(
     arc: ArcOutline,
     script: Script,
     segments: list[bytes],
+    *,
+    synthetic: bool = False,
+    disclaimer: str | None = None,
 ) -> ShowNotes:
-    """One chapter per arc beat, with start times from cumulative segment durations."""
+    """One chapter per arc beat, with start times from cumulative segment durations.
+
+    When `synthetic` is set (cloned output), the notes are labeled AI-generated
+    and carry the spoken `disclaimer` text.
+    """
     durations = [wav_duration_seconds(s) for s in segments]
     n_beats = len(arc.beats)
     chapters: list[Chapter] = []
@@ -75,7 +88,17 @@ def build_show_notes(
             seg_index = min(i * per, len(durations))
             start = sum(durations[:seg_index])
             chapters.append(Chapter(title=beat.heading, start_s=start))
-    return ShowNotes(summary=arc.throughline, chapters=chapters)
+    return ShowNotes(
+        summary=arc.throughline,
+        chapters=chapters,
+        synthetic=synthetic,
+        disclaimer=disclaimer,
+    )
+
+
+def disclaimer_segment(text: str) -> ScriptSegment:
+    """A spoken disclaimer segment, attributed to the reserved `disclaimer` speaker."""
+    return ScriptSegment(speaker="disclaimer", text=text)
 
 
 def wav_to_mp3(wav: bytes, out: Path) -> None:

@@ -85,7 +85,31 @@ reference voice via `HOST_A_REF_AUDIO`/`HOST_A_REF_TEXT` and
 `HOST_B_REF_AUDIO`/`HOST_B_REF_TEXT` (see `.env.example`); fake mode needs no
 assets.
 
+### Voice cloning (opt-in)
+
+Set `"clone": true` on a job to synthesize the digest in the **cloned voices of
+the original hosts**, extracted from the downloaded episodes via speaker
+diarization. Cloning is **off by default** and always carries these guardrails:
+
+- **Labeled synthetic** — the show notes are flagged `synthetic: true` and carry
+  a disclaimer; the output must never be presented as the real hosts.
+- **Audible disclaimer** — a spoken disclaimer (configurable via
+  `CLONE_DISCLAIMER`) is prepended to the audio.
+- **Inaudible watermark** — the output is watermarked (AudioSeal in real mode).
+
+Real cloning needs the `[gpu]` extra and a Hugging Face token for pyannote
+diarization (`HF_TOKEN`); fake mode exercises the whole flow with no assets.
+
+```bash
+curl -s -X POST localhost:8000/jobs \
+  -H 'content-type: application/json' \
+  -d '{"feed_url": "https://example.com/feed.xml", "episode_ids": ["ep-1","ep-2"], "host_count": 2, "clone": true}'
+```
+
+Only clone voices you have the right to use — respect right-of-publicity and each
+platform's terms.
+
 ## Status
 
-Phases 1 (single-narrator digest) and 2 (two-host dialogue) are implemented.
-Opt-in, watermarked voice cloning is Phase 3 (see the spec).
+Phases 1 (single-narrator digest), 2 (two-host dialogue), and 3 (opt-in,
+watermarked, labeled voice cloning) are implemented.

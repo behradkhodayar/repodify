@@ -22,6 +22,9 @@ from podcast_compactor.persistence.repo import JobRepository
 from podcast_compactor.ports.llm import StructuredLLM
 from podcast_compactor.ports.transcriber import Transcriber
 from podcast_compactor.ports.tts import TTS, Voice
+from podcast_compactor.ports.voice_cloner import VoiceCloner
+from podcast_compactor.ports.watermarker import Watermarker
+from podcast_compactor.storage.base import Storage
 
 
 class PipelineState(TypedDict, total=False):
@@ -46,12 +49,14 @@ class Deps:
 
     resolver_resolve: Callable[[str, httpx.Client], str]
     http: httpx.Client
-    storage: object  # Storage protocol (avoids a hard import cycle)
+    storage: Storage
     transcriber: Transcriber
     llm_map: StructuredLLM
     llm_reduce: StructuredLLM
     tts: TTS
     voices: dict[str, Voice]
+    voice_cloner: VoiceCloner
+    watermarker: Watermarker
     repo: JobRepository
     settings: Settings
     intro_outro: dict[str, bytes] = field(default_factory=dict)
