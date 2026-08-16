@@ -21,6 +21,7 @@ from podcast_compactor.summarize.chains import summarize_episode, synthesize_arc
 from podcast_compactor.synth.assemble import (
     assemble_wav,
     build_show_notes,
+    disclaimer_segment,
     synthesize_script,
 )
 
@@ -158,11 +159,40 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         job_id = state["job_id"]
         script = state["script"]
         arc = state["arc"]
+        options = state["options"]
 
         # --- TTS ---
         repo.start_stage(job_id, StageName.TTS)
         try:
-            segments = synthesize_script(script, deps.tts, deps.voices)
+            if options.clone:
+                # Opt-in cloning: build cloned voices from the episode audio, prepend a
+                # spoken disclaimer (in a non-cloned voice), and watermark the output.
+                audio_paths = [
+                    deps.storage.local_path(audio_key(job_id, ep))
+                    for ep in state["selected"]
+                    if ep.guid in state["transcripts"]
+                ]
+                content_speakers = sorted({seg.speaker for seg in script.segments})
+                cloned = deps.voice_cloner.clone(audio_paths, content_speakers, deps.storage, job_id)
+                for key, voice in cloned.items():
+                    if voice.ref_audio_path is not None:
+                        repo.add_artifact(
+                            job_id, "reference_clip", voice.ref_audio_path.as_uri(),
+                            episode_guid=key,
+                        )
+                script = script.model_copy(
+                    update={
+                        "segments": [
+                            disclaimer_segment(deps.settings.clone_disclaimer),
+                            *script.segments,
+                        ]
+                    }
+                )
+                voices = {**cloned, "disclaimer": deps.voices["narrator"]}
+            else:
+                voices = deps.voices
+
+            segments = synthesize_script(script, deps.tts, voices)
             repo.finish_stage(job_id, StageName.TTS, StageState.DONE,
                               detail=f"{len(segments)} segments")
         except Exception as exc:
@@ -173,8 +203,14 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         repo.start_stage(job_id, StageName.ASSEMBLE)
         try:
             wav = assemble_wav(segments)
+            if options.clone:
+                wav = deps.watermarker.embed(wav)
             output_uri = deps.storage.put_bytes(f"{job_id}/output/digest.wav", wav)
-            notes = build_show_notes(arc, script, segments)
+            notes = build_show_notes(
+                arc, script, segments,
+                synthetic=options.clone,
+                disclaimer=deps.settings.clone_disclaimer if options.clone else None,
+            )
             deps.storage.put_bytes(
                 f"{job_id}/output/show_notes.json",
                 notes.model_dump_json(indent=2).encode(),

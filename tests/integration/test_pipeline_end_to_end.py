@@ -20,6 +20,8 @@ from podcast_compactor.pipeline.state import Deps
 from podcast_compactor.ports.llm import FakeStructuredLLM
 from podcast_compactor.ports.transcriber import FakeTranscriber
 from podcast_compactor.ports.tts import FakeTTS, Voice
+from podcast_compactor.ports.voice_cloner import FakeVoiceCloner
+from podcast_compactor.ports.watermarker import FakeWatermarker
 from podcast_compactor.storage.filesystem import FilesystemStorage
 
 
@@ -74,6 +76,8 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
                 llm_reduce=llm_reduce,
                 tts=FakeTTS(),
                 voices={"narrator": Voice(name="narrator")},
+                voice_cloner=FakeVoiceCloner(),
+                watermarker=FakeWatermarker(),
                 repo=repo,
                 settings=settings,
             )
