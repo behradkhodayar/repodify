@@ -21,10 +21,10 @@ from podcast_compactor.models.domain import (
 from podcast_compactor.persistence.repo import JobRepository
 from podcast_compactor.ports.llm import StructuredLLM
 from podcast_compactor.ports.transcriber import Transcriber
+from podcast_compactor.ports.tts import TTS, Voice
 from podcast_compactor.ports.voice_cloner import VoiceCloner
 from podcast_compactor.ports.watermarker import Watermarker
 from podcast_compactor.storage.base import Storage
-from podcast_compactor.ports.tts import TTS, Voice
 
 
 class PipelineState(TypedDict, total=False):

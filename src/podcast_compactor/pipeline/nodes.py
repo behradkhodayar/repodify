@@ -173,7 +173,9 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                     if ep.guid in state["transcripts"]
                 ]
                 content_speakers = sorted({seg.speaker for seg in script.segments})
-                cloned = deps.voice_cloner.clone(audio_paths, content_speakers, deps.storage, job_id)
+                cloned = deps.voice_cloner.clone(
+                    audio_paths, content_speakers, deps.storage, job_id
+                )
                 for key, voice in cloned.items():
                     if voice.ref_audio_path is not None:
                         repo.add_artifact(
