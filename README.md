@@ -67,16 +67,25 @@ curl -s -X POST localhost:8000/feeds/resolve \
   -d '{"url": "https://example.com/feed.xml"}'
 
 # 2. Create a job for the episodes you want (oldest-first)
+#    host_count: 1 = single narrator (default), 2 = two-host dialogue
 curl -s -X POST localhost:8000/jobs \
   -H 'content-type: application/json' \
-  -d '{"feed_url": "https://example.com/feed.xml", "episode_ids": ["ep-1","ep-2"], "target_minutes": 30}'
+  -d '{"feed_url": "https://example.com/feed.xml", "episode_ids": ["ep-1","ep-2"], "host_count": 2, "target_minutes": 30}'
 
 # 3. Track progress, then fetch the result
 curl -s localhost:8000/jobs/<job_id>
 curl -s localhost:8000/jobs/<job_id>/result
 ```
 
+### Two-host mode
+
+Set `"host_count": 2` on a job to get a two-host dialogue (speakers `host_a` and
+`host_b`) instead of a single narrator. In real mode, give each host a stock
+reference voice via `HOST_A_REF_AUDIO`/`HOST_A_REF_TEXT` and
+`HOST_B_REF_AUDIO`/`HOST_B_REF_TEXT` (see `.env.example`); fake mode needs no
+assets.
+
 ## Status
 
-Phase 1 (single-narrator digest) is implemented. Two-host output and opt-in,
-watermarked voice cloning are Phases 2 and 3 (see the spec).
+Phases 1 (single-narrator digest) and 2 (two-host dialogue) are implemented.
+Opt-in, watermarked voice cloning is Phase 3 (see the spec).
