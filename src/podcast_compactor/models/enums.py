@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class StageName(str, Enum):
+class StageName(StrEnum):
     """The pipeline stages, in execution order."""
 
     RESOLVE = "resolve"
@@ -19,7 +19,7 @@ class StageName(str, Enum):
     ASSEMBLE = "assemble"
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     """Overall lifecycle state of a job."""
 
     QUEUED = "queued"
@@ -28,7 +28,7 @@ class JobStatus(str, Enum):
     FAILED = "failed"
 
 
-class StageState(str, Enum):
+class StageState(StrEnum):
     """State of an individual stage within a job."""
 
     PENDING = "pending"

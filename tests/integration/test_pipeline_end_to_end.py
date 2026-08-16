@@ -79,7 +79,11 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
             )
             graph = build_graph(deps)
             final = graph.invoke(
-                {"job_id": job_id, "feed_url": "https://castbox.fm/channel/xyz", "options": options},
+                {
+                    "job_id": job_id,
+                    "feed_url": "https://castbox.fm/channel/xyz",
+                    "options": options,
+                },
                 config={"configurable": {"thread_id": job_id}},
             )
 
@@ -92,7 +96,11 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
     # Every stage completed.
     job = repo.get_job(job_id)
     states = {s.stage: s.state for s in job.stages}
-    for stage in ["resolve", "download", "transcribe", "summarize", "arc", "script", "tts", "assemble"]:
+    expected_stages = [
+        "resolve", "download", "transcribe", "summarize",
+        "arc", "script", "tts", "assemble",
+    ]
+    for stage in expected_stages:
         assert states.get(stage) == "done", f"stage {stage} was {states.get(stage)}"
 
     # Output artifact attached; both episodes were transcribed and summarized.

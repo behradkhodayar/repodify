@@ -25,7 +25,7 @@ def build_graph(deps: Deps, checkpointer=None):
         graph.add_node(name, nodes[name])
 
     graph.add_edge(START, _ORDER[0])
-    for src, dst in zip(_ORDER, _ORDER[1:]):
+    for src, dst in zip(_ORDER, _ORDER[1:], strict=False):
         graph.add_edge(src, dst)
     graph.add_edge(_ORDER[-1], END)
 

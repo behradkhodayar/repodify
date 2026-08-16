@@ -53,9 +53,9 @@ The default test suite runs entirely on CPU with no network — STT/LLM/TTS are 
 ## Run the service (fake mode)
 
 ```bash
-docker compose up -d              # Redis (+ Postgres)
-uvicorn podcast_compactor.api.app:app --reload   # API
-arq podcast_compactor.worker.main.WorkerSettings # worker
+docker compose up -d                                              # Redis (+ Postgres)
+uvicorn --factory podcast_compactor.api.app:build_default_app     # API
+arq podcast_compactor.worker.main.WorkerSettings                  # worker
 ```
 
 Then:

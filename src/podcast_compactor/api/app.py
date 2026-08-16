@@ -1,0 +1,139 @@
+"""FastAPI application factory.
+
+`create_app` takes its collaborators as arguments so tests can inject fakes and
+the worker/composition root can inject real ones.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+
+import httpx
+from fastapi import FastAPI, HTTPException
+
+from podcast_compactor.api.schemas import (
+    CreateJobRequest,
+    CreateJobResponse,
+    EpisodeOut,
+    JobStatusResponse,
+    ResolveRequest,
+    ResolveResponse,
+    ResultResponse,
+    StageOut,
+)
+from podcast_compactor.config import get_settings
+from podcast_compactor.ingest.feed import parse_feed
+from podcast_compactor.ingest.resolvers import resolve
+from podcast_compactor.models.domain import JobOptions
+from podcast_compactor.models.enums import JobStatus
+from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
+from podcast_compactor.persistence.repo import JobRepository
+
+ResolveFn = Callable[[str, httpx.Client], str]
+EnqueueFn = Callable[[str], None]
+
+
+def create_app(
+    repo: JobRepository,
+    resolve_fn: ResolveFn,
+    http: httpx.Client,
+    enqueue: EnqueueFn,
+) -> FastAPI:
+    app = FastAPI(title="Podcast Compactor")
+
+    @app.post("/feeds/resolve", response_model=ResolveResponse)
+    def resolve_feed(req: ResolveRequest) -> ResolveResponse:
+        rss_url = resolve_fn(req.url, http)
+        resp = http.get(rss_url, follow_redirects=True)
+        resp.raise_for_status()
+        feed = parse_feed(req.url, rss_url, resp.content)
+        return ResolveResponse(
+            feed_title=feed.title,
+            rss_url=feed.rss_url,
+            episodes=[EpisodeOut(**e.model_dump()) for e in feed.episodes],
+        )
+
+    @app.post("/jobs", response_model=CreateJobResponse)
+    def create_job(req: CreateJobRequest) -> CreateJobResponse:
+        options = JobOptions(
+            episode_ids=req.episode_ids,
+            host_count=req.host_count,
+            clone=req.clone,
+            target_minutes=req.target_minutes,
+        )
+        job_id = repo.create_job(req.feed_url, options)
+        enqueue(job_id)
+        return CreateJobResponse(job_id=job_id)
+
+    @app.get("/jobs/{job_id}", response_model=JobStatusResponse)
+    def get_status(job_id: str) -> JobStatusResponse:
+        try:
+            job = repo.get_job(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+        return JobStatusResponse(
+            id=job.id,
+            status=job.status,
+            current_stage=job.current_stage,
+            stages=[
+                StageOut(
+                    stage=s.stage,
+                    state=s.state,
+                    detail=s.detail,
+                    started_at=s.started_at,
+                    finished_at=s.finished_at,
+                )
+                for s in job.stages
+            ],
+            report=json.loads(job.report_json or "{}"),
+        )
+
+    @app.get("/jobs/{job_id}/result", response_model=ResultResponse)
+    def get_result(job_id: str) -> ResultResponse:
+        try:
+            job = repo.get_job(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+        if job.status != JobStatus.COMPLETED.value:
+            raise HTTPException(status_code=404, detail="result not ready")
+
+        audio = next((a for a in job.artifacts if a.kind == "output_audio"), None)
+        if audio is None:
+            raise HTTPException(status_code=404, detail="no output audio")
+        report = json.loads(job.report_json or "{}")
+        show_notes = report.get("show_notes") or {}
+        return ResultResponse(
+            output_audio_uri=audio.uri,
+            summary=show_notes.get("summary", ""),
+            chapters=show_notes.get("chapters", []),
+        )
+
+    return app
+
+
+def _arq_enqueue(job_id: str) -> None:
+    """Enqueue a job onto arq/Redis. Opens a short-lived pool per call."""
+    import asyncio
+
+    from arq import create_pool
+    from arq.connections import RedisSettings
+
+    async def _go() -> None:
+        pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
+        try:
+            await pool.enqueue_job("run_job", job_id)
+        finally:
+            await pool.aclose()
+
+    asyncio.run(_go())
+
+
+def build_default_app() -> FastAPI:
+    """Composition root for the API. Use with `uvicorn ... --factory`."""
+    settings = get_settings()
+    engine = make_engine(settings.database_url)
+    init_db(engine)
+    repo = JobRepository(session_factory(engine))
+    http = httpx.Client(timeout=60.0)
+    return create_app(repo, resolve, http, _arq_enqueue)

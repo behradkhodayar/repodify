@@ -1,7 +1,7 @@
 import io
 import wave
 
-from podcast_compactor.ports.tts import SAMPLE_RATE, FakeTTS, Voice, TTS
+from podcast_compactor.ports.tts import SAMPLE_RATE, TTS, FakeTTS, Voice
 
 
 def test_fake_tts_returns_valid_wav():

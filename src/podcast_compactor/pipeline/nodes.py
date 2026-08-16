@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from podcast_compactor.ingest.download import DownloadError, audio_key, download_episode
 from podcast_compactor.ingest.feed import parse_feed

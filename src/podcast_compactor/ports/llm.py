@@ -49,3 +49,38 @@ class FakeStructuredLLM:
         if not self._responses:
             raise RuntimeError("FakeStructuredLLM ran out of queued responses")
         return self._responses.pop(0)  # type: ignore[return-value]
+
+
+class LocalStubLLM:
+    """Fake backend for running the app without an API key.
+
+    Unlike `FakeStructuredLLM`, it fabricates a valid, non-empty instance of any
+    supported schema on demand, so the whole pipeline can run in fake mode over
+    an arbitrary number of episodes. Output is placeholder text, not a real
+    summary.
+    """
+
+    def generate(self, system: str, user: str, schema: type[T]) -> T:
+        from podcast_compactor.models.domain import (
+            ArcBeat,
+            ArcOutline,
+            EpisodeSummary,
+            Script,
+            ScriptSegment,
+        )
+
+        excerpt = " ".join(user.split()[:40])
+        if schema is EpisodeSummary:
+            return EpisodeSummary(key_points=[excerpt or "placeholder"])  # type: ignore[return-value]
+        if schema is ArcOutline:
+            return ArcOutline(  # type: ignore[return-value]
+                title="Fake-mode Digest",
+                throughline="A placeholder chronological digest generated in fake mode.",
+                beats=[ArcBeat(heading="Overview", episode_guids=[], narrative=excerpt)],
+            )
+        if schema is Script:
+            line = "This is a placeholder digest generated in fake mode. "
+            return Script(  # type: ignore[return-value]
+                segments=[ScriptSegment(speaker="narrator", text=line * 20)]
+            )
+        return schema()  # best-effort for unknown schemas
