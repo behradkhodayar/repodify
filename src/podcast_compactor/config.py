@@ -1,0 +1,43 @@
+"""Application settings, driven by environment variables (see .env.example)."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Runtime configuration. Every value can be overridden via env vars."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Secrets / connections
+    anthropic_api_key: str | None = None
+    database_url: str = "sqlite:///./data/app.db"
+    redis_url: str = "redis://localhost:6379"
+
+    # Storage
+    data_dir: Path = Path("data")
+
+    # Dependency selection: fakes keep the app runnable without GPU/network.
+    use_fakes: bool = True
+
+    # Models
+    whisper_model: str = "large-v3"
+    map_model: str = "claude-haiku-4-5-20251001"
+    reduce_model: str = "claude-opus-4-8"
+
+    # Scripting
+    wpm: int = 130
+
+    # Bundled default narrator voice (F5-TTS needs a reference clip + its text).
+    narrator_ref_audio: Path | None = None
+    narrator_ref_text: str | None = None
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return a cached Settings instance."""
+    return Settings()

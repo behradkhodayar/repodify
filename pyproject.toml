@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "podcast-compactor"
+version = "0.1.0"
+description = "Turn a podcast into a ~30-minute chronological digest episode."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "arq>=0.25",
+    "sqlalchemy>=2.0",
+    "langgraph>=0.2",
+    "langchain-anthropic>=0.2",
+    "langchain-core>=0.3",
+    "feedparser>=6.0",
+    "httpx>=0.27",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "respx>=0.21",
+    "ruff>=0.4",
+]
+gpu = [
+    "torch",
+    "faster-whisper",
+    "f5-tts",
+    "pyannote.audio",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra --import-mode=importlib"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
