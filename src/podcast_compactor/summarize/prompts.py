@@ -65,3 +65,31 @@ Through-line: {throughline}
 Beats:
 {beats}
 """
+
+SCRIPT_DIALOGUE_SYSTEM = (
+    "You are a scriptwriter for a two-host conversational podcast digest. Two "
+    "co-hosts talk through a narrative arc together: they hand off naturally, "
+    "react to each other, and build on each other's points. Write for the ear — "
+    "clear, warm, chronological. No headings, stage directions, or bullet points "
+    "in the spoken text."
+)
+
+SCRIPT_DIALOGUE_USER = """\
+Write a two-host dialogue script for a digest episode of about {target_minutes}
+minutes. Aim for roughly {word_budget} spoken words total (a target, not a hard
+limit).
+
+There are exactly two speakers. Label every segment's speaker as either
+"host_a" or "host_b" (use those exact strings). Alternate turns naturally so it
+reads as a real conversation, and make sure both hosts speak. Walk the listener
+through the arc in chronological order, making clear how things developed from
+the earliest episode onward. Produce the script as an ordered list of segments;
+each segment has a speaker ("host_a" or "host_b") and the spoken text.
+
+Narrative arc:
+Title: {title}
+Through-line: {throughline}
+
+Beats:
+{beats}
+"""

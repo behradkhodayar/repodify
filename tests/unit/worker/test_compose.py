@@ -18,6 +18,6 @@ def test_build_deps_uses_fakes_in_fake_mode(tmp_path):
         assert isinstance(deps.tts, FakeTTS)
         assert isinstance(deps.llm_map, LocalStubLLM)
         assert isinstance(deps.llm_reduce, LocalStubLLM)
-        assert "narrator" in deps.voices
+        assert {"narrator", "host_a", "host_b"} <= set(deps.voices)
     finally:
         deps.http.close()
