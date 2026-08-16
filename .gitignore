@@ -32,9 +32,9 @@ outputs/
 *.wav
 *.m4a
 
-# Model caches
+# Model caches (downloaded checkpoints live at the repo root)
 .cache/
-models/
+/models/
 *.ckpt
 *.safetensors
 
