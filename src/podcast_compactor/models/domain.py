@@ -116,6 +116,8 @@ class ShowNotes(BaseModel):
 
     summary: str
     chapters: list[Chapter] = Field(default_factory=list)
+    synthetic: bool = False
+    disclaimer: str | None = None
 
 
 class JobOptions(BaseModel):

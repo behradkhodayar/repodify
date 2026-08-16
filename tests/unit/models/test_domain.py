@@ -3,6 +3,7 @@ import pytest
 from podcast_compactor.models.domain import (
     Script,
     ScriptSegment,
+    ShowNotes,
     Transcript,
     TranscriptSegment,
 )
@@ -35,6 +36,16 @@ def test_script_word_count_and_minutes():
 def test_estimated_minutes_rejects_nonpositive_wpm():
     with pytest.raises(ValueError):
         Script(segments=[]).estimated_minutes(0)
+
+
+def test_show_notes_synthetic_fields():
+    plain = ShowNotes(summary="s")
+    assert plain.synthetic is False
+    assert plain.disclaimer is None
+
+    labeled = ShowNotes(summary="s", synthetic=True, disclaimer="AI voices")
+    assert labeled.synthetic is True
+    assert labeled.disclaimer == "AI voices"
 
 
 def test_enums_have_expected_members():
