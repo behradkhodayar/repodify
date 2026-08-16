@@ -179,10 +179,18 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 f"{job_id}/output/show_notes.json",
                 notes.model_dump_json(indent=2).encode(),
             )
+            deps.storage.put_bytes(
+                f"{job_id}/output/script.json",
+                script.model_dump_json(indent=2).encode(),
+            )
             repo.add_artifact(job_id, "output_audio", output_uri)
             repo.add_artifact(
                 job_id, "show_notes",
                 deps.storage.local_path(f"{job_id}/output/show_notes.json").as_uri(),
+            )
+            repo.add_artifact(
+                job_id, "script",
+                deps.storage.local_path(f"{job_id}/output/script.json").as_uri(),
             )
             repo.finish_stage(job_id, StageName.ASSEMBLE, StageState.DONE)
         except Exception as exc:
