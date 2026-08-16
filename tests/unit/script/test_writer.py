@@ -32,7 +32,48 @@ def test_write_script_rejects_empty_result():
         write_script(_arc(), llm, target_minutes=30, wpm=130)
 
 
-def test_write_script_rejects_multi_host_in_phase_1():
-    llm = FakeStructuredLLM([Script(segments=[ScriptSegment(speaker="a", text="hi")])])
-    with pytest.raises(NotImplementedError):
+def test_write_script_two_hosts_uses_dialogue_and_keeps_speakers():
+    returned = Script(
+        segments=[
+            ScriptSegment(speaker="host_a", text="one two three"),
+            ScriptSegment(speaker="host_b", text="four five six"),
+        ]
+    )
+    llm = FakeStructuredLLM([returned])
+
+    script = write_script(_arc(), llm, target_minutes=30, wpm=130, host_count=2)
+
+    assert {s.speaker for s in script.segments} == {"host_a", "host_b"}
+    _system, user, schema = llm.calls[0]
+    assert schema is Script
+    assert "host_a" in user and "host_b" in user
+    assert "3900" in user
+
+
+def test_write_script_two_hosts_rejects_bad_speaker():
+    llm = FakeStructuredLLM(
+        [
+            Script(
+                segments=[
+                    ScriptSegment(speaker="narrator", text="hi there friend"),
+                    ScriptSegment(speaker="host_b", text="hello back to you"),
+                ]
+            )
+        ]
+    )
+    with pytest.raises(ValueError):
         write_script(_arc(), llm, target_minutes=30, wpm=130, host_count=2)
+
+
+def test_write_script_two_hosts_requires_both_hosts():
+    llm = FakeStructuredLLM(
+        [Script(segments=[ScriptSegment(speaker="host_a", text="only me talking")])]
+    )
+    with pytest.raises(ValueError):
+        write_script(_arc(), llm, target_minutes=30, wpm=130, host_count=2)
+
+
+def test_write_script_rejects_three_hosts():
+    llm = FakeStructuredLLM([Script(segments=[ScriptSegment(speaker="host_a", text="hi")])])
+    with pytest.raises(NotImplementedError):
+        write_script(_arc(), llm, target_minutes=30, wpm=130, host_count=3)
