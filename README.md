@@ -85,6 +85,26 @@ reference voice via `HOST_A_REF_AUDIO`/`HOST_A_REF_TEXT` and
 `HOST_B_REF_AUDIO`/`HOST_B_REF_TEXT` (see `.env.example`); fake mode needs no
 assets.
 
+### Local LLM via Ollama (no Anthropic key)
+
+The summarize/script stages default to the Claude API, but you can point them at
+a local [Ollama](https://ollama.com) model instead — useful when you have a GPU
+but no `ANTHROPIC_API_KEY`. Real STT/TTS are unaffected.
+
+```bash
+ollama pull qwen2.5-coder:7b        # or any model you prefer
+# in .env:
+#   USE_FAKES=false
+#   LLM_BACKEND=ollama
+#   OLLAMA_MODEL=qwen2.5-coder:7b
+#   OLLAMA_BASE_URL=http://localhost:11434
+```
+
+One model serves both the per-episode summary and the arc/script stages
+(`MAP_MODEL`/`REDUCE_MODEL` are ignored on Ollama). Small code-specialized models
+produce valid output but weaker narratives than Claude; a general instruct model
+of 7B+ summarizes better.
+
 ### Voice cloning (opt-in)
 
 Set `"clone": true` on a job to synthesize the digest in the **cloned voices of
