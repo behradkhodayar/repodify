@@ -15,9 +15,27 @@ from podcast_compactor.persistence.engine import init_db, make_engine, session_f
 from podcast_compactor.persistence.repo import JobRepository
 from podcast_compactor.pipeline.graph import build_graph
 from podcast_compactor.pipeline.state import Deps
+from podcast_compactor.ports.llm import StructuredLLM
 from podcast_compactor.ports.tts import FakeTTS, Voice
 
 logger = logging.getLogger(__name__)
+
+
+def _build_real_llms(settings: Settings) -> tuple[StructuredLLM, StructuredLLM]:
+    """Return (llm_map, llm_reduce) for the real path per settings.llm_backend."""
+    if settings.llm_backend == "ollama":
+        from podcast_compactor.ports.llm import OllamaStructuredLLM
+
+        llm = OllamaStructuredLLM(settings.ollama_model, settings.ollama_base_url)
+        return llm, llm  # one local model serves both map and reduce
+    from podcast_compactor.ports.llm import AnthropicStructuredLLM
+
+    if not settings.anthropic_api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is required when LLM_BACKEND=anthropic")
+    return (
+        AnthropicStructuredLLM(settings.map_model, settings.anthropic_api_key),
+        AnthropicStructuredLLM(settings.reduce_model, settings.anthropic_api_key),
+    )
 
 
 def build_deps(settings: Settings) -> Deps:
@@ -51,17 +69,13 @@ def build_deps(settings: Settings) -> Deps:
         voice_cloner = FakeVoiceCloner()
         watermarker = FakeWatermarker()
     else:
-        from podcast_compactor.ports.llm import AnthropicStructuredLLM
         from podcast_compactor.synth.cloning import PyannoteVoiceCloner
         from podcast_compactor.synth.f5_tts import F5TTS
         from podcast_compactor.synth.watermark import AudioSealWatermarker
         from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
 
-        if not settings.anthropic_api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY is required when USE_FAKES=false")
         transcriber = FasterWhisperTranscriber(settings.whisper_model)
-        llm_map = AnthropicStructuredLLM(settings.map_model, settings.anthropic_api_key)
-        llm_reduce = AnthropicStructuredLLM(settings.reduce_model, settings.anthropic_api_key)
+        llm_map, llm_reduce = _build_real_llms(settings)
         tts = F5TTS()
         voices = {
             "narrator": Voice(

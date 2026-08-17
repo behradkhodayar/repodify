@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +24,12 @@ class Settings(BaseSettings):
 
     # Dependency selection: fakes keep the app runnable without GPU/network.
     use_fakes: bool = True
+
+    # LLM backend selection. "anthropic" (default) uses the Claude API and needs
+    # ANTHROPIC_API_KEY; "ollama" uses a local Ollama server and needs no key.
+    llm_backend: Literal["anthropic", "ollama"] = "anthropic"
+    ollama_model: str = "qwen2.5-coder:7b"
+    ollama_base_url: str = "http://localhost:11434"
 
     # Models
     whisper_model: str = "large-v3"

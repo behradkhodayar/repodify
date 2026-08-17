@@ -37,6 +37,22 @@ class AnthropicStructuredLLM:
         return result  # type: ignore[return-value]
 
 
+class OllamaStructuredLLM:
+    """Real backend: a local Ollama model via langchain-ollama structured output."""
+
+    def __init__(self, model: str, base_url: str) -> None:
+        self._model = model
+        self._base_url = base_url
+
+    def generate(self, system: str, user: str, schema: type[T]) -> T:
+        from langchain_ollama import ChatOllama  # lazy import
+
+        chat = ChatOllama(model=self._model, base_url=self._base_url)
+        structured = chat.with_structured_output(schema)
+        result = structured.invoke([("system", system), ("human", user)])
+        return result  # type: ignore[return-value]
+
+
 class FakeStructuredLLM:
     """Test backend: returns queued responses FIFO and records calls."""
 
