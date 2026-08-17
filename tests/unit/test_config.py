@@ -20,6 +20,8 @@ def test_settings_env_override(monkeypatch):
 
 def test_llm_backend_defaults_to_anthropic(monkeypatch):
     monkeypatch.delenv("LLM_BACKEND", raising=False)
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     s = Settings(_env_file=None)
     assert s.llm_backend == "anthropic"
     assert s.ollama_model == "qwen2.5-coder:7b"

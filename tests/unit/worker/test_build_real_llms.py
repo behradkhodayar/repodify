@@ -16,6 +16,10 @@ def test_ollama_backend_needs_no_api_key():
     llm_map, llm_reduce = _build_real_llms(settings)
     assert isinstance(llm_map, OllamaStructuredLLM)
     assert isinstance(llm_reduce, OllamaStructuredLLM)
+    # One local model serves both stages, wired from the ollama_* settings.
+    assert llm_map is llm_reduce
+    assert llm_map._model == "qwen2.5-coder:7b"
+    assert llm_map._base_url == "http://localhost:11434"
 
 
 def test_anthropic_backend_requires_api_key():
