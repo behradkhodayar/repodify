@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from podcast_compactor.storage.base import Storage
 from podcast_compactor.storage.filesystem import FilesystemStorage
 
@@ -27,3 +29,14 @@ def test_missing_key_not_exists(tmp_path):
 def test_satisfies_storage_protocol(tmp_path):
     store = FilesystemStorage(tmp_path)
     assert isinstance(store, Storage)
+
+
+def test_local_path_is_absolute_for_relative_root(tmp_path, monkeypatch):
+    # Regression: with a relative root (e.g. DATA_DIR=data) local_path(...) must
+    # still be absolute so callers can call `.as_uri()` — which raises on
+    # relative paths and previously failed artifact recording in the pipeline.
+    monkeypatch.chdir(tmp_path)
+    store = FilesystemStorage(Path("data"))
+    path = store.local_path("job/output/digest.wav")
+    assert path.is_absolute()
+    assert path.as_uri().startswith("file://")
