@@ -47,7 +47,10 @@ class OllamaStructuredLLM:
     def generate(self, system: str, user: str, schema: type[T]) -> T:
         from langchain_ollama import ChatOllama  # lazy import
 
-        chat = ChatOllama(model=self._model, base_url=self._base_url)
+        # keep_alive=0 tells the Ollama daemon to unload the model from VRAM as
+        # soon as the call returns, so its memory is freed before the TTS stage
+        # instead of lingering for the default 5 minutes.
+        chat = ChatOllama(model=self._model, base_url=self._base_url, keep_alive=0)
         structured = chat.with_structured_output(schema)
         result = structured.invoke([("system", system), ("human", user)])
         return result  # type: ignore[return-value]

@@ -14,6 +14,14 @@ class Transcriber(Protocol):
 
     def transcribe(self, audio_path: Path, language: str = "en") -> Transcript: ...
 
+    def release(self) -> None:
+        """Free any GPU-resident model so VRAM is available to the next stage.
+
+        Idempotent and safe to call when nothing is loaded; a real backend
+        reloads lazily on the next `transcribe`.
+        """
+        ...
+
 
 class FakeTranscriber:
     """Returns canned transcripts. Used for CPU-only tests.
@@ -31,3 +39,6 @@ class FakeTranscriber:
         if isinstance(self._canned, dict):
             return self._canned[Path(audio_path).name]
         return self._canned.model_copy(deep=True)
+
+    def release(self) -> None:
+        """No-op: the fake holds no GPU model."""

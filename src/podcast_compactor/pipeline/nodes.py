@@ -91,21 +91,28 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         # --- TRANSCRIBE ---
         repo.start_stage(job_id, StageName.TRANSCRIBE)
         transcripts: dict = {}
-        for ep in downloaded:
-            try:
-                path: Path = deps.storage.local_path(audio_key(job_id, ep))
-                transcript = deps.transcriber.transcribe(path)
-                transcripts[ep.guid] = transcript.model_copy(update={"episode_guid": ep.guid})
-            except Exception as exc:  # noqa: BLE001 - record and skip
-                report["skipped"].append(f"transcribe {ep.guid}: {exc}")
-        if not transcripts:
-            repo.finish_stage(job_id, StageName.TRANSCRIBE, StageState.FAILED)
+        try:
+            for ep in downloaded:
+                try:
+                    path: Path = deps.storage.local_path(audio_key(job_id, ep))
+                    transcript = deps.transcriber.transcribe(path)
+                    transcripts[ep.guid] = transcript.model_copy(
+                        update={"episode_guid": ep.guid}
+                    )
+                except Exception as exc:  # noqa: BLE001 - record and skip
+                    report["skipped"].append(f"transcribe {ep.guid}: {exc}")
+            if not transcripts:
+                repo.finish_stage(job_id, StageName.TRANSCRIBE, StageState.FAILED)
+                repo.set_report(job_id, report)
+                raise RuntimeError("all episodes failed to transcribe")
+            repo.finish_stage(job_id, StageName.TRANSCRIBE, StageState.DONE,
+                              detail=f"{len(transcripts)} transcribed")
             repo.set_report(job_id, report)
-            raise RuntimeError("all episodes failed to transcribe")
-        repo.finish_stage(job_id, StageName.TRANSCRIBE, StageState.DONE,
-                          detail=f"{len(transcripts)} transcribed")
-        repo.set_report(job_id, report)
-        return {"transcripts": transcripts, "report": report}
+            return {"transcripts": transcripts, "report": report}
+        finally:
+            # Free whisper's VRAM before the LLM and TTS stages; it reloads
+            # lazily if the clone path needs it again.
+            deps.transcriber.release()
 
     def summarize_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
@@ -200,6 +207,9 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         except Exception as exc:
             repo.finish_stage(job_id, StageName.TTS, StageState.FAILED, detail=str(exc))
             raise
+        finally:
+            # Free F5-TTS's VRAM once synthesis is done; assembly is CPU-only.
+            deps.tts.release()
 
         # --- ASSEMBLE ---
         repo.start_stage(job_id, StageName.ASSEMBLE)
