@@ -31,6 +31,11 @@ gpu = [
     "f5-tts",
     "pyannote.audio",
     "audioseal",
+    # CUDA 12 runtime for faster-whisper's CTranslate2 backend. A CUDA 13 PyTorch
+    # build only ships libcublas.so.13, so CTranslate2 (built for CUDA 12) can't
+    # load libcublas.so.12 without these. See transcribe/faster_whisper.py.
+    "nvidia-cublas-cu12",
+    "nvidia-cuda-runtime-cu12",
 ]
 
 [dependency-groups]
