@@ -14,7 +14,9 @@ class FilesystemStorage:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def local_path(self, key: str) -> Path:
-        return self.root / key
+        # Absolute so callers can do `local_path(...).as_uri()` — `Path.as_uri()`
+        # raises on relative paths, and `root` may be relative (e.g. DATA_DIR=data).
+        return (self.root / key).absolute()
 
     def _ensure_parent(self, key: str) -> Path:
         path = self.local_path(key)
