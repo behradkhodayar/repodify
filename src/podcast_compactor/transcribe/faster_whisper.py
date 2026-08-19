@@ -8,6 +8,7 @@ import os
 import sysconfig
 from pathlib import Path
 
+from podcast_compactor.gpu import empty_cuda_cache
 from podcast_compactor.models.domain import Transcript, TranscriptSegment
 
 
@@ -38,8 +39,10 @@ def _preload_cuda12_libs() -> None:
 class FasterWhisperTranscriber:
     """Transcribes audio with faster-whisper (CTranslate2 Whisper).
 
-    The heavy `faster_whisper` import is deferred to construction so the rest of
-    the app — and the test suite — can run without the GPU extra installed.
+    The model is loaded lazily on first `transcribe` — not at construction — so
+    wiring the pipeline costs no VRAM, and `release()` can hand that VRAM back
+    between stages. The heavy `faster_whisper` import is likewise deferred so the
+    rest of the app and the test suite run without the GPU extra installed.
     """
 
     def __init__(
@@ -48,13 +51,23 @@ class FasterWhisperTranscriber:
         device: str = "cuda",
         compute_type: str = "float16",
     ) -> None:
-        _preload_cuda12_libs()  # must run before CTranslate2 is imported below
-        from faster_whisper import WhisperModel  # lazy: needs the [gpu] extra
+        self._model_size = model_size
+        self._device = device
+        self._compute_type = compute_type
+        self._model = None
 
-        self._model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    def _ensure_model(self):
+        if self._model is None:
+            _preload_cuda12_libs()  # must run before CTranslate2 is imported below
+            from faster_whisper import WhisperModel  # lazy: needs the [gpu] extra
+
+            self._model = WhisperModel(
+                self._model_size, device=self._device, compute_type=self._compute_type
+            )
+        return self._model
 
     def transcribe(self, audio_path: Path, language: str = "en") -> Transcript:
-        segments, _info = self._model.transcribe(
+        segments, _info = self._ensure_model().transcribe(
             str(audio_path),
             language=language,
             vad_filter=True,
@@ -66,3 +79,8 @@ class FasterWhisperTranscriber:
                 for s in segments
             ],
         )
+
+    def release(self) -> None:
+        """Drop the model so its VRAM is freed; reloads lazily on next transcribe."""
+        self._model = None
+        empty_cuda_cache()

@@ -32,6 +32,14 @@ class TTS(Protocol):
 
     def synthesize(self, text: str, voice: Voice) -> bytes: ...
 
+    def release(self) -> None:
+        """Free any GPU-resident model so VRAM is available to the next stage.
+
+        Idempotent and safe to call when nothing is loaded; a real backend
+        reloads lazily on the next `synthesize`.
+        """
+        ...
+
 
 class FakeTTS:
     """Returns valid silent WAV whose duration tracks the word count.
@@ -41,6 +49,9 @@ class FakeTTS:
 
     def __init__(self, sample_rate: int = SAMPLE_RATE) -> None:
         self.sample_rate = sample_rate
+
+    def release(self) -> None:
+        """No-op: the fake holds no GPU model."""
 
     def synthesize(self, text: str, voice: Voice) -> bytes:
         words = max(1, len(text.split()))

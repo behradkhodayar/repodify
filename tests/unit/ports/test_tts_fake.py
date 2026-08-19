@@ -24,3 +24,11 @@ def test_fake_tts_duration_tracks_word_count():
 
 def test_fake_satisfies_protocol():
     assert isinstance(FakeTTS(), TTS)
+
+
+def test_fake_release_is_noop_and_keeps_working():
+    fake = FakeTTS()
+    assert fake.release() is None
+    # Releasing a fake frees nothing; it stays usable afterwards.
+    data = fake.synthesize("one two three", Voice(name="narrator"))
+    assert len(data) > 0
