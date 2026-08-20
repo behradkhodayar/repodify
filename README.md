@@ -142,6 +142,21 @@ curl -s -X POST localhost:8000/jobs \
 Only clone voices you have the right to use — respect right-of-publicity and each
 platform's terms.
 
+## Web client (PWA)
+
+A React + Vite PWA lives in `web/` and is served same-origin by the API at `/app`.
+
+```bash
+cd web && npm install          # once
+npm run dev                    # dev server on :5173, proxies API calls to :8000
+npm run build                  # emit web/dist/, which the API serves at /app
+npm test                       # Vitest + MSW component/hook tests
+```
+
+With `web/dist` built, open the app at `http://localhost:8000/app/` (or use the
+Vite dev server during development). Set the token in **Settings** if the API is
+protected by `API_TOKEN`.
+
 ## Status
 
 Phases 1 (single-narrator digest), 2 (two-host dialogue), and 3 (opt-in,
