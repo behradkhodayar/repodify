@@ -65,8 +65,10 @@ def test_pipeline_releases_transcriber_and_tts(tmp_path, sample_feed_xml, repo):
         throughline="How the show evolved.",
         beats=[ArcBeat(heading="Beginnings", episode_guids=["ep-1"], narrative="It started.")],
     )
+    # Long enough (>= target_minutes * wpm words) that the writer accepts it in
+    # one pass instead of retrying for expansion and draining the fake's queue.
     script = Script(
-        segments=[ScriptSegment(speaker="narrator", text="welcome to the digest of the show")]
+        segments=[ScriptSegment(speaker="narrator", text=" ".join(["word"] * 200))]
     )
     llm_reduce = FakeStructuredLLM([arc, script])
 
