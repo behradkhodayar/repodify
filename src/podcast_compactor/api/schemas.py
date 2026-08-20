@@ -60,6 +60,20 @@ class ChapterOut(BaseModel):
 
 
 class ResultResponse(BaseModel):
-    output_audio_uri: str
+    audio_mp3_url: str
+    audio_wav_url: str
     summary: str
     chapters: list[ChapterOut]
+
+
+class JobSummaryOut(BaseModel):
+    id: str
+    status: str
+    current_stage: str | None = None
+    target_minutes: int
+    created_at: datetime
+
+
+class JobListResponse(BaseModel):
+    jobs: list[JobSummaryOut]
+    total: int
