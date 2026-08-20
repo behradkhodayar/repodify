@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from podcast_compactor.models.db import Artifact, Job, StageStatus, _now
@@ -39,6 +39,22 @@ class JobRepository:
             _ = list(job.stages), list(job.artifacts)
             s.expunge_all()
             return job
+
+    def list_jobs(self, limit: int = 50, offset: int = 0) -> tuple[list[Job], int]:
+        with self._sf() as s:
+            total = s.scalar(select(func.count()).select_from(Job)) or 0
+            rows = list(
+                s.scalars(
+                    select(Job)
+                    .order_by(Job.created_at.desc(), Job.id.desc())
+                    .limit(limit)
+                    .offset(offset)
+                ).all()
+            )
+            for job in rows:
+                _ = list(job.stages), list(job.artifacts)
+            s.expunge_all()
+            return rows, total
 
     def set_status(self, job_id: str, status: JobStatus) -> None:
         with self._sf() as s:

@@ -10,25 +10,32 @@ import json
 from collections.abc import Callable
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
+from podcast_compactor.api.audio import audio_response
+from podcast_compactor.api.auth import make_require_token
 from podcast_compactor.api.schemas import (
     CreateJobRequest,
     CreateJobResponse,
     EpisodeOut,
+    JobListResponse,
     JobStatusResponse,
+    JobSummaryOut,
     ResolveRequest,
     ResolveResponse,
     ResultResponse,
     StageOut,
 )
-from podcast_compactor.config import get_settings
+from podcast_compactor.config import Settings, get_settings
 from podcast_compactor.ingest.feed import parse_feed
 from podcast_compactor.ingest.resolvers import resolve
 from podcast_compactor.models.domain import JobOptions
 from podcast_compactor.models.enums import JobStatus
 from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
 from podcast_compactor.persistence.repo import JobRepository
+from podcast_compactor.storage.base import Storage
+from podcast_compactor.storage.filesystem import FilesystemStorage
 
 ResolveFn = Callable[[str, httpx.Client], str]
 EnqueueFn = Callable[[str], None]
@@ -39,14 +46,31 @@ def create_app(
     resolve_fn: ResolveFn,
     http: httpx.Client,
     enqueue: EnqueueFn,
+    storage: Storage,
+    settings: Settings,
 ) -> FastAPI:
     app = FastAPI(title="Podcast Compactor")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allow_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    @app.post("/feeds/resolve", response_model=ResolveResponse)
+    @app.get("/health")
+    def health() -> dict:
+        return {"status": "ok"}
+
+    router = APIRouter(dependencies=[Depends(make_require_token(settings.api_token))])
+
+    @router.post("/feeds/resolve", response_model=ResolveResponse)
     def resolve_feed(req: ResolveRequest) -> ResolveResponse:
-        rss_url = resolve_fn(req.url, http)
-        resp = http.get(rss_url, follow_redirects=True)
-        resp.raise_for_status()
+        try:
+            rss_url = resolve_fn(req.url, http)
+            resp = http.get(rss_url, follow_redirects=True)
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"feed fetch failed: {exc}") from exc
         feed = parse_feed(req.url, rss_url, resp.content)
         return ResolveResponse(
             feed_title=feed.title,
@@ -54,7 +78,7 @@ def create_app(
             episodes=[EpisodeOut(**e.model_dump()) for e in feed.episodes],
         )
 
-    @app.post("/jobs", response_model=CreateJobResponse)
+    @router.post("/jobs", response_model=CreateJobResponse)
     def create_job(req: CreateJobRequest) -> CreateJobResponse:
         options = JobOptions(
             episode_ids=req.episode_ids,
@@ -66,7 +90,24 @@ def create_app(
         enqueue(job_id)
         return CreateJobResponse(job_id=job_id)
 
-    @app.get("/jobs/{job_id}", response_model=JobStatusResponse)
+    @router.get("/jobs", response_model=JobListResponse)
+    def list_jobs(limit: int = 50, offset: int = 0) -> JobListResponse:
+        jobs, total = repo.list_jobs(limit=limit, offset=offset)
+        return JobListResponse(
+            jobs=[
+                JobSummaryOut(
+                    id=j.id,
+                    status=j.status,
+                    current_stage=j.current_stage,
+                    target_minutes=JobOptions.model_validate_json(j.options_json).target_minutes,
+                    created_at=j.created_at,
+                )
+                for j in jobs
+            ],
+            total=total,
+        )
+
+    @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
     def get_status(job_id: str) -> JobStatusResponse:
         try:
             job = repo.get_job(job_id)
@@ -89,27 +130,35 @@ def create_app(
             report=json.loads(job.report_json or "{}"),
         )
 
-    @app.get("/jobs/{job_id}/result", response_model=ResultResponse)
+    @router.get("/jobs/{job_id}/result", response_model=ResultResponse)
     def get_result(job_id: str) -> ResultResponse:
-        try:
-            job = repo.get_job(job_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="job not found") from exc
-        if job.status != JobStatus.COMPLETED.value:
-            raise HTTPException(status_code=404, detail="result not ready")
-
-        audio = next((a for a in job.artifacts if a.kind == "output_audio"), None)
-        if audio is None:
-            raise HTTPException(status_code=404, detail="no output audio")
+        job = _require_completed(repo, job_id)
         report = json.loads(job.report_json or "{}")
         show_notes = report.get("show_notes") or {}
         return ResultResponse(
-            output_audio_uri=audio.uri,
+            audio_mp3_url=f"/jobs/{job_id}/audio?format=mp3",
+            audio_wav_url=f"/jobs/{job_id}/audio?format=wav",
             summary=show_notes.get("summary", ""),
             chapters=show_notes.get("chapters", []),
         )
 
+    @router.get("/jobs/{job_id}/audio")
+    def get_audio(job_id: str, format: str = "mp3"):
+        _require_completed(repo, job_id)
+        return audio_response(storage, job_id, format)
+
+    app.include_router(router)
     return app
+
+
+def _require_completed(repo: JobRepository, job_id: str):
+    try:
+        job = repo.get_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="job not found") from exc
+    if job.status != JobStatus.COMPLETED.value:
+        raise HTTPException(status_code=409, detail="job not complete")
+    return job
 
 
 def _arq_enqueue(job_id: str) -> None:
@@ -136,4 +185,5 @@ def build_default_app() -> FastAPI:
     init_db(engine)
     repo = JobRepository(session_factory(engine))
     http = httpx.Client(timeout=60.0)
-    return create_app(repo, resolve, http, _arq_enqueue)
+    storage = FilesystemStorage(settings.data_dir)
+    return create_app(repo, resolve, http, _arq_enqueue, storage, settings)

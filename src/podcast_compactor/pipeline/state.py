@@ -20,6 +20,7 @@ from podcast_compactor.models.domain import (
 )
 from podcast_compactor.persistence.repo import JobRepository
 from podcast_compactor.ports.llm import StructuredLLM
+from podcast_compactor.ports.transcoder import Transcoder
 from podcast_compactor.ports.transcriber import Transcriber
 from podcast_compactor.ports.tts import TTS, Voice
 from podcast_compactor.ports.voice_cloner import VoiceCloner
@@ -59,4 +60,5 @@ class Deps:
     watermarker: Watermarker
     repo: JobRepository
     settings: Settings
+    transcoder: Transcoder
     intro_outro: dict[str, bytes] = field(default_factory=dict)

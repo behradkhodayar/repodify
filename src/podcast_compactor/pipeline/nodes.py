@@ -218,6 +218,10 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             if options.clone:
                 wav = deps.watermarker.embed(wav)
             output_uri = deps.storage.put_bytes(f"{job_id}/output/digest.wav", wav)
+            mp3_path = deps.storage.local_path(f"{job_id}/output/digest.mp3")
+            deps.transcoder.to_mp3(
+                deps.storage.local_path(f"{job_id}/output/digest.wav"), mp3_path
+            )
             notes = build_show_notes(
                 arc, script, segments,
                 synthetic=options.clone,
@@ -232,6 +236,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 script.model_dump_json(indent=2).encode(),
             )
             repo.add_artifact(job_id, "output_audio", output_uri)
+            repo.add_artifact(job_id, "output_audio_mp3", mp3_path.as_uri())
             repo.add_artifact(
                 job_id, "show_notes",
                 deps.storage.local_path(f"{job_id}/output/show_notes.json").as_uri(),

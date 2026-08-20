@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     )
     hf_token: str | None = None  # Hugging Face token for pyannote diarization
 
+    # HTTP API
+    api_token: str | None = None  # when set, all endpoints except /health require it
+    cors_allow_origins: list[str] = ["*"]
+
 
 @lru_cache
 def get_settings() -> Settings:
