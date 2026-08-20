@@ -18,6 +18,7 @@ from podcast_compactor.models.domain import (
 from podcast_compactor.pipeline.graph import build_graph
 from podcast_compactor.pipeline.state import Deps
 from podcast_compactor.ports.llm import FakeStructuredLLM
+from podcast_compactor.ports.transcoder import FakeTranscoder
 from podcast_compactor.ports.transcriber import FakeTranscriber
 from podcast_compactor.ports.tts import FakeTTS, Voice
 from podcast_compactor.ports.voice_cloner import FakeVoiceCloner
@@ -74,6 +75,7 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
                 http=http,
                 storage=storage,
                 transcriber=transcriber,
+                transcoder=FakeTranscoder(),
                 llm_map=llm_map,
                 llm_reduce=llm_reduce,
                 tts=FakeTTS(),
@@ -112,6 +114,8 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
     # Output artifact attached; both episodes were transcribed and summarized.
     kinds = {a.kind for a in job.artifacts}
     assert "output_audio" in kinds
+    assert "output_audio_mp3" in kinds
     assert "show_notes" in kinds
+    assert storage.get_bytes(f"{job_id}/output/digest.mp3")  # non-empty mp3 written
     assert transcriber.calls  # transcriber was actually invoked
     assert len(llm_map.calls) == 2

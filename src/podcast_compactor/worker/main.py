@@ -48,6 +48,7 @@ def build_deps(settings: Settings) -> Deps:
 
     if settings.use_fakes:
         from podcast_compactor.ports.llm import LocalStubLLM
+        from podcast_compactor.ports.transcoder import FakeTranscoder
         from podcast_compactor.ports.transcriber import FakeTranscriber
         from podcast_compactor.ports.voice_cloner import FakeVoiceCloner
         from podcast_compactor.ports.watermarker import FakeWatermarker
@@ -68,9 +69,11 @@ def build_deps(settings: Settings) -> Deps:
         }
         voice_cloner = FakeVoiceCloner()
         watermarker = FakeWatermarker()
+        transcoder = FakeTranscoder()
     else:
         from podcast_compactor.synth.cloning import PyannoteVoiceCloner
         from podcast_compactor.synth.f5_tts import F5TTS
+        from podcast_compactor.synth.transcode import FfmpegTranscoder
         from podcast_compactor.synth.watermark import AudioSealWatermarker
         from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
 
@@ -96,6 +99,7 @@ def build_deps(settings: Settings) -> Deps:
         }
         voice_cloner = PyannoteVoiceCloner(transcriber, settings.hf_token)
         watermarker = AudioSealWatermarker()
+        transcoder = FfmpegTranscoder()
 
     return Deps(
         resolver_resolve=resolve,
@@ -110,6 +114,7 @@ def build_deps(settings: Settings) -> Deps:
         watermarker=watermarker,
         repo=repo,
         settings=settings,
+        transcoder=transcoder,
     )
 
 
