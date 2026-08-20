@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 
 from podcast_compactor.api.audio import audio_response
 from podcast_compactor.api.auth import make_require_token
@@ -48,6 +50,7 @@ def create_app(
     enqueue: EnqueueFn,
     storage: Storage,
     settings: Settings,
+    static_dir: Path | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Podcast Compactor")
     app.add_middleware(
@@ -148,6 +151,21 @@ def create_app(
         return audio_response(storage, job_id, format)
 
     app.include_router(router)
+
+    if static_dir is not None and Path(static_dir).is_dir():
+        index = Path(static_dir) / "index.html"
+
+        @app.get("/")
+        def _root() -> RedirectResponse:
+            return RedirectResponse(url="/app/")
+
+        @app.get("/app/{path:path}")
+        def _spa(path: str) -> FileResponse:
+            candidate = Path(static_dir) / path
+            if path and candidate.is_file():
+                return FileResponse(candidate)
+            return FileResponse(index)  # SPA client-side routing fallback
+
     return app
 
 
@@ -186,4 +204,8 @@ def build_default_app() -> FastAPI:
     repo = JobRepository(session_factory(engine))
     http = httpx.Client(timeout=60.0)
     storage = FilesystemStorage(settings.data_dir)
-    return create_app(repo, resolve, http, _arq_enqueue, storage, settings)
+    static_dir = Path("web/dist")
+    return create_app(
+        repo, resolve, http, _arq_enqueue, storage, settings,
+        static_dir=static_dir if static_dir.is_dir() else None,
+    )
