@@ -66,6 +66,14 @@ Beats:
 {beats}
 """
 
+SCRIPT_EXPAND = (
+    "Your previous draft was only {words} words, well short of the "
+    "~{word_budget}-word target. Expand it substantially: develop each beat with "
+    "more detail, concrete context, and natural spoken transitions until it "
+    "reaches roughly {word_budget} words. Keep it chronological and written for "
+    "the ear; do not pad with filler or repeat yourself."
+)
+
 SCRIPT_DIALOGUE_SYSTEM = (
     "You are a scriptwriter for a two-host conversational podcast digest. Two "
     "co-hosts talk through a narrative arc together: they hand off naturally, "

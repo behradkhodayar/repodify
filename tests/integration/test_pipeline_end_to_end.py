@@ -47,10 +47,12 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
             ArcBeat(heading="Growth", episode_guids=["ep-2"], narrative="It grew."),
         ],
     )
+    # Long enough (>= target_minutes * wpm words) that the writer accepts it in
+    # one pass instead of retrying for expansion and draining the fake's queue.
     script = Script(
         segments=[
             ScriptSegment(speaker="narrator", text="welcome to the digest of the show"),
-            ScriptSegment(speaker="narrator", text="and here is how everything unfolded"),
+            ScriptSegment(speaker="narrator", text=" ".join(["word"] * 200)),
         ]
     )
     llm_reduce = FakeStructuredLLM([arc, script])
