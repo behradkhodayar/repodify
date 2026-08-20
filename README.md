@@ -5,8 +5,9 @@ Turn a podcast — or a chosen chronological stretch of it — into a single
 and the service downloads the audio, transcribes it, summarizes it into a
 chronological narrative, writes a spoken script, and synthesizes a new episode.
 
-See the design in [`docs/superpowers/specs/`](docs/superpowers/specs/) and the
-Phase 1 build plan in [`docs/superpowers/plans/`](docs/superpowers/plans/).
+See the full [system architecture reference](docs/architecture.md), the designs
+in [`docs/superpowers/specs/`](docs/superpowers/specs/), and the build plans in
+[`docs/superpowers/plans/`](docs/superpowers/plans/).
 
 ## Architecture (Phase 1)
 
@@ -16,13 +17,16 @@ link → resolve → list episodes → [select] → download
      → summarize per episode (Claude)  ─┐ map
      → synthesize chronological arc     ─┘ reduce (Claude)
      → write ~30-min script (Claude)
-     → TTS (F5-TTS) → assemble → digest.wav + show notes
+     → TTS (F5-TTS) → assemble → digest.wav + digest.mp3 + show notes
 ```
 
 The pipeline is a LangGraph `StateGraph`. Each ML-heavy stage (STT, LLM, TTS)
 sits behind a small port with a real implementation and a test fake, so the
 whole pipeline runs on CPU in tests. A FastAPI app enqueues jobs onto arq/Redis;
-a worker runs the graph and records per-stage progress.
+a worker runs the graph and records per-stage progress. A single-user bearer
+token guards the API, which also streams the finished digest (WAV or mp3, with
+HTTP Range support) to web and mobile clients. See
+[`docs/architecture.md`](docs/architecture.md) for the full reference architecture.
 
 ## Requirements
 
@@ -31,7 +35,8 @@ a worker runs the graph and records per-stage progress.
 - For real STT/TTS: a CUDA GPU and the `[gpu]` extra (`torch`, `faster-whisper`,
   `f5-tts`, `pyannote.audio`, `audioseal`). Without it, run in **fake mode**
   (`USE_FAKES=true`).
-- `ffmpeg` on PATH (for MP3 export and reference-clip extraction).
+- `ffmpeg` on PATH — real runs transcode each digest to a compact mp3, and
+  reference-clip extraction uses it too. (Fake mode skips transcoding.)
 - Redis and (optionally) Postgres for a production-like run.
 
 ## Setup
@@ -58,7 +63,8 @@ uv run uvicorn --factory podcast_compactor.api.app:build_default_app   # API
 uv run arq podcast_compactor.worker.main.WorkerSettings                # worker
 ```
 
-Then:
+When `API_TOKEN` is set, send `-H "Authorization: Bearer $API_TOKEN"` on every
+request except `GET /health`. Then:
 
 ```bash
 # 1. Resolve a feed and list episodes
@@ -72,9 +78,16 @@ curl -s -X POST localhost:8000/jobs \
   -H 'content-type: application/json' \
   -d '{"feed_url": "https://example.com/feed.xml", "episode_ids": ["ep-1","ep-2"], "host_count": 2, "target_minutes": 30}'
 
-# 3. Track progress, then fetch the result
+# 3. Track progress, then fetch the result (audio URLs + summary + chapters)
 curl -s localhost:8000/jobs/<job_id>
 curl -s localhost:8000/jobs/<job_id>/result
+
+# 4. Stream/download the finished digest (mp3 or wav; supports HTTP Range)
+curl -s -o digest.mp3 "localhost:8000/jobs/<job_id>/audio?format=mp3"
+
+# List recent jobs; liveness probe
+curl -s "localhost:8000/jobs?limit=20"
+curl -s localhost:8000/health
 ```
 
 ### Two-host mode
