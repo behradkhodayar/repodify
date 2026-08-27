@@ -13,12 +13,24 @@ export interface ResolveResponse {
   episodes: EpisodeOut[]
 }
 
+export interface VoiceAssignment {
+  speaker_id: string
+  mode: 'clone' | 'stock'
+  stock_voice?: string | null
+  display_name?: string | null
+}
+
 export interface CreateJobRequest {
   feed_url: string
   episode_ids: string[]
   host_count?: number
   clone?: boolean
   target_minutes?: number
+  voice_assignments?: VoiceAssignment[]
+}
+
+export interface VoicesResponse {
+  stock_voices: string[]
 }
 
 export interface StageOut {

@@ -218,16 +218,17 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         repo.start_stage(job_id, StageName.TTS)
         try:
             if options.clone:
-                # Opt-in cloning: build cloned voices from the episode audio, prepend a
-                # spoken disclaimer (in a non-cloned voice), and watermark the output.
-                audio_paths = [
-                    deps.storage.local_path(audio_key(job_id, ep))
-                    for ep in state["selected"]
-                    if ep.guid in state["transcripts"]
-                ]
+                # Opt-in cloning: build cloned voices from the (speaker-labeled)
+                # transcript of the first transcribed episode, prepend a spoken
+                # disclaimer (in a non-cloned voice), and watermark the output.
+                first_ep = next(
+                    ep for ep in state["selected"] if ep.guid in state["transcripts"]
+                )
+                audio_path = deps.storage.local_path(audio_key(job_id, first_ep))
+                transcript = state["transcripts"][first_ep.guid]
                 content_speakers = sorted({seg.speaker for seg in script.segments})
                 cloned = deps.voice_cloner.clone(
-                    audio_paths, content_speakers, deps.storage, job_id
+                    audio_path, transcript, content_speakers, deps.storage, job_id
                 )
                 for key, voice in cloned.items():
                     if voice.ref_audio_path is not None:

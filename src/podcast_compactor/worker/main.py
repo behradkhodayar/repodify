@@ -73,8 +73,10 @@ def build_deps(settings: Settings) -> Deps:
         watermarker = FakeWatermarker()
         transcoder = FakeTranscoder()
     else:
-        from podcast_compactor.synth.cloning import PyannoteVoiceCloner
+        from podcast_compactor.synth.cloning import ClipVoiceCloner
         from podcast_compactor.synth.f5_tts import F5TTS
+        from podcast_compactor.synth.kokoro import KokoroTTS
+        from podcast_compactor.synth.routing_tts import RoutingTTS
         from podcast_compactor.synth.transcode import FfmpegTranscoder
         from podcast_compactor.synth.watermark import AudioSealWatermarker
         from podcast_compactor.transcribe.diarization import PyannoteDiarizer
@@ -83,7 +85,8 @@ def build_deps(settings: Settings) -> Deps:
         transcriber = FasterWhisperTranscriber(settings.whisper_model)
         diarizer = PyannoteDiarizer(settings.hf_token)
         llm_map, llm_reduce = _build_real_llms(settings)
-        tts = F5TTS()
+        # Cloned voices go to F5-TTS (zero-shot); stock catalog voices go to Kokoro.
+        tts = RoutingTTS(F5TTS(), KokoroTTS())
         voices = {
             "narrator": Voice(
                 name="narrator",
@@ -101,7 +104,7 @@ def build_deps(settings: Settings) -> Deps:
                 ref_text=settings.host_b_ref_text,
             ),
         }
-        voice_cloner = PyannoteVoiceCloner(transcriber, settings.hf_token)
+        voice_cloner = ClipVoiceCloner()
         watermarker = AudioSealWatermarker()
         transcoder = FfmpegTranscoder()
 

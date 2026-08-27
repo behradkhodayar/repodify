@@ -6,6 +6,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from podcast_compactor.models.domain import VoiceAssignment
+
 
 class ResolveRequest(BaseModel):
     url: str
@@ -32,10 +34,15 @@ class CreateJobRequest(BaseModel):
     host_count: int = 1
     clone: bool = False
     target_minutes: int = 30
+    voice_assignments: list[VoiceAssignment] = []
 
 
 class CreateJobResponse(BaseModel):
     job_id: str
+
+
+class VoicesResponse(BaseModel):
+    stock_voices: list[str]
 
 
 class StageOut(BaseModel):

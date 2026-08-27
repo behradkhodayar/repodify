@@ -28,6 +28,7 @@ from podcast_compactor.api.schemas import (
     ResolveResponse,
     ResultResponse,
     StageOut,
+    VoicesResponse,
 )
 from podcast_compactor.config import Settings, get_settings
 from podcast_compactor.ingest.feed import parse_feed
@@ -88,10 +89,17 @@ def create_app(
             host_count=req.host_count,
             clone=req.clone,
             target_minutes=req.target_minutes,
+            voice_assignments=req.voice_assignments,
         )
         job_id = repo.create_job(req.feed_url, options)
         enqueue(job_id)
         return CreateJobResponse(job_id=job_id)
+
+    @router.get("/voices", response_model=VoicesResponse)
+    def list_voices() -> VoicesResponse:
+        from podcast_compactor.synth.stock_voices import list_stock_voices
+
+        return VoicesResponse(stock_voices=list_stock_voices())
 
     @router.get("/jobs", response_model=JobListResponse)
     def list_jobs(limit: int = 50, offset: int = 0) -> JobListResponse:

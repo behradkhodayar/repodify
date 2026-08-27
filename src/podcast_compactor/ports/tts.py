@@ -14,16 +14,23 @@ _WPM = 130
 
 
 class Voice(BaseModel):
-    """A voice for synthesis.
+    """A voice for synthesis, resolved by whichever backend owns it.
 
-    F5-TTS is zero-shot: even the "default" narrator is a reference clip plus its
-    transcript. `ref_audio_path`/`ref_text` are optional here so the fake can run
-    without any assets.
+    Two kinds of voice share this shape:
+
+    - **Cloned / reference voice** (F5-TTS, zero-shot): `ref_audio_path` + `ref_text`
+      describe the clip to imitate. Even the "default" narrator is one of these.
+    - **Stock catalog voice** (Kokoro): `kokoro_voice` names a built-in voice; no
+      reference clip is needed.
+
+    All fields are optional so the fake can run without any assets. `RoutingTTS`
+    dispatches on `kokoro_voice` (set → Kokoro, unset → F5-TTS).
     """
 
     name: str
     ref_audio_path: Path | None = None
     ref_text: str | None = None
+    kokoro_voice: str | None = None
 
 
 @runtime_checkable

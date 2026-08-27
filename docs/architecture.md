@@ -134,17 +134,17 @@ flowchart TD
     SY --> END((end))
 
     subgraph D[download node]
-        d1[download episodes] --> d2[transcribe episodes]
+        d1[download episodes] --> d2[transcribe episodes] --> d3[diarize: label speakers]
     end
     subgraph SY[synth node]
         y1[TTS synthesize] --> y2[assemble WAV + transcode mp3]
     end
 ```
 
-Six graph nodes cover eight tracked **stages** (`models/enums.py:StageName`): the
-`download` node runs both `download` and `transcribe`; the `synth` node runs both
-`tts` and `assemble`. (`StageName.LIST` exists for an interactive selection step;
-today selection happens at job creation via `episode_ids`, so it is unused.)
+Six graph nodes cover nine tracked **stages** (`models/enums.py:StageName`): the
+`download` node runs `download`, `transcribe`, and `diarize`; the `synth` node runs
+both `tts` and `assemble`. (`StageName.LIST` exists for an interactive selection
+step; today selection happens at job creation via `episode_ids`, so it is unused.)
 
 Data threaded through the graph (`pipeline/state.py:PipelineState`):
 
@@ -152,6 +152,7 @@ Data threaded through the graph (`pipeline/state.py:PipelineState`):
 |---|---|---|---|
 | resolve | `feed_url`, `episode_ids` | `feed`, `selected` | resolver → RSS → parse → filter to selected |
 | download | `selected` | `transcripts` | per-episode; failures are recorded and skipped |
+| diarize | `transcripts` | `transcripts` (speaker-labeled) | who-said-what; gated on a voice feature, else skipped |
 | summarize | `transcripts` | `summaries` | LLM **map**, one `EpisodeSummary` per episode |
 | arc | `summaries` | `arc` | LLM **reduce** → one `ArcOutline` |
 | script | `arc`, `options` | `script` | LLM; retries/expands to meet the word budget |
@@ -180,9 +181,10 @@ from the pipeline logic.
 |---|---|---|---|
 | `Resolver` | `matches`, `resolve` | `Apple`/`Castbox`/`RawRss` resolvers | (registry, no fake needed) |
 | `Transcriber` (STT) | `transcribe(path) -> Transcript`, `release()` | `FasterWhisperTranscriber` (CTranslate2) | `FakeTranscriber` |
+| `Diarizer` | `diarize(path) -> [SpeakerTurn]`, `release()` | `PyannoteDiarizer` (pyannote) | `FakeDiarizer` |
 | `StructuredLLM` | `generate(system, user, schema) -> BaseModel` | `AnthropicStructuredLLM`, `OllamaStructuredLLM` | `FakeStructuredLLM`, `LocalStubLLM` |
-| `TTS` | `synthesize(text, voice) -> wav bytes`, `release()` | `F5TTS` (zero-shot) | `FakeTTS` (silent WAV sized to word count) |
-| `VoiceCloner` | `clone(audio_paths, keys, storage, job_id) -> {key: Voice}` | `PyannoteVoiceCloner` (diarization) | `FakeVoiceCloner` |
+| `TTS` | `synthesize(text, voice) -> wav bytes`, `release()` | `RoutingTTS` → `F5TTS` (cloned) / `KokoroTTS` (stock catalog) | `FakeTTS` (silent WAV sized to word count) |
+| `VoiceCloner` | `clone(audio_path, transcript, keys, storage, job_id) -> {key: Voice}` | `ClipVoiceCloner` (cuts clips from the labeled transcript) | `FakeVoiceCloner` |
 | `Watermarker` | `embed(wav) -> wav` | `AudioSealWatermarker` | `FakeWatermarker` (no-op) |
 | `Transcoder` | `to_mp3(src_wav, dst_mp3)` | `FfmpegTranscoder` (subprocess ffmpeg) | `FakeTranscoder` (stub bytes) |
 | `Storage` | `put_bytes/get_bytes/put_file/local_path/exists` | `FilesystemStorage` | (real fs under `tmp_path` in tests) |
@@ -274,10 +276,10 @@ answers `Range:` with `206 Partial Content` (seek/scrub). Result/audio URLs are
 Real runs are GPU-bound and VRAM-constrained (validated on an 8 GB RTX 4060).
 Three mechanisms keep peak VRAM to the single largest model rather than the sum:
 
-- **Lazy load + `release()` between stages.** `FasterWhisperTranscriber` and
-  `F5TTS` load on first use; the pipeline calls `release()` in `finally` blocks
-  after transcribe and after synthesis, and a shared `gpu.empty_cuda_cache()`
-  drops cached blocks.
+- **Lazy load + `release()` between stages.** `FasterWhisperTranscriber`,
+  `PyannoteDiarizer`, and the TTS backends load on first use; the pipeline calls
+  `release()` in `finally` blocks after transcribe, after diarize, and after
+  synthesis, and a shared `gpu.empty_cuda_cache()` drops cached blocks.
 - **Ollama `keep_alive=0`.** The local LLM is unloaded from VRAM as soon as a call
   returns, instead of lingering the default 5 minutes.
 - **CUDA-12 cuBLAS preload.** `FasterWhisperTranscriber` preloads the CUDA-12
@@ -296,7 +298,8 @@ narrates closer to the target length.
 |---|---|---|
 | Single narrator | default (`host_count=1`) | One `narrator` voice; all segments normalized to it. |
 | Two-host dialogue | `host_count=2` | Two speakers `host_a`/`host_b`; each needs a stock reference clip in real mode. |
-| Voice cloning | `clone=true` | Clones the original hosts' voices from the episodes via diarization. |
+| Voice cloning | `clone=true` | Diarization (DIARIZE stage) labels the transcript; `ClipVoiceCloner` cuts a reference clip per speaker for F5-TTS. |
+| Stock voices | `voice_assignments` / default | Catalog voices via Kokoro (`GET /voices`); `RoutingTTS` sends stock voices to Kokoro and cloned voices to F5-TTS. |
 
 **Cloning guardrails (always enforced, non-optional):** the output is labeled
 `synthetic: true` with a disclaimer in the show notes, a **spoken disclaimer** (in
