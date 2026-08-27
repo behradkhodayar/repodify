@@ -60,7 +60,7 @@ export interface StageOut {
 
 export interface JobStatusResponse {
   id: string
-  status: 'queued' | 'running' | 'completed' | 'failed'
+  status: 'queued' | 'running' | 'awaiting_review' | 'completed' | 'failed'
   current_stage: string | null
   stages: StageOut[]
   report: { skipped?: string[]; warnings?: string[]; show_notes?: unknown }

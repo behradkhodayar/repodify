@@ -4,6 +4,9 @@ import type {
   JobStatusResponse,
   ResolveResponse,
   ResultResponse,
+  SpeakersResponse,
+  SubmitVoicesRequest,
+  VoicesResponse,
 } from './types'
 
 export class ApiError extends Error {
@@ -48,4 +51,11 @@ export const api = {
     apiFetch<JobListResponse>(`/jobs?limit=${limit}&offset=${offset}`),
   getJob: (id: string) => apiFetch<JobStatusResponse>(`/jobs/${id}`),
   getResult: (id: string) => apiFetch<ResultResponse>(`/jobs/${id}/result`),
+  getVoices: () => apiFetch<VoicesResponse>('/voices'),
+  getSpeakers: (id: string) => apiFetch<SpeakersResponse>(`/jobs/${id}/speakers`),
+  submitVoices: (id: string, body: SubmitVoicesRequest) =>
+    apiFetch<{ job_id: string }>(`/jobs/${id}/voices`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 }

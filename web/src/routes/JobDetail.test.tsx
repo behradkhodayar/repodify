@@ -44,4 +44,30 @@ describe('JobDetail', () => {
     await waitFor(() => expect(screen.getByText('the story')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /intro/i })).toBeInTheDocument()
   })
+
+  it('shows the voice review when a job is awaiting review', async () => {
+    server.use(
+      http.get('/jobs/j2', () =>
+        HttpResponse.json({
+          id: 'j2',
+          status: 'awaiting_review',
+          current_stage: 'diarize',
+          stages: [{ stage: 'diarize', state: 'done', detail: null, started_at: null, finished_at: null }],
+          report: {},
+        }),
+      ),
+      http.get('/jobs/j2/speakers', () =>
+        HttpResponse.json({
+          status: 'awaiting_review',
+          speakers: [{ speaker_id: 'SPEAKER_00', speaking_seconds: 10, display_name: null }],
+        }),
+      ),
+      http.get('/voices', () => HttpResponse.json({ stock_voices: ['af_heart'] })),
+    )
+    renderAt('j2')
+    await waitFor(() =>
+      expect(screen.getByText(/assign a voice to each speaker/i)).toBeInTheDocument(),
+    )
+    expect(screen.getByLabelText('Voice for SPEAKER_00')).toBeInTheDocument()
+  })
 })
