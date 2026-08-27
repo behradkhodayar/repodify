@@ -7,9 +7,15 @@ it is a drop-in `TTS` that trades VRAM for a network call.
 
 Voice mapping: a reference `Voice` (``ref_audio_path`` + ``ref_text``, e.g. the
 narrator or a per-host clip) is sent as Fish Audio ``input_references`` so the
-output imitates that clip. A voice without a reference falls back to the model's
-default voice. The endpoint returns mp3; we decode it to the port's canonical
-24kHz mono 16-bit WAV via ffmpeg so segments assemble uniformly.
+output imitates that clip. A voice without a reference (stock catalog / multi-host)
+is described in natural language via ``instructions`` so distinct speakers stay
+distinguishable; a bare voice with neither uses the model's default voice. The
+endpoint returns mp3; we decode it to the port's canonical 24kHz mono 16-bit WAV
+via ffmpeg so segments assemble uniformly.
+
+Note: Fish Audio's text-style control is a soft nudge, not a hard lock — for
+guaranteed-stable, clearly distinct speakers, supply a reference clip per voice
+(HOST_*_REF_AUDIO or opt-in cloning) so the cloning path is used instead.
 """
 
 from __future__ import annotations
@@ -36,6 +42,22 @@ def _encode_reference(path: Path) -> str:
     data = Path(path).read_bytes()
     suffix = Path(path).suffix.lstrip(".").lower() or "wav"
     return f"data:audio/{suffix};base64," + base64.b64encode(data).decode()
+
+
+def _fallback_instructions(kokoro_voice: str | None) -> str | None:
+    """Derive a natural-language voice description from a Kokoro voice id.
+
+    Kokoro ids encode accent + gender in their first two letters (``a``/``b`` =
+    American/British, ``f``/``m`` = female/male), e.g. ``bm_george``. Used only
+    when a stock voice reaches this backend without an explicit `instructions`.
+    """
+    if not kokoro_voice or len(kokoro_voice) < 2:
+        return None
+    accent = {"a": "American", "b": "British"}.get(kokoro_voice[0], "")
+    gender = {"f": "female", "m": "male"}.get(kokoro_voice[1])
+    if gender is None:
+        return None
+    return f"a clear {accent} {gender} voice".replace("  ", " ").strip()
 
 
 class OpenRouterTTS:
@@ -68,6 +90,7 @@ class OpenRouterTTS:
             "response_format": "mp3",
         }
         if voice.ref_audio_path is not None:
+            # Reference clip present: zero-shot clone it via input_references.
             refs: list[dict] = [
                 {
                     "type": "input_audio",
@@ -77,6 +100,13 @@ class OpenRouterTTS:
             if voice.ref_text:
                 refs.append({"type": "text", "text": voice.ref_text})
             body["input_references"] = refs
+        else:
+            # No reference clip (stock / multi-host voice): describe the voice in
+            # natural language so distinct speakers stay distinguishable. Falls back
+            # to a generic description derived from the stock catalog voice id.
+            instructions = voice.instructions or _fallback_instructions(voice.kokoro_voice)
+            if instructions:
+                body["instructions"] = instructions
         return body
 
     def synthesize(self, text: str, voice: Voice) -> bytes:

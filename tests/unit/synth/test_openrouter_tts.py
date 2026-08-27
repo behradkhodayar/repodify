@@ -78,18 +78,64 @@ def test_reference_voice_maps_to_input_references(tmp_path: Path):
     assert any(p == {"type": "text", "text": "a transcript"} for p in refs)
 
 
-def test_default_voice_sends_no_input_references():
-    captured = {}
-
-    def _capture(request: httpx.Request) -> httpx.Response:
+def _capture_body(captured: dict):
+    def _side_effect(request: httpx.Request) -> httpx.Response:
         captured["body"] = json.loads(request.content)
         return httpx.Response(200, content=_tiny_mp3(), headers={"content-type": "audio/mpeg"})
 
+    return _side_effect
+
+
+def test_bare_voice_sends_neither_references_nor_instructions():
+    captured = {}
     tts = OpenRouterTTS(api_key="sk-test")
     with respx.mock:
-        respx.post(SPEECH_URL).mock(side_effect=_capture)
+        respx.post(SPEECH_URL).mock(side_effect=_capture_body(captured))
         tts.synthesize("Hi.", Voice(name="narrator"))
     assert "input_references" not in captured["body"]
+    assert "instructions" not in captured["body"]
+
+
+def test_stock_voice_maps_to_instructions_not_references():
+    captured = {}
+    tts = OpenRouterTTS(api_key="sk-test")
+    voice = Voice(name="am_michael", kokoro_voice="am_michael",
+                  instructions="a deep, steady American male voice")
+    with respx.mock:
+        respx.post(SPEECH_URL).mock(side_effect=_capture_body(captured))
+        tts.synthesize("Hi.", voice)
+    assert "input_references" not in captured["body"]
+    assert captured["body"]["instructions"] == "a deep, steady American male voice"
+
+
+def test_kokoro_id_without_instructions_derives_fallback_description():
+    captured = {}
+    tts = OpenRouterTTS(api_key="sk-test")
+    with respx.mock:
+        respx.post(SPEECH_URL).mock(side_effect=_capture_body(captured))
+        tts.synthesize("Hi.", Voice(name="bm_george", kokoro_voice="bm_george"))
+    instructions = captured["body"]["instructions"]
+    assert "British" in instructions and "male" in instructions
+
+
+def test_reference_voice_ignores_instructions_and_clones(tmp_path: Path):
+    """A reference clip wins over instructions: clone, don't describe."""
+    ref = tmp_path / "ref.wav"
+    with wave.open(str(ref), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(24000)
+        w.writeframes(b"\x00\x00" * 100)
+
+    captured = {}
+    tts = OpenRouterTTS(api_key="sk-test")
+    voice = Voice(name="narrator", ref_audio_path=ref, ref_text="hi",
+                  instructions="a robotic voice")
+    with respx.mock:
+        respx.post(SPEECH_URL).mock(side_effect=_capture_body(captured))
+        tts.synthesize("Hi.", voice)
+    assert "input_references" in captured["body"]
+    assert "instructions" not in captured["body"]
 
 
 def test_json_error_response_raises():

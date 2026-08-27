@@ -111,21 +111,27 @@ def build_deps(settings: Settings) -> Deps:
         diarizer = PyannoteDiarizer(settings.hf_token)
         llm_map, llm_reduce = _build_real_llms(settings)
         tts = _build_real_tts(settings)
+        # `instructions` is a fallback voice description used only by a hosted
+        # backend (OpenRouter) when no reference clip is configured, so the two
+        # hosts stay distinct. F5-TTS ignores it and requires a real ref clip.
         voices = {
             "narrator": Voice(
                 name="narrator",
                 ref_audio_path=settings.narrator_ref_audio,
                 ref_text=settings.narrator_ref_text,
+                instructions="a clear, professional narrator voice",
             ),
             "host_a": Voice(
                 name="host_a",
                 ref_audio_path=settings.host_a_ref_audio,
                 ref_text=settings.host_a_ref_text,
+                instructions="a deep, low-pitched, warm male podcast host",
             ),
             "host_b": Voice(
                 name="host_b",
                 ref_audio_path=settings.host_b_ref_audio,
                 ref_text=settings.host_b_ref_text,
+                instructions="a high-pitched, bright female podcast host",
             ),
         }
         voice_cloner = ClipVoiceCloner()
