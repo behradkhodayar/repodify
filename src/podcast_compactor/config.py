@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5-coder:7b"
     ollama_base_url: str = "http://localhost:11434"
 
+    # TTS backend selection. "f5" (default) synthesizes locally on the GPU via
+    # F5-TTS (cloned/reference voices) + Kokoro (stock voices). "openrouter" calls
+    # a hosted model on OpenRouter's OpenAI-compatible /audio/speech endpoint — no
+    # GPU needed — and needs OPENROUTER_API_KEY.
+    tts_backend: Literal["f5", "openrouter"] = "f5"
+    openrouter_api_key: str | None = None
+    openrouter_tts_model: str = "fish-audio/s2.1-pro"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+
     # Models
     whisper_model: str = "large-v3"
     map_model: str = "claude-haiku-4-5-20251001"
