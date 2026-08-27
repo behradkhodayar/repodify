@@ -1,7 +1,15 @@
+import { AlertCircle, Loader2, Rss, Search, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreateJob, useResolveFeed } from '../api/queries'
 import { EpisodePicker } from '../components/EpisodePicker'
+import { PageHeader } from '../components/PageHeader'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Checkbox } from '../components/ui/checkbox'
+import { Input } from '../components/ui/input'
+import { Select } from '../components/ui/select'
+import { Separator } from '../components/ui/separator'
 
 export function NewDigest() {
   const [url, setUrl] = useState('')
@@ -34,64 +42,136 @@ export function NewDigest() {
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">New digest</h1>
-      <div className="flex gap-2">
-        <input
-          className="border rounded px-2 py-1 flex-1"
-          aria-label="Feed URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://example.com/feed.xml"
-        />
-        <button className="bg-slate-900 text-white rounded px-3" onClick={() => resolve.mutate(url)}>
-          Resolve
-        </button>
-      </div>
-      {resolve.isError && <p className="text-red-600">Couldn't fetch that feed.</p>}
-      {resolve.data && (
-        <>
-          <EpisodePicker episodes={resolve.data.episodes} selected={selected} onToggle={toggle} />
-          <div className="flex gap-4 items-center">
-            <label>
-              Minutes{' '}
-              <input
-                type="number"
-                className="border rounded w-20 px-1"
-                value={targetMinutes}
-                onChange={(e) => setTargetMinutes(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              Hosts{' '}
-              <select
-                className="border rounded ml-1"
-                value={hostCount}
-                onChange={(e) => setHostCount(Number(e.target.value))}
-              >
-                <option value={1}>1 (narrator)</option>
-                <option value={2}>2 (dialogue)</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={reviewVoices}
-                onChange={(e) => setReviewVoices(e.target.checked)}
-              />
-              Assign voices per speaker
-            </label>
-            <button
-              className="bg-emerald-600 text-white rounded px-3 py-1 disabled:opacity-50"
-              disabled={selected.size === 0 || create.isPending}
-              onClick={onCreate}
-            >
-              Create digest
-            </button>
+    <div className="space-y-6">
+      <PageHeader
+        title="New digest"
+        description="Point cutcast at a podcast feed, choose the episodes, and generate a short digest."
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Rss className="size-[18px] text-primary" /> Source feed
+          </CardTitle>
+          <CardDescription>Paste an RSS feed URL to load its episodes.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              aria-label="Feed URL"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/feed.xml"
+              className="sm:flex-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && url) resolve.mutate(url)
+              }}
+            />
+            <Button onClick={() => resolve.mutate(url)} disabled={!url || resolve.isPending}>
+              {resolve.isPending ? (
+                <>
+                  <Loader2 className="animate-spin" /> Resolving
+                </>
+              ) : (
+                <>
+                  <Search /> Resolve
+                </>
+              )}
+            </Button>
           </div>
-        </>
+          {resolve.isError && (
+            <p className="flex items-center gap-1.5 text-sm text-status-failed">
+              <AlertCircle className="size-4" /> Couldn&apos;t reach that feed. Check the URL and try
+              again.
+            </p>
+          )}
+          {resolve.data && (
+            <p className="text-sm text-muted-foreground">
+              Loaded <span className="font-medium text-foreground">{resolve.data.feed_title}</span> ·{' '}
+              {resolve.data.episodes.length} episode
+              {resolve.data.episodes.length === 1 ? '' : 's'}.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {resolve.data && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Choose episodes &amp; format</CardTitle>
+            <CardDescription>
+              Select the episodes to include, then tune the digest.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <EpisodePicker episodes={resolve.data.episodes} selected={selected} onToggle={toggle} />
+
+            <Separator />
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <label className="space-y-1.5">
+                <span className="block text-sm font-medium">Target length</span>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={targetMinutes}
+                    onChange={(e) => setTargetMinutes(Number(e.target.value))}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">min</span>
+                </div>
+              </label>
+
+              <label className="space-y-1.5">
+                <span className="block text-sm font-medium">Hosts</span>
+                <Select
+                  value={hostCount}
+                  onChange={(e) => setHostCount(Number(e.target.value))}
+                  className="w-44"
+                >
+                  <option value={1}>1 · narrator</option>
+                  <option value={2}>2 · dialogue</option>
+                </Select>
+              </label>
+
+              <label className="flex items-center gap-2 sm:pb-2.5">
+                <Checkbox
+                  checked={reviewVoices}
+                  onChange={(e) => setReviewVoices(e.target.checked)}
+                />
+                <span className="text-sm font-medium">Assign voices per speaker</span>
+              </label>
+
+              <div className="flex items-center gap-3 sm:ml-auto">
+                <span className="text-sm text-muted-foreground">
+                  {selected.size} selected
+                </span>
+                <Button
+                  variant="wave"
+                  size="lg"
+                  disabled={selected.size === 0 || create.isPending}
+                  onClick={onCreate}
+                >
+                  {create.isPending ? (
+                    <>
+                      <Loader2 className="animate-spin" /> Creating
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles /> Create digest
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
-      {create.data && <p>Created job {create.data.job_id}…</p>}
+
+      {create.data && (
+        <p className="text-sm text-muted-foreground">Created job {create.data.job_id}…</p>
+      )}
     </div>
   )
 }

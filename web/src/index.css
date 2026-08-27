@@ -1,3 +1,144 @@
+/* Self-hosted variable fonts (no CDN / CSP dependency). */
+@import '@fontsource-variable/geist/index.css';
+@import '@fontsource-variable/geist-mono/index.css';
+@import '@fontsource-variable/space-grotesk/index.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* Neutral zinc base */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 4%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 160 84% 39%;
+
+    /* Emerald primary */
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Signature waveform gradient (emerald -> teal) */
+    --wave-from: 160 84% 39%;
+    --wave-to: 173 80% 40%;
+
+    /* Status hues */
+    --status-done: 160 84% 39%;
+    --status-running: 38 92% 50%;
+    --status-failed: 351 83% 57%;
+    --status-idle: 240 4% 60%;
+
+    /* Ambient page tint anchors */
+    --glow: 160 84% 39%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 8% 5%;
+    --foreground: 0 0% 98%;
+    --card: 240 6% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 7% 7%;
+    --popover-foreground: 0 0% 98%;
+    --muted: 240 5% 13%;
+    --muted-foreground: 240 5% 60%;
+    --border: 240 5% 16%;
+    --input: 240 5% 18%;
+    --ring: 160 84% 45%;
+
+    --primary: 160 84% 42%;
+    --primary-foreground: 240 10% 4%;
+
+    --wave-from: 160 84% 45%;
+    --wave-to: 173 80% 48%;
+
+    --status-done: 160 76% 45%;
+    --status-running: 38 92% 55%;
+    --status-failed: 351 90% 65%;
+    --status-idle: 240 5% 45%;
+
+    --glow: 160 84% 42%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    font-family:
+      'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    /* Faint ambient glow anchored top-left, keyed to the accent. */
+    background-image:
+      radial-gradient(60rem 40rem at 12% -8%, hsl(var(--glow) / 0.06), transparent 60%),
+      radial-gradient(50rem 40rem at 110% 0%, hsl(var(--wave-to) / 0.05), transparent 55%);
+    background-attachment: fixed;
+    min-height: 100dvh;
+  }
+
+  /* Tabular figures for data-dense numbers (stat cards, tables, timecodes). */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Space Grotesk Variable', 'Geist Variable', sans-serif;
+  }
+  .font-mono-data {
+    font-family: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
+  }
+
+  /* Signature emerald->teal text/fill gradient. */
+  .text-wave {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--wave-from)),
+      hsl(var(--wave-to))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .bg-wave {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--wave-from)),
+      hsl(var(--wave-to))
+    );
+  }
+
+  .ring-focus {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+/* Respect reduced-motion globally as a safety floor. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

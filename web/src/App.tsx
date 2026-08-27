@@ -1,32 +1,34 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { AppShell } from './components/layout/AppShell'
+import { TooltipProvider } from './components/ui/tooltip'
+import { ThemeProvider } from './lib/theme'
 import { JobDetail } from './routes/JobDetail'
 import { Jobs } from './routes/Jobs'
 import { NewDigest } from './routes/NewDigest'
+import { Overview } from './routes/Overview'
 import { Settings } from './routes/Settings'
 
 const queryClient = new QueryClient()
 
 export function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename="/app">
-        <nav className="flex gap-4 p-4 border-b bg-slate-900 text-white">
-          <Link to="/">New digest</Link>
-          <Link to="/jobs">History</Link>
-          <Link to="/settings" className="ml-auto">
-            Settings
-          </Link>
-        </nav>
-        <main className="max-w-3xl mx-auto p-4">
-          <Routes>
-            <Route path="/" element={<NewDigest />} />
-            <Route path="/jobs" element={<Jobs />} />
-            <Route path="/jobs/:id" element={<JobDetail />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </main>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={200}>
+          <BrowserRouter basename="/app">
+            <Routes>
+              <Route element={<AppShell />}>
+                <Route path="/" element={<Overview />} />
+                <Route path="/new" element={<NewDigest />} />
+                <Route path="/jobs" element={<Jobs />} />
+                <Route path="/jobs/:id" element={<JobDetail />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
