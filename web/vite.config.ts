@@ -33,6 +33,7 @@ export default defineConfig({
     proxy: {
       '/feeds': 'http://localhost:8000',
       '/jobs': 'http://localhost:8000',
+      '/voices': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
     },
   },
