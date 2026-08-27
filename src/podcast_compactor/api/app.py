@@ -90,6 +90,7 @@ def create_app(
             clone=req.clone,
             target_minutes=req.target_minutes,
             voice_assignments=req.voice_assignments,
+            preserve_speakers=req.preserve_speakers,
         )
         job_id = repo.create_job(req.feed_url, options)
         enqueue(job_id)

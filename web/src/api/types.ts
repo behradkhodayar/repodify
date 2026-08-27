@@ -27,6 +27,7 @@ export interface CreateJobRequest {
   clone?: boolean
   target_minutes?: number
   voice_assignments?: VoiceAssignment[]
+  preserve_speakers?: boolean
 }
 
 export interface VoicesResponse {

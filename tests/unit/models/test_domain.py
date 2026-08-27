@@ -22,6 +22,26 @@ def test_transcript_text_joins_segments():
     assert t.text == "hello world"
 
 
+def test_speaker_labeled_text_groups_consecutive_speakers():
+    t = Transcript(
+        episode_guid="ep-1",
+        segments=[
+            TranscriptSegment(start=0.0, end=1.0, text="hi there", speaker="SPEAKER_00"),
+            TranscriptSegment(start=1.0, end=2.0, text="and more", speaker="SPEAKER_00"),
+            TranscriptSegment(start=2.0, end=3.0, text="my turn", speaker="SPEAKER_01"),
+        ],
+    )
+    assert t.speaker_labeled_text == "SPEAKER_00: hi there and more\nSPEAKER_01: my turn"
+
+
+def test_speaker_labeled_text_falls_back_to_plain_when_unlabeled():
+    t = Transcript(
+        episode_guid="ep-1",
+        segments=[TranscriptSegment(start=0.0, end=1.0, text="no speaker here")],
+    )
+    assert t.speaker_labeled_text == "no speaker here"
+
+
 def test_script_word_count_and_minutes():
     script = Script(
         segments=[

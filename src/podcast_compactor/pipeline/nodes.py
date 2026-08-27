@@ -24,6 +24,8 @@ from podcast_compactor.synth.assemble import (
     disclaimer_segment,
     synthesize_script,
 )
+from podcast_compactor.synth.stock_voices import list_stock_voices, stock_voice
+from podcast_compactor.synth.voice_assignment import resolve_voice_assignments, select_cast
 from podcast_compactor.transcribe.diarization import assign_speakers, roster_from_turns
 
 logger = logging.getLogger(__name__)
@@ -41,10 +43,17 @@ def _report(state: PipelineState) -> dict:
 def _wants_speaker_id(options) -> bool:
     """Whether the job needs speaker-labeled transcripts (diarization).
 
-    Later phases widen this (per-speaker voice assignments, the speaker-preserving
-    digest); for now only opt-in cloning needs to know who said what.
+    Opt-in cloning and the speaker-preserving digest both need to know who said
+    what; a plain single-narrator/two-host run does not.
     """
-    return bool(options.clone)
+    return bool(options.clone or options.preserve_speakers)
+
+
+def _prepend_disclaimer(script, text: str):
+    """Prepend a spoken AI disclaimer segment to a cloned-output script."""
+    return script.model_copy(
+        update={"segments": [disclaimer_segment(text), *script.segments]}
+    )
 
 
 def make_nodes(deps: Deps) -> dict[str, NodeFn]:
@@ -194,57 +203,98 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         options = state["options"]
         repo.start_stage(job_id, StageName.SCRIPT)
         try:
+            cast: list = []
+            if options.preserve_speakers:
+                # Voice the digest as the real detected cast (first transcribed
+                # episode; cross-episode identity is a follow-up).
+                first = next(
+                    e for e in state["selected"] if e.guid in state["transcripts"]
+                )
+                cast = select_cast(state["transcripts"][first.guid])
+                if not cast:
+                    raise ValueError("preserve_speakers: diarization found no speakers")
             script = write_script(
                 state["arc"],
                 deps.llm_reduce,
                 target_minutes=options.target_minutes,
                 wpm=deps.settings.wpm,
                 host_count=options.host_count,
+                cast=cast or None,
             )
             repo.finish_stage(job_id, StageName.SCRIPT, StageState.DONE,
                               detail=f"{script.word_count} words")
-            return {"script": script}
+            return {"script": script, "cast": cast}
         except Exception as exc:
             repo.finish_stage(job_id, StageName.SCRIPT, StageState.FAILED, detail=str(exc))
             raise
+
+    def _episode_source(state: PipelineState, job_id: str):
+        """The first transcribed episode's audio path + labeled transcript."""
+        first = next(e for e in state["selected"] if e.guid in state["transcripts"])
+        return (
+            deps.storage.local_path(audio_key(job_id, first)),
+            state["transcripts"][first.guid],
+        )
+
+    def _record_ref_clip(job_id: str, key: str, voice) -> None:
+        if voice.ref_audio_path is not None:
+            repo.add_artifact(
+                job_id, "reference_clip", voice.ref_audio_path.as_uri(), episode_guid=key
+            )
 
     def synth_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
         script = state["script"]
         arc = state["arc"]
         options = state["options"]
+        cloned_output = False  # drives the disclaimer / watermark / synthetic guardrails
 
         # --- TTS ---
         repo.start_stage(job_id, StageName.TTS)
         try:
-            if options.clone:
-                # Opt-in cloning: build cloned voices from the (speaker-labeled)
-                # transcript of the first transcribed episode, prepend a spoken
-                # disclaimer (in a non-cloned voice), and watermark the output.
-                first_ep = next(
-                    ep for ep in state["selected"] if ep.guid in state["transcripts"]
+            if options.preserve_speakers:
+                # Speaker-preserving digest: each cast speaker in their assigned
+                # voice — their own clone or a stock catalog voice.
+                cast_ids = [s.id for s in state["cast"]]
+                assignments = resolve_voice_assignments(
+                    cast_ids, options, list_stock_voices(), deps.settings.default_stock_voice
                 )
-                audio_path = deps.storage.local_path(audio_key(job_id, first_ep))
-                transcript = state["transcripts"][first_ep.guid]
-                content_speakers = sorted({seg.speaker for seg in script.segments})
+                clone_ids = [i for i in cast_ids if assignments[i].mode == "clone"]
+                voices = {}
+                if clone_ids:
+                    audio_path, transcript = _episode_source(state, job_id)
+                    cloned = deps.voice_cloner.clone(
+                        audio_path, transcript, clone_ids, deps.storage, job_id
+                    )
+                    for key, voice in cloned.items():
+                        voices[key] = voice
+                        _record_ref_clip(job_id, key, voice)
+                for sid in cast_ids:
+                    if assignments[sid].mode == "stock":
+                        voices[sid] = stock_voice(assignments[sid].stock_voice)
+                cloned_output = bool(clone_ids)
+                if cloned_output:
+                    script = _prepend_disclaimer(script, deps.settings.clone_disclaimer)
+                    voices["disclaimer"] = stock_voice(deps.settings.default_stock_voice)
+            elif options.clone:
+                # Legacy opt-in cloning: map the script's roles (host_a/host_b or
+                # narrator) onto the most-talkative detected speakers, clone those,
+                # prepend a spoken disclaimer, and watermark the output.
+                audio_path, transcript = _episode_source(state, job_id)
+                roles = sorted({seg.speaker for seg in script.segments})
+                ranked = [s.id for s in transcript.speakers]
+                role_to_diar = dict(zip(roles, ranked, strict=False))
                 cloned = deps.voice_cloner.clone(
-                    audio_path, transcript, content_speakers, deps.storage, job_id
+                    audio_path, transcript, list(role_to_diar.values()), deps.storage, job_id
                 )
-                for key, voice in cloned.items():
-                    if voice.ref_audio_path is not None:
-                        repo.add_artifact(
-                            job_id, "reference_clip", voice.ref_audio_path.as_uri(),
-                            episode_guid=key,
-                        )
-                script = script.model_copy(
-                    update={
-                        "segments": [
-                            disclaimer_segment(deps.settings.clone_disclaimer),
-                            *script.segments,
-                        ]
-                    }
-                )
-                voices = {**cloned, "disclaimer": deps.voices["narrator"]}
+                voices = {}
+                for role, diar in role_to_diar.items():
+                    if diar in cloned:
+                        voices[role] = cloned[diar]
+                        _record_ref_clip(job_id, role, cloned[diar])
+                cloned_output = True
+                script = _prepend_disclaimer(script, deps.settings.clone_disclaimer)
+                voices["disclaimer"] = deps.voices["narrator"]
             else:
                 voices = deps.voices
 
@@ -262,7 +312,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         repo.start_stage(job_id, StageName.ASSEMBLE)
         try:
             wav = assemble_wav(segments)
-            if options.clone:
+            if cloned_output:
                 wav = deps.watermarker.embed(wav)
             output_uri = deps.storage.put_bytes(f"{job_id}/output/digest.wav", wav)
             mp3_path = deps.storage.local_path(f"{job_id}/output/digest.mp3")
@@ -271,8 +321,8 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             )
             notes = build_show_notes(
                 arc, script, segments,
-                synthetic=options.clone,
-                disclaimer=deps.settings.clone_disclaimer if options.clone else None,
+                synthetic=cloned_output,
+                disclaimer=deps.settings.clone_disclaimer if cloned_output else None,
             )
             deps.storage.put_bytes(
                 f"{job_id}/output/show_notes.json",

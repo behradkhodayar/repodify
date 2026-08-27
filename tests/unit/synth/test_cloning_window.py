@@ -1,25 +1,11 @@
 """The clip-selection logic in the voice cloner (pure; ffmpeg is not exercised)."""
 
 from podcast_compactor.models.domain import TranscriptSegment
-from podcast_compactor.synth.cloning import _best_window, _rank_speakers
+from podcast_compactor.synth.cloning import _best_window
 
 
 def _seg(start, end, speaker, text="x"):
     return TranscriptSegment(start=start, end=end, text=text, speaker=speaker)
-
-
-def test_rank_speakers_orders_by_total_talk_time():
-    segs = [
-        _seg(0, 2, "A"),
-        _seg(2, 10, "B"),
-        _seg(10, 13, "A"),
-    ]  # A=5s, B=8s
-    assert _rank_speakers(segs) == ["B", "A"]
-
-
-def test_rank_ignores_unlabeled_segments():
-    segs = [_seg(0, 5, None), _seg(5, 7, "A")]
-    assert _rank_speakers(segs) == ["A"]
 
 
 def test_best_window_picks_longest_run_and_caps_length():

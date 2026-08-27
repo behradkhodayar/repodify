@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from podcast_compactor.models.domain import ArcOutline, Script
+from podcast_compactor.models.domain import ArcOutline, Script, Speaker
 from podcast_compactor.ports.llm import StructuredLLM
 from podcast_compactor.summarize import prompts
 
@@ -47,6 +47,19 @@ def _normalize_speakers(script: Script, host_count: int) -> Script:
     return script
 
 
+def _normalize_multivoice(script: Script, cast_ids: set[str]) -> Script:
+    """Validate a multi-speaker draft: non-empty and every speaker is in the cast."""
+    if not script.segments:
+        raise ValueError("script writer produced no segments")
+    speakers = {seg.speaker for seg in script.segments}
+    if not speakers.issubset(cast_ids):
+        raise ValueError(
+            f"multi-voice script must use only cast {sorted(cast_ids)}, "
+            f"got {sorted(speakers)}"
+        )
+    return script
+
+
 def _warn_on_budget_drift(script: Script, word_budget: int) -> None:
     drift = abs(script.word_count - word_budget) / word_budget
     if drift > _BUDGET_TOLERANCE:
@@ -64,12 +77,14 @@ def write_script(
     target_minutes: int,
     wpm: int,
     host_count: int = 1,
+    cast: list[Speaker] | None = None,
 ) -> Script:
     """Write a spoken script for the digest.
 
-    `host_count == 1` produces a single-narrator monologue (all segments
-    attributed to `narrator`). `host_count == 2` produces a two-host dialogue
-    with speakers `host_a`/`host_b`.
+    When `cast` is given (speaker-preserving mode) the digest is a multi-speaker
+    dialogue whose segment speakers are the cast's diarization ids. Otherwise
+    `host_count == 1` produces a single-narrator monologue (all segments attributed
+    to `narrator`) and `host_count == 2` a two-host `host_a`/`host_b` dialogue.
 
     A single LLM pass tends to under-write the word budget, yielding a digest
     much shorter than `target_minutes`. When a draft comes back below the budget
@@ -77,28 +92,47 @@ def write_script(
     `_MAX_SCRIPT_ATTEMPTS` times, and keep the longest draft. A warning is logged
     if the best draft still strays more than 25% from the word budget.
     """
-    if host_count not in (1, 2):
-        raise NotImplementedError("host_count must be 1 or 2")
-
     word_budget = target_minutes * wpm
-    if host_count == 1:
-        system, user_template = prompts.SCRIPT_SYSTEM, prompts.SCRIPT_USER
-    else:
-        system, user_template = prompts.SCRIPT_DIALOGUE_SYSTEM, prompts.SCRIPT_DIALOGUE_USER
-
-    base_user = user_template.format(
+    format_kwargs = dict(
         target_minutes=target_minutes,
         word_budget=word_budget,
         title=arc.title,
         throughline=arc.throughline,
         beats=_format_beats(arc),
     )
+
+    if cast is not None:
+        if not cast:
+            raise ValueError("speaker-preserving script needs a non-empty cast")
+        cast_ids = {s.id for s in cast}
+        system = prompts.SCRIPT_MULTIVOICE_SYSTEM
+        base_user = prompts.SCRIPT_MULTIVOICE_USER.format(
+            speakers=", ".join(s.id for s in cast), **format_kwargs
+        )
+
+        def normalize(script: Script) -> Script:
+            return _normalize_multivoice(script, cast_ids)
+    else:
+        if host_count not in (1, 2):
+            raise NotImplementedError("host_count must be 1 or 2")
+        if host_count == 1:
+            system, user_template = prompts.SCRIPT_SYSTEM, prompts.SCRIPT_USER
+        else:
+            system, user_template = (
+                prompts.SCRIPT_DIALOGUE_SYSTEM,
+                prompts.SCRIPT_DIALOGUE_USER,
+            )
+        base_user = user_template.format(**format_kwargs)
+
+        def normalize(script: Script) -> Script:
+            return _normalize_speakers(script, host_count)
+
     floor = word_budget * (1 - _BUDGET_TOLERANCE)
 
     best: Script | None = None
     user = base_user
     for _ in range(_MAX_SCRIPT_ATTEMPTS):
-        script = _normalize_speakers(llm.generate(system, user, Script), host_count)
+        script = normalize(llm.generate(system, user, Script))
         if best is None or script.word_count > best.word_count:
             best = script
         if script.word_count >= floor:

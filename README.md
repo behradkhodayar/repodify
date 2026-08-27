@@ -142,6 +142,26 @@ curl -s -X POST localhost:8000/jobs \
 Only clone voices you have the right to use — respect right-of-publicity and each
 platform's terms.
 
+### Speaker-preserving digest (opt-in)
+
+Set `"preserve_speakers": true` to voice the digest as the show's **real detected
+cast** instead of a single narrator or two generic hosts. Diarization identifies
+each speaker; the script becomes a multi-speaker dialogue attributed to them; and
+each speaker is voiced by their assigned voice — their **own clone** or a **stock
+catalog voice** (`GET /voices`). Assign them explicitly per speaker, or let it
+default (clone everyone with `"clone": true`, otherwise stock voices):
+
+```bash
+curl -s -X POST localhost:8000/jobs \
+  -H 'content-type: application/json' \
+  -d '{"feed_url": "https://example.com/feed.xml", "episode_ids": ["ep-1"], "preserve_speakers": true,
+       "voice_assignments": [{"speaker_id": "SPEAKER_00", "mode": "clone"},
+                             {"speaker_id": "SPEAKER_01", "mode": "stock", "stock_voice": "af_heart"}]}'
+```
+
+When any voice is cloned the same guardrails apply (synthetic label, spoken
+disclaimer, watermark). Stock voices use Kokoro-82M; cloned voices use F5-TTS.
+
 ## Web client (PWA)
 
 A React + Vite PWA lives in `web/` and is served same-origin by the API at `/app`.
@@ -160,7 +180,9 @@ protected by `API_TOKEN`.
 ## Status
 
 Phases 1 (single-narrator digest), 2 (two-host dialogue), and 3 (opt-in,
-watermarked, labeled voice cloning) are implemented.
+watermarked, labeled voice cloning) are implemented, plus speaker-aware
+transcription, a Kokoro stock-voice catalog, and a speaker-preserving digest that
+voices the real detected cast (each in their own cloned or stock voice).
 
 ## Roadmap
 

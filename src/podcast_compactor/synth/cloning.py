@@ -17,10 +17,11 @@ from podcast_compactor.storage.base import Storage
 
 
 class ClipVoiceCloner:
-    """Builds a cloned `Voice` for each requested key from the labeled transcript.
+    """Builds a cloned `Voice` for each requested diarized speaker id.
 
-    Requested keys (e.g. the script's speakers) are matched to the most-talkative
-    detected speakers in order, and each gets a clip cut from its best window.
+    Each id gets a reference clip cut from its own best single-speaker window in the
+    (already labeled) transcript. Callers decide which speakers to clone and how to
+    map them onto output roles — this just clones the ids it is handed.
     """
 
     def __init__(self, clip_seconds: float = 8.0) -> None:
@@ -30,20 +31,16 @@ class ClipVoiceCloner:
         self,
         audio_path: Path,
         transcript: Transcript,
-        speaker_keys: list[str],
+        speaker_ids: list[str],
         storage: Storage,
         job_id: str,
     ) -> dict[str, Voice]:
-        ranked = _rank_speakers(transcript.segments)
-        if not ranked:
-            raise ValueError("transcript has no speaker labels to clone from")
-
         voices: dict[str, Voice] = {}
-        for key, diar_id in zip(speaker_keys, ranked, strict=False):
+        for speaker_id in speaker_ids:
             start, end, ref_text = _best_window(
-                transcript.segments, diar_id, self._clip_seconds
+                transcript.segments, speaker_id, self._clip_seconds
             )
-            ref_key = f"{job_id}/refs/{key}.wav"
+            ref_key = f"{job_id}/refs/{speaker_id}.wav"
             clip_path = storage.local_path(ref_key)
             clip_path.parent.mkdir(parents=True, exist_ok=True)
             subprocess.run(
@@ -52,18 +49,10 @@ class ClipVoiceCloner:
                 check=True,
                 capture_output=True,
             )
-            voices[key] = Voice(name=key, ref_audio_path=clip_path, ref_text=ref_text)
+            voices[speaker_id] = Voice(
+                name=speaker_id, ref_audio_path=clip_path, ref_text=ref_text
+            )
         return voices
-
-
-def _rank_speakers(segments: list[TranscriptSegment]) -> list[str]:
-    """Speaker ids present in the transcript, most talkative first."""
-    durations: dict[str, float] = {}
-    for seg in segments:
-        if seg.speaker is None:
-            continue
-        durations[seg.speaker] = durations.get(seg.speaker, 0.0) + (seg.end - seg.start)
-    return sorted(durations, key=lambda s: durations[s], reverse=True)
 
 
 def _best_window(

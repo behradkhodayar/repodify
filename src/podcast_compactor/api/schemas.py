@@ -35,6 +35,7 @@ class CreateJobRequest(BaseModel):
     clone: bool = False
     target_minutes: int = 30
     voice_assignments: list[VoiceAssignment] = []
+    preserve_speakers: bool = False
 
 
 class CreateJobResponse(BaseModel):
