@@ -8,7 +8,19 @@ pure so it is trivially testable and reused by the synth stage.
 
 from __future__ import annotations
 
-from podcast_compactor.models.domain import JobOptions, VoiceAssignment
+from podcast_compactor.models.domain import JobOptions, Speaker, Transcript, VoiceAssignment
+
+# The speaker-preserving digest caps its cast so the dialogue stays coherent and
+# cloning work stays bounded; the most-talkative speakers are kept.
+MAX_CAST = 4
+
+
+def select_cast(transcript: Transcript, max_cast: int = MAX_CAST) -> list[Speaker]:
+    """The digest cast: the transcript's most-talkative speakers, capped.
+
+    `transcript.speakers` is already ordered by talk time (see `roster_from_turns`).
+    """
+    return transcript.speakers[:max_cast]
 
 
 def resolve_voice_assignments(

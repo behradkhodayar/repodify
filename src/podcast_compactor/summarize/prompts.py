@@ -17,6 +17,9 @@ Summarize this single episode. Provide:
 - notable_quotes: memorable verbatim lines (short)
 - timeline_markers: concrete developments, events, or turning points mentioned
 
+The transcript may be labeled by speaker (e.g. "SPEAKER_00:"). When it is, note who
+said or argued what where it matters, and attribute notable quotes to their speaker.
+
 Transcript:
 {transcript}
 """
@@ -93,6 +96,34 @@ reads as a real conversation, and make sure both hosts speak. Walk the listener
 through the arc in chronological order, making clear how things developed from
 the earliest episode onward. Produce the script as an ordered list of segments;
 each segment has a speaker ("host_a" or "host_b") and the spoken text.
+
+Narrative arc:
+Title: {title}
+Through-line: {throughline}
+
+Beats:
+{beats}
+"""
+
+SCRIPT_MULTIVOICE_SYSTEM = (
+    "You are a scriptwriter for a multi-speaker podcast digest voiced by the show's "
+    "actual cast. Each speaker keeps their own perspective and voice; they hand off "
+    "naturally, react to each other, and build on each other's points. Write for the "
+    "ear — clear, warm, chronological. No headings, stage directions, or bullet "
+    "points in the spoken text."
+)
+
+SCRIPT_MULTIVOICE_USER = """\
+Write a multi-speaker dialogue script for a digest episode of about
+{target_minutes} minutes. Aim for roughly {word_budget} spoken words total (a
+target, not a hard limit).
+
+The speakers are exactly these labels: {speakers}. Label every segment's speaker
+with one of those exact strings and no others. Give the most prominent speakers
+the most time, but let the conversation feel natural. Walk the listener through
+the arc in chronological order, making clear how things developed from the
+earliest episode onward. Produce the script as an ordered list of segments; each
+segment has a speaker (one of {speakers}) and the spoken text.
 
 Narrative arc:
 Title: {title}

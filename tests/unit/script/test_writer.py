@@ -1,6 +1,12 @@
 import pytest
 
-from podcast_compactor.models.domain import ArcBeat, ArcOutline, Script, ScriptSegment
+from podcast_compactor.models.domain import (
+    ArcBeat,
+    ArcOutline,
+    Script,
+    ScriptSegment,
+    Speaker,
+)
 from podcast_compactor.ports.llm import FakeStructuredLLM
 from podcast_compactor.script.writer import write_script
 
@@ -82,6 +88,38 @@ def test_write_script_rejects_three_hosts():
     llm = FakeStructuredLLM([Script(segments=[ScriptSegment(speaker="host_a", text="hi")])])
     with pytest.raises(NotImplementedError):
         write_script(_arc(), llm, target_minutes=30, wpm=130, host_count=3)
+
+
+def test_write_script_multivoice_uses_cast_ids():
+    cast = [Speaker(id="SPEAKER_00"), Speaker(id="SPEAKER_01"), Speaker(id="SPEAKER_02")]
+    returned = Script(
+        segments=[
+            ScriptSegment(speaker="SPEAKER_00", text=" ".join(["word"] * 1300)),
+            ScriptSegment(speaker="SPEAKER_02", text=" ".join(["word"] * 2600)),
+        ]
+    )
+    llm = FakeStructuredLLM([returned])
+
+    script = write_script(_arc(), llm, target_minutes=30, wpm=130, cast=cast)
+
+    assert {s.speaker for s in script.segments} == {"SPEAKER_00", "SPEAKER_02"}
+    _system, user, _schema = llm.calls[0]
+    assert "SPEAKER_00, SPEAKER_01, SPEAKER_02" in user  # cast listed for the model
+
+
+def test_write_script_multivoice_rejects_out_of_cast_speaker():
+    cast = [Speaker(id="SPEAKER_00"), Speaker(id="SPEAKER_01")]
+    llm = FakeStructuredLLM(
+        [Script(segments=[ScriptSegment(speaker="SPEAKER_99", text="who am i")])]
+    )
+    with pytest.raises(ValueError, match="cast"):
+        write_script(_arc(), llm, target_minutes=30, wpm=130, cast=cast)
+
+
+def test_write_script_multivoice_requires_non_empty_cast():
+    llm = FakeStructuredLLM([Script(segments=[ScriptSegment(speaker="x", text="hi")])])
+    with pytest.raises(ValueError, match="cast"):
+        write_script(_arc(), llm, target_minutes=30, wpm=130, cast=[])
 
 
 def test_write_script_expands_a_short_first_draft():

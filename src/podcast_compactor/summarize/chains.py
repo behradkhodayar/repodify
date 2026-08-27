@@ -14,7 +14,9 @@ def summarize_episode(
     llm: StructuredLLM,
 ) -> EpisodeSummary:
     """Summarize one episode transcript into a structured `EpisodeSummary`."""
-    user = prompts.EPISODE_USER.format(title=title, transcript=transcript.text)
+    user = prompts.EPISODE_USER.format(
+        title=title, transcript=transcript.speaker_labeled_text
+    )
     summary = llm.generate(prompts.EPISODE_SYSTEM, user, EpisodeSummary)
     # The model summarizes content; identity fields are authoritative from us.
     return summary.model_copy(

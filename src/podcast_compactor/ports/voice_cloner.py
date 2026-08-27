@@ -20,13 +20,13 @@ from podcast_compactor.storage.base import Storage
 
 @runtime_checkable
 class VoiceCloner(Protocol):
-    """Builds a cloned `Voice` for each requested speaker key."""
+    """Builds a cloned `Voice` for each requested diarized speaker id."""
 
     def clone(
         self,
         audio_path: Path,
         transcript: Transcript,
-        speaker_keys: list[str],
+        speaker_ids: list[str],
         storage: Storage,
         job_id: str,
     ) -> dict[str, Voice]: ...
@@ -53,18 +53,18 @@ class FakeVoiceCloner:
         self,
         audio_path: Path,
         transcript: Transcript,
-        speaker_keys: list[str],
+        speaker_ids: list[str],
         storage: Storage,
         job_id: str,
     ) -> dict[str, Voice]:
-        self.calls.append((audio_path, list(speaker_keys), job_id))
+        self.calls.append((audio_path, list(speaker_ids), job_id))
         voices: dict[str, Voice] = {}
-        for key in speaker_keys:
-            ref_key = f"{job_id}/refs/{key}.wav"
+        for speaker_id in speaker_ids:
+            ref_key = f"{job_id}/refs/{speaker_id}.wav"
             storage.put_bytes(ref_key, _silent_wav())
-            voices[key] = Voice(
-                name=key,
+            voices[speaker_id] = Voice(
+                name=speaker_id,
                 ref_audio_path=storage.local_path(ref_key),
-                ref_text=f"reference for {key}",
+                ref_text=f"reference for {speaker_id}",
             )
         return voices

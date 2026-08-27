@@ -63,6 +63,27 @@ class Transcript(BaseModel):
         """The transcript as a single whitespace-joined string."""
         return " ".join(seg.text.strip() for seg in self.segments if seg.text.strip())
 
+    @property
+    def speaker_labeled_text(self) -> str:
+        """Transcript grouped by speaker (``SPEAKER_00: …``), for the LLM to read.
+
+        Consecutive segments by the same speaker are merged into one line. Falls
+        back to plain `text` when no segment carries a speaker label.
+        """
+        labeled = [s for s in self.segments if s.text.strip()]
+        if not any(s.speaker for s in labeled):
+            return self.text
+        lines: list[str] = []
+        current_speaker: str | None = None  # no real speaker is None, so first differs
+        for seg in labeled:
+            speaker = seg.speaker or "UNKNOWN"
+            if speaker != current_speaker:
+                lines.append(f"{speaker}: {seg.text.strip()}")
+                current_speaker = speaker
+            else:
+                lines[-1] += " " + seg.text.strip()
+        return "\n".join(lines)
+
 
 class EpisodeSummary(BaseModel):
     """Structured summary of one episode (the map step output)."""
@@ -156,3 +177,6 @@ class JobOptions(BaseModel):
     clone: bool = False
     target_minutes: int = 30
     voice_assignments: list[VoiceAssignment] = Field(default_factory=list)
+    # Speaker-preserving digest: voice the digest as the real detected cast (each
+    # speaker in their own cloned/stock voice). Overrides host_count when set.
+    preserve_speakers: bool = False

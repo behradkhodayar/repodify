@@ -16,6 +16,7 @@ from podcast_compactor.models.domain import (
     Feed,
     JobOptions,
     Script,
+    Speaker,
     Transcript,
 )
 from podcast_compactor.persistence.repo import JobRepository
@@ -41,6 +42,7 @@ class PipelineState(TypedDict, total=False):
     summaries: list[EpisodeSummary]
     arc: ArcOutline
     script: Script
+    cast: list[Speaker]
     output_uri: str
     report: dict
 

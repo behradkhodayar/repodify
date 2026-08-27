@@ -155,8 +155,8 @@ Data threaded through the graph (`pipeline/state.py:PipelineState`):
 | diarize | `transcripts` | `transcripts` (speaker-labeled) | who-said-what; gated on a voice feature, else skipped |
 | summarize | `transcripts` | `summaries` | LLM **map**, one `EpisodeSummary` per episode |
 | arc | `summaries` | `arc` | LLM **reduce** → one `ArcOutline` |
-| script | `arc`, `options` | `script` | LLM; retries/expands to meet the word budget |
-| synth | `script`, `arc` | `output_uri` | TTS per segment → assemble → transcode |
+| script | `arc`, `options` | `script`, `cast` | LLM; retries/expands to budget; multi-voice cast when `preserve_speakers` |
+| synth | `script`, `arc`, `cast` | `output_uri` | resolve each speaker→voice (clone/stock) → TTS → assemble → transcode |
 
 **Resilience.** Per-episode download/transcribe errors are appended to the job
 `report.skipped` and the run continues; a stage only fails if *every* episode
@@ -300,6 +300,7 @@ narrates closer to the target length.
 | Two-host dialogue | `host_count=2` | Two speakers `host_a`/`host_b`; each needs a stock reference clip in real mode. |
 | Voice cloning | `clone=true` | Diarization (DIARIZE stage) labels the transcript; `ClipVoiceCloner` cuts a reference clip per speaker for F5-TTS. |
 | Stock voices | `voice_assignments` / default | Catalog voices via Kokoro (`GET /voices`); `RoutingTTS` sends stock voices to Kokoro and cloned voices to F5-TTS. |
+| Speaker-preserving | `preserve_speakers=true` | The digest is voiced by the real detected cast: the script is a multi-speaker dialogue labeled with diarization ids, each in their assigned (cloned/stock) voice. Overrides `host_count`. |
 
 **Cloning guardrails (always enforced, non-optional):** the output is labeled
 `synthetic: true` with a disclaimer in the show notes, a **spoken disclaimer** (in
