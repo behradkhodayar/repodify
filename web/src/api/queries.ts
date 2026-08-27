@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import type { CreateJobRequest } from './types'
+import type { CreateJobRequest, SubmitVoicesRequest } from './types'
 
 export function useResolveFeed() {
   return useMutation({ mutationFn: (url: string) => api.resolveFeed(url) })
@@ -31,4 +31,20 @@ export function useJob(id: string) {
 
 export function useResult(id: string, enabled: boolean) {
   return useQuery({ queryKey: ['result', id], queryFn: () => api.getResult(id), enabled })
+}
+
+export function useVoices() {
+  return useQuery({ queryKey: ['voices'], queryFn: () => api.getVoices() })
+}
+
+export function useSpeakers(id: string, enabled: boolean) {
+  return useQuery({ queryKey: ['speakers', id], queryFn: () => api.getSpeakers(id), enabled })
+}
+
+export function useSubmitVoices(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: SubmitVoicesRequest) => api.submitVoices(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job', id] }),
+  })
 }

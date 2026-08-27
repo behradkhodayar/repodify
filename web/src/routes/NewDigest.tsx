@@ -8,6 +8,7 @@ export function NewDigest() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [targetMinutes, setTargetMinutes] = useState(30)
   const [hostCount, setHostCount] = useState(1)
+  const [reviewVoices, setReviewVoices] = useState(false)
   const resolve = useResolveFeed()
   const create = useCreateJob()
   const navigate = useNavigate()
@@ -27,6 +28,7 @@ export function NewDigest() {
       episode_ids: [...selected],
       host_count: hostCount,
       target_minutes: targetMinutes,
+      review_voices: reviewVoices,
     })
     navigate(`/jobs/${job_id}`)
   }
@@ -70,6 +72,14 @@ export function NewDigest() {
                 <option value={1}>1 (narrator)</option>
                 <option value={2}>2 (dialogue)</option>
               </select>
+            </label>
+            <label className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={reviewVoices}
+                onChange={(e) => setReviewVoices(e.target.checked)}
+              />
+              Assign voices per speaker
             </label>
             <button
               className="bg-emerald-600 text-white rounded px-3 py-1 disabled:opacity-50"

@@ -2,6 +2,7 @@ import { useParams } from 'react-router-dom'
 import { useJob, useResult } from '../api/queries'
 import { AudioPlayer } from '../components/AudioPlayer'
 import { StageProgress } from '../components/StageProgress'
+import { VoiceReview } from '../components/VoiceReview'
 
 export function JobDetail() {
   const { id = '' } = useParams()
@@ -17,6 +18,7 @@ export function JobDetail() {
       <h1 className="text-xl font-semibold">Job {id}</h1>
       <p className="text-sm text-slate-600">Status: {job.data.status}</p>
       <StageProgress stages={job.data.stages} />
+      {job.data.status === 'awaiting_review' && <VoiceReview jobId={id} />}
       {job.data.status === 'failed' && (
         <div className="text-red-600 text-sm">
           <p>This job failed.</p>
