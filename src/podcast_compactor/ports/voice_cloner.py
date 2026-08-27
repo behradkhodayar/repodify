@@ -1,8 +1,9 @@
 """The VoiceCloner port and a test fake.
 
-A VoiceCloner turns downloaded episode audio into cloned reference voices — one
-per requested speaker key — by isolating each host's speech. This is the seam
-behind which diarization and clip extraction live.
+A VoiceCloner turns one episode's already speaker-labeled transcript (plus its
+audio) into cloned reference voices — one per requested speaker key — by cutting a
+reference clip from each speaker's speech. Diarization ran upstream (the DIARIZE
+stage); this is the seam behind which clip extraction lives.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import wave
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from podcast_compactor.models.domain import Transcript
 from podcast_compactor.ports.tts import SAMPLE_RATE, Voice
 from podcast_compactor.storage.base import Storage
 
@@ -22,7 +24,8 @@ class VoiceCloner(Protocol):
 
     def clone(
         self,
-        audio_paths: list[Path],
+        audio_path: Path,
+        transcript: Transcript,
         speaker_keys: list[str],
         storage: Storage,
         job_id: str,
@@ -44,16 +47,17 @@ class FakeVoiceCloner:
     """Writes a silent reference clip per speaker; no real audio needed."""
 
     def __init__(self) -> None:
-        self.calls: list[tuple[list[Path], list[str], str]] = []
+        self.calls: list[tuple[Path, list[str], str]] = []
 
     def clone(
         self,
-        audio_paths: list[Path],
+        audio_path: Path,
+        transcript: Transcript,
         speaker_keys: list[str],
         storage: Storage,
         job_id: str,
     ) -> dict[str, Voice]:
-        self.calls.append((list(audio_paths), list(speaker_keys), job_id))
+        self.calls.append((audio_path, list(speaker_keys), job_id))
         voices: dict[str, Voice] = {}
         for key in speaker_keys:
             ref_key = f"{job_id}/refs/{key}.wav"

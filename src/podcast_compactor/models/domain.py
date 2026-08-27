@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -134,6 +135,19 @@ class ShowNotes(BaseModel):
     disclaimer: str | None = None
 
 
+class VoiceAssignment(BaseModel):
+    """How one detected speaker should be voiced in the output.
+
+    `mode="clone"` clones the speaker's own voice from the source audio;
+    `mode="stock"` uses the named catalog voice in `stock_voice`.
+    """
+
+    speaker_id: str  # diarization label, e.g. "SPEAKER_00"
+    mode: Literal["clone", "stock"]
+    stock_voice: str | None = None  # required when mode == "stock"
+    display_name: str | None = None  # optional human name for show notes
+
+
 class JobOptions(BaseModel):
     """Per-run options chosen by the user."""
 
@@ -141,3 +155,4 @@ class JobOptions(BaseModel):
     host_count: int = 1
     clone: bool = False
     target_minutes: int = 30
+    voice_assignments: list[VoiceAssignment] = Field(default_factory=list)

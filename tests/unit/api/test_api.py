@@ -93,3 +93,31 @@ def test_jobs_list_returns_created_jobs(repo, tmp_path):
         body = client.get("/jobs").json()
     assert body["total"] == 1
     assert body["jobs"][0]["target_minutes"] == 10
+
+
+def test_voices_lists_stock_catalog(repo, tmp_path):
+    from podcast_compactor.synth.stock_voices import list_stock_voices
+
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        body = client.get("/voices").json()
+    assert body["stock_voices"] == list_stock_voices()
+
+
+def test_create_job_persists_voice_assignments(repo, tmp_path):
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        resp = client.post(
+            "/jobs",
+            json={
+                "feed_url": "https://feed",
+                "episode_ids": ["ep-1"],
+                "voice_assignments": [
+                    {"speaker_id": "SPEAKER_00", "mode": "stock", "stock_voice": "af_heart"}
+                ],
+            },
+        )
+    assert resp.status_code == 200
+    options = JobOptions.model_validate_json(repo.get_job(resp.json()["job_id"]).options_json)
+    assert options.voice_assignments[0].speaker_id == "SPEAKER_00"
+    assert options.voice_assignments[0].stock_voice == "af_heart"

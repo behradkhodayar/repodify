@@ -2,6 +2,7 @@ import io
 import wave
 from pathlib import Path
 
+from podcast_compactor.models.domain import Transcript
 from podcast_compactor.ports.voice_cloner import FakeVoiceCloner, VoiceCloner
 from podcast_compactor.storage.filesystem import FilesystemStorage
 
@@ -10,7 +11,9 @@ def test_fake_cloner_builds_a_voice_per_speaker(tmp_path):
     store = FilesystemStorage(tmp_path)
     cloner = FakeVoiceCloner()
 
-    voices = cloner.clone([Path("ep0.mp3")], ["host_a", "host_b"], store, "job1")
+    voices = cloner.clone(
+        Path("ep0.mp3"), Transcript(episode_guid="e"), ["host_a", "host_b"], store, "job1"
+    )
 
     assert set(voices) == {"host_a", "host_b"}
     for key, voice in voices.items():
