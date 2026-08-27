@@ -36,6 +36,7 @@ class CreateJobRequest(BaseModel):
     target_minutes: int = 30
     voice_assignments: list[VoiceAssignment] = []
     preserve_speakers: bool = False
+    review_voices: bool = False
 
 
 class CreateJobResponse(BaseModel):
@@ -44,6 +45,21 @@ class CreateJobResponse(BaseModel):
 
 class VoicesResponse(BaseModel):
     stock_voices: list[str]
+
+
+class SpeakerOut(BaseModel):
+    speaker_id: str
+    speaking_seconds: float = 0.0
+    display_name: str | None = None
+
+
+class SpeakersResponse(BaseModel):
+    status: str
+    speakers: list[SpeakerOut]
+
+
+class SubmitVoicesRequest(BaseModel):
+    voice_assignments: list[VoiceAssignment]
 
 
 class StageOut(BaseModel):

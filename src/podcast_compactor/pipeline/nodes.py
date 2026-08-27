@@ -43,10 +43,10 @@ def _report(state: PipelineState) -> dict:
 def _wants_speaker_id(options) -> bool:
     """Whether the job needs speaker-labeled transcripts (diarization).
 
-    Opt-in cloning and the speaker-preserving digest both need to know who said
-    what; a plain single-narrator/two-host run does not.
+    Opt-in cloning, the speaker-preserving digest, and the interactive voice review
+    all need to know who said what; a plain single-narrator/two-host run does not.
     """
-    return bool(options.clone or options.preserve_speakers)
+    return bool(options.clone or options.preserve_speakers or options.review_voices)
 
 
 def _prepend_disclaimer(script, text: str):
@@ -137,6 +137,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         # attribute content — and voices — to specific speakers. Only run when a
         # voice feature needs it; otherwise the stage is skipped (no GPU cost).
         repo.start_stage(job_id, StageName.DIARIZE)
+        cast: list = []
         if _wants_speaker_id(options):
             try:
                 for ep in downloaded:
@@ -152,9 +153,14 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                             "speakers": roster_from_turns(turns),
                         }
                     )
-                cast = {s.id for t in transcripts.values() for s in t.speakers}
+                # The digest cast (for the speaker-preserving / review flows) is the
+                # first transcribed episode's roster, capped.
+                first = next((e for e in downloaded if e.guid in transcripts), None)
+                if first is not None:
+                    cast = select_cast(transcripts[first.guid])
+                speaker_ids = {s.id for t in transcripts.values() for s in t.speakers}
                 repo.finish_stage(job_id, StageName.DIARIZE, StageState.DONE,
-                                  detail=f"{len(cast)} speakers")
+                                  detail=f"{len(speaker_ids)} speakers")
             except Exception as exc:
                 repo.finish_stage(job_id, StageName.DIARIZE, StageState.FAILED,
                                   detail=str(exc))
@@ -167,7 +173,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                               detail="no voice feature requested")
 
         repo.set_report(job_id, report)
-        return {"transcripts": transcripts, "report": report}
+        return {"transcripts": transcripts, "report": report, "cast": cast}
 
     def summarize_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
@@ -203,23 +209,18 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         options = state["options"]
         repo.start_stage(job_id, StageName.SCRIPT)
         try:
-            cast: list = []
-            if options.preserve_speakers:
-                # Voice the digest as the real detected cast (first transcribed
-                # episode; cross-episode identity is a follow-up).
-                first = next(
-                    e for e in state["selected"] if e.guid in state["transcripts"]
-                )
-                cast = select_cast(state["transcripts"][first.guid])
-                if not cast:
-                    raise ValueError("preserve_speakers: diarization found no speakers")
+            # Cast is computed in the DIARIZE stage (and persisted across an
+            # interactive review); the digest is speaker-preserving when it is set.
+            cast = list(state.get("cast") or [])
+            if options.preserve_speakers and not cast:
+                raise ValueError("preserve_speakers: diarization found no speakers")
             script = write_script(
                 state["arc"],
                 deps.llm_reduce,
                 target_minutes=options.target_minutes,
                 wpm=deps.settings.wpm,
                 host_count=options.host_count,
-                cast=cast or None,
+                cast=cast if options.preserve_speakers else None,
             )
             repo.finish_stage(job_id, StageName.SCRIPT, StageState.DONE,
                               detail=f"{script.word_count} words")

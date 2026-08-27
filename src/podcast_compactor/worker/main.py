@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 import httpx
@@ -9,11 +10,18 @@ from arq.connections import RedisSettings
 
 from podcast_compactor.config import Settings, get_settings
 from podcast_compactor.ingest.resolvers import resolve
-from podcast_compactor.models.domain import JobOptions, Transcript, TranscriptSegment
+from podcast_compactor.models.domain import (
+    Episode,
+    Feed,
+    JobOptions,
+    Speaker,
+    Transcript,
+    TranscriptSegment,
+)
 from podcast_compactor.models.enums import JobStatus
 from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
 from podcast_compactor.persistence.repo import JobRepository
-from podcast_compactor.pipeline.graph import build_graph
+from podcast_compactor.pipeline.graph import build_digest_graph, build_graph, build_ingest_graph
 from podcast_compactor.pipeline.state import Deps
 from podcast_compactor.ports.llm import StructuredLLM
 from podcast_compactor.ports.tts import FakeTTS, Voice
@@ -132,18 +140,73 @@ def _import_filesystem_storage():
     return FilesystemStorage
 
 
-def run_pipeline(job_id: str, settings: Settings | None = None) -> str:
-    """Run the whole pipeline for one job. Returns the output audio URI.
+def _ingest_state_key(job_id: str) -> str:
+    return f"{job_id}/state/ingest.json"
 
-    Shared by the arq task and any synchronous caller (e.g. a smoke script).
+
+def _dump_ingest_state(state: dict) -> bytes:
+    """Serialize the pipeline state needed to resume the digest after a voice review."""
+    payload = {
+        "job_id": state["job_id"],
+        "feed_url": state["feed_url"],
+        "options": state["options"].model_dump(mode="json"),
+        "feed": state["feed"].model_dump(mode="json"),
+        "selected": [e.model_dump(mode="json") for e in state["selected"]],
+        "transcripts": {k: v.model_dump(mode="json") for k, v in state["transcripts"].items()},
+        "cast": [s.model_dump(mode="json") for s in state.get("cast", [])],
+        "report": state.get("report", {}),
+    }
+    return json.dumps(payload).encode()
+
+
+def _load_ingest_state(data: bytes) -> dict:
+    p = json.loads(data)
+    return {
+        "job_id": p["job_id"],
+        "feed_url": p["feed_url"],
+        "options": JobOptions.model_validate(p["options"]),
+        "feed": Feed.model_validate(p["feed"]),
+        "selected": [Episode.model_validate(e) for e in p["selected"]],
+        "transcripts": {k: Transcript.model_validate(v) for k, v in p["transcripts"].items()},
+        "cast": [Speaker.model_validate(s) for s in p["cast"]],
+        "report": p["report"],
+    }
+
+
+def _ingest_and_pause(deps: Deps, job_id: str, feed_url: str, options: JobOptions) -> None:
+    """Run resolve→download→diarize, persist state + detected speakers, then pause."""
+    final = build_ingest_graph(deps).invoke(
+        {"job_id": job_id, "feed_url": feed_url, "options": options},
+        config={"configurable": {"thread_id": job_id}},
+    )
+    report = dict(final.get("report") or {})
+    report["speakers"] = [
+        {"speaker_id": s.id, "speaking_seconds": s.speaking_seconds, "display_name": s.label}
+        for s in final.get("cast", [])
+    ]
+    final["report"] = report
+    deps.storage.put_bytes(_ingest_state_key(job_id), _dump_ingest_state(final))
+    deps.repo.set_report(job_id, report)
+    deps.repo.set_status(job_id, JobStatus.AWAITING_REVIEW)
+
+
+def run_pipeline(job_id: str, settings: Settings | None = None) -> str:
+    """Run one job's first phase. Returns the output audio URI (empty when paused).
+
+    A `review_voices` job runs only up to diarization and pauses at
+    `AWAITING_REVIEW`; `run_review_digest` resumes it. Every other job runs the
+    whole pipeline through to completion. Shared by the arq task and synchronous
+    callers (e.g. a smoke script).
     """
     settings = settings or get_settings()
     deps = build_deps(settings)
     job = deps.repo.get_job(job_id)
     options = JobOptions.model_validate_json(job.options_json)
     try:
-        graph = build_graph(deps)
-        final = graph.invoke(
+        if options.review_voices:
+            _ingest_and_pause(deps, job_id, job.feed_url, options)
+            return ""
+        final = build_graph(deps).invoke(
             {"job_id": job_id, "feed_url": job.feed_url, "options": options},
             config={"configurable": {"thread_id": job_id}},
         )
@@ -157,13 +220,44 @@ def run_pipeline(job_id: str, settings: Settings | None = None) -> str:
         deps.http.close()
 
 
+def run_review_digest(job_id: str, settings: Settings | None = None) -> str:
+    """Resume a reviewed job: load the paused state and run the digest to completion.
+
+    The job's options are re-read fresh, so the voice assignments submitted during
+    the review take effect.
+    """
+    settings = settings or get_settings()
+    deps = build_deps(settings)
+    job = deps.repo.get_job(job_id)
+    options = JobOptions.model_validate_json(job.options_json)
+    try:
+        state = _load_ingest_state(deps.storage.get_bytes(_ingest_state_key(job_id)))
+        state["options"] = options
+        final = build_digest_graph(deps).invoke(
+            state, config={"configurable": {"thread_id": job_id}}
+        )
+        deps.repo.set_status(job_id, JobStatus.COMPLETED)
+        return final.get("output_uri", "")
+    except Exception:
+        deps.repo.set_status(job_id, JobStatus.FAILED)
+        logger.exception("job %s digest failed", job_id)
+        raise
+    finally:
+        deps.http.close()
+
+
 async def run_job(ctx: dict, job_id: str) -> str:
-    """arq task entrypoint."""
+    """arq task entrypoint (first phase)."""
     return run_pipeline(job_id)
+
+
+async def resume_job(ctx: dict, job_id: str) -> str:
+    """arq task entrypoint to resume a reviewed job into its digest phase."""
+    return run_review_digest(job_id)
 
 
 class WorkerSettings:
     """arq worker configuration. Run with: `arq podcast_compactor.worker.main.WorkerSettings`."""
 
-    functions = [run_job]
+    functions = [run_job, resume_job]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)

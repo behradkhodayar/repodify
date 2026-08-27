@@ -66,6 +66,15 @@ class JobRepository:
                 job.finished_at = _now()
             s.commit()
 
+    def set_options(self, job_id: str, options: JobOptions) -> None:
+        """Replace the job's stored options (e.g. after an interactive voice review)."""
+        with self._sf() as s:
+            job = s.get(Job, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            job.options_json = options.model_dump_json()
+            s.commit()
+
     def start_stage(self, job_id: str, stage: StageName) -> None:
         with self._sf() as s:
             job = s.get(Job, job_id)

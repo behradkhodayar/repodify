@@ -180,3 +180,6 @@ class JobOptions(BaseModel):
     # Speaker-preserving digest: voice the digest as the real detected cast (each
     # speaker in their own cloned/stock voice). Overrides host_count when set.
     preserve_speakers: bool = False
+    # Interactive review: pause after diarization so the user can assign a voice to
+    # each detected speaker before the digest is written. Implies preserve_speakers.
+    review_voices: bool = False

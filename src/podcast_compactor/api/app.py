@@ -27,7 +27,10 @@ from podcast_compactor.api.schemas import (
     ResolveRequest,
     ResolveResponse,
     ResultResponse,
+    SpeakerOut,
+    SpeakersResponse,
     StageOut,
+    SubmitVoicesRequest,
     VoicesResponse,
 )
 from podcast_compactor.config import Settings, get_settings
@@ -52,6 +55,7 @@ def create_app(
     storage: Storage,
     settings: Settings,
     static_dir: Path | None = None,
+    enqueue_resume: EnqueueFn | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Podcast Compactor")
     app.add_middleware(
@@ -91,6 +95,7 @@ def create_app(
             target_minutes=req.target_minutes,
             voice_assignments=req.voice_assignments,
             preserve_speakers=req.preserve_speakers,
+            review_voices=req.review_voices,
         )
         job_id = repo.create_job(req.feed_url, options)
         enqueue(job_id)
@@ -101,6 +106,42 @@ def create_app(
         from podcast_compactor.synth.stock_voices import list_stock_voices
 
         return VoicesResponse(stock_voices=list_stock_voices())
+
+    @router.get("/jobs/{job_id}/speakers", response_model=SpeakersResponse)
+    def get_speakers(job_id: str) -> SpeakersResponse:
+        try:
+            job = repo.get_job(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+        report = json.loads(job.report_json or "{}")
+        speakers = [SpeakerOut(**s) for s in report.get("speakers", [])]
+        return SpeakersResponse(status=job.status, speakers=speakers)
+
+    @router.post("/jobs/{job_id}/voices", response_model=CreateJobResponse)
+    def submit_voices(job_id: str, req: SubmitVoicesRequest) -> CreateJobResponse:
+        try:
+            job = repo.get_job(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+        if job.status != JobStatus.AWAITING_REVIEW.value:
+            raise HTTPException(status_code=409, detail="job is not awaiting voice review")
+
+        report = json.loads(job.report_json or "{}")
+        detected = {s["speaker_id"] for s in report.get("speakers", [])}
+        unknown = [a.speaker_id for a in req.voice_assignments if a.speaker_id not in detected]
+        if unknown:
+            raise HTTPException(status_code=422, detail=f"unknown speakers: {unknown}")
+
+        options = JobOptions.model_validate_json(job.options_json).model_copy(
+            update={
+                "voice_assignments": req.voice_assignments,
+                "preserve_speakers": True,
+            }
+        )
+        repo.set_options(job_id, options)
+        repo.set_status(job_id, JobStatus.QUEUED)
+        (enqueue_resume or enqueue)(job_id)
+        return CreateJobResponse(job_id=job_id)
 
     @router.get("/jobs", response_model=JobListResponse)
     def list_jobs(limit: int = 50, offset: int = 0) -> JobListResponse:
@@ -188,8 +229,8 @@ def _require_completed(repo: JobRepository, job_id: str):
     return job
 
 
-def _arq_enqueue(job_id: str) -> None:
-    """Enqueue a job onto arq/Redis. Opens a short-lived pool per call."""
+def _arq_enqueue_task(task: str, job_id: str) -> None:
+    """Enqueue an arq task onto Redis. Opens a short-lived pool per call."""
     import asyncio
 
     from arq import create_pool
@@ -198,11 +239,19 @@ def _arq_enqueue(job_id: str) -> None:
     async def _go() -> None:
         pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
         try:
-            await pool.enqueue_job("run_job", job_id)
+            await pool.enqueue_job(task, job_id)
         finally:
             await pool.aclose()
 
     asyncio.run(_go())
+
+
+def _arq_enqueue(job_id: str) -> None:
+    _arq_enqueue_task("run_job", job_id)
+
+
+def _arq_enqueue_resume(job_id: str) -> None:
+    _arq_enqueue_task("resume_job", job_id)
 
 
 def build_default_app() -> FastAPI:
@@ -217,4 +266,5 @@ def build_default_app() -> FastAPI:
     return create_app(
         repo, resolve, http, _arq_enqueue, storage, settings,
         static_dir=static_dir if static_dir.is_dir() else None,
+        enqueue_resume=_arq_enqueue_resume,
     )

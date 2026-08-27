@@ -7,11 +7,18 @@ that returns pre-built objects.
 
 from __future__ import annotations
 
+import re
 from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
+
+
+def _multivoice_labels(user: str) -> list[str]:
+    """Parse the cast ids the multi-voice script prompt lists, for the fake LLM."""
+    m = re.search(r"these labels:\s*([^.]+)", user)
+    return [s.strip() for s in m.group(1).split(",") if s.strip()] if m else []
 
 
 @runtime_checkable
@@ -99,6 +106,13 @@ class LocalStubLLM:
             )
         if schema is Script:
             line = "This is a placeholder digest generated in fake mode. "
+            cast = _multivoice_labels(user)
+            if cast:
+                # Speaker-preserving mode: emit a segment per detected cast id so the
+                # multi-voice validator is satisfied in fake mode.
+                return Script(  # type: ignore[return-value]
+                    segments=[ScriptSegment(speaker=c, text=line * 8) for c in cast]
+                )
             # Emit both hosts: single-host mode normalizes these to the narrator,
             # two-host mode uses them as-is.
             return Script(  # type: ignore[return-value]
