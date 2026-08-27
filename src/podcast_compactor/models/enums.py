@@ -25,6 +25,7 @@ class JobStatus(StrEnum):
 
     QUEUED = "queued"
     RUNNING = "running"
+    AWAITING_REVIEW = "awaiting_review"  # paused after diarization for voice review
     COMPLETED = "completed"
     FAILED = "failed"
 

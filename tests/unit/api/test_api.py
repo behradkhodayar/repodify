@@ -104,6 +104,52 @@ def test_voices_lists_stock_catalog(repo, tmp_path):
     assert body["stock_voices"] == list_stock_voices()
 
 
+def test_speakers_endpoint_reports_status_and_detected_cast(repo, tmp_path):
+    job_id = repo.create_job("https://feed", JobOptions(episode_ids=["ep-1"], review_voices=True))
+    repo.set_report(job_id, {"speakers": [{"speaker_id": "SPEAKER_00", "speaking_seconds": 12.0}]})
+    from podcast_compactor.models.enums import JobStatus as _JS
+
+    repo.set_status(job_id, _JS.AWAITING_REVIEW)
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        body = client.get(f"/jobs/{job_id}/speakers").json()
+    assert body["status"] == "awaiting_review"
+    assert body["speakers"][0]["speaker_id"] == "SPEAKER_00"
+
+
+def test_submit_voices_rejects_when_not_awaiting_review(repo, tmp_path):
+    job_id = repo.create_job("https://feed", JobOptions(episode_ids=["ep-1"]))
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        resp = client.post(
+            f"/jobs/{job_id}/voices",
+            json={"voice_assignments": [{"speaker_id": "SPEAKER_00", "mode": "clone"}]},
+        )
+    assert resp.status_code == 409
+
+
+def test_submit_voices_rejects_unknown_speaker(repo, tmp_path):
+    from podcast_compactor.models.enums import JobStatus as _JS
+
+    job_id = repo.create_job("https://feed", JobOptions(episode_ids=["ep-1"], review_voices=True))
+    repo.set_report(job_id, {"speakers": [{"speaker_id": "SPEAKER_00"}]})
+    repo.set_status(job_id, _JS.AWAITING_REVIEW)
+    resumed: list[str] = []
+    with httpx.Client() as http:
+        app = create_app(
+            repo, _resolve_fn, http, lambda j: None,
+            FilesystemStorage(tmp_path / "data"),
+            Settings(_env_file=None), enqueue_resume=resumed.append,
+        )
+        client = TestClient(app)
+        resp = client.post(
+            f"/jobs/{job_id}/voices",
+            json={"voice_assignments": [{"speaker_id": "SPEAKER_99", "mode": "clone"}]},
+        )
+    assert resp.status_code == 422
+    assert resumed == []  # nothing scheduled on a bad request
+
+
 def test_create_job_persists_voice_assignments(repo, tmp_path):
     with httpx.Client() as http:
         client = TestClient(_app(repo, http, tmp_path))

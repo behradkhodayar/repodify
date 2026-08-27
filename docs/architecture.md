@@ -234,9 +234,10 @@ SQLAlchemy models (`models/db.py`), accessed only through `JobRepository`
 
 `JobRepository` methods: `create_job`, `get_job` (eager-loads stages/artifacts then
 detaches), `list_jobs(limit, offset) -> (jobs, total)`, `set_status`,
-`start_stage`/`finish_stage`, `add_artifact`, `set_report`. `JobStatus` moves
-`queued → running → completed | failed`; `StageState` is
-`pending → running → done | skipped | failed`.
+`start_stage`/`finish_stage`, `add_artifact`, `set_report`, `set_options`.
+`JobStatus` moves `queued → running → completed | failed`, with an extra
+`awaiting_review` pause for the interactive voice review (see §10); `StageState`
+is `pending → running → done | skipped | failed`.
 
 The engine is created from `DATABASE_URL` — **SQLite** for local dev
 (`sqlite:///./data/app.db`), **Postgres** for production
@@ -258,6 +259,9 @@ dependency (`api/auth.py`); CORS is configured from `cors_allow_origins`.
 | POST | `/jobs` | Create a job (`JobOptions`) and enqueue it |
 | GET | `/jobs` | Paginated job history (`limit`, `offset`) |
 | GET | `/jobs/{id}` | Status + per-stage state (poll this) |
+| GET | `/voices` | Stock (Kokoro) voice catalog |
+| GET | `/jobs/{id}/speakers` | Detected cast for a job `awaiting_review` |
+| POST | `/jobs/{id}/voices` | Submit per-speaker voice assignments; resumes the job |
 | GET | `/jobs/{id}/result` | `audio_mp3_url`, `audio_wav_url`, summary, chapters |
 | GET | `/jobs/{id}/audio?format=mp3\|wav` | Range-streamed audio |
 
@@ -301,6 +305,13 @@ narrates closer to the target length.
 | Voice cloning | `clone=true` | Diarization (DIARIZE stage) labels the transcript; `ClipVoiceCloner` cuts a reference clip per speaker for F5-TTS. |
 | Stock voices | `voice_assignments` / default | Catalog voices via Kokoro (`GET /voices`); `RoutingTTS` sends stock voices to Kokoro and cloned voices to F5-TTS. |
 | Speaker-preserving | `preserve_speakers=true` | The digest is voiced by the real detected cast: the script is a multi-speaker dialogue labeled with diarization ids, each in their assigned (cloned/stock) voice. Overrides `host_count`. |
+| Interactive review | `review_voices=true` | Two-phase job: runs resolve→download→diarize, then **pauses at `awaiting_review`**. The client reads `GET /jobs/{id}/speakers` and `POST`s per-speaker `voice_assignments` to `/jobs/{id}/voices`, which resumes into a speaker-preserving digest. |
+
+The interactive review splits the graph (`build_ingest_graph` / `build_digest_graph`):
+the ingest phase persists its state to `{job_id}/state/ingest.json` and the detected
+cast into the job report, then `run_review_digest` reloads that state (with the fresh,
+reviewed options) and runs the digest to completion. No cross-process checkpointer is
+needed.
 
 **Cloning guardrails (always enforced, non-optional):** the output is labeled
 `synthetic: true` with a disclaimer in the show notes, a **spoken disclaimer** (in

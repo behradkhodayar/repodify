@@ -28,10 +28,26 @@ export interface CreateJobRequest {
   target_minutes?: number
   voice_assignments?: VoiceAssignment[]
   preserve_speakers?: boolean
+  review_voices?: boolean
 }
 
 export interface VoicesResponse {
   stock_voices: string[]
+}
+
+export interface SpeakerOut {
+  speaker_id: string
+  speaking_seconds: number
+  display_name?: string | null
+}
+
+export interface SpeakersResponse {
+  status: string
+  speakers: SpeakerOut[]
+}
+
+export interface SubmitVoicesRequest {
+  voice_assignments: VoiceAssignment[]
 }
 
 export interface StageOut {

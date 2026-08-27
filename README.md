@@ -162,6 +162,15 @@ curl -s -X POST localhost:8000/jobs \
 When any voice is cloned the same guardrails apply (synthetic label, spoken
 disclaimer, watermark). Stock voices use Kokoro-82M; cloned voices use F5-TTS.
 
+Because the detected speaker ids aren't known until diarization runs, set
+`"review_voices": true` to have the job **pause after diarization** for review:
+
+1. Create the job with `"review_voices": true`. It runs resolve → download →
+   transcribe → diarize, then stops at status `awaiting_review`.
+2. `GET /jobs/{id}/speakers` returns the detected cast (ids + talk time).
+3. `POST /jobs/{id}/voices` with a `voice_assignments` array resumes the job into
+   a speaker-preserving digest using the voices you chose.
+
 ## Web client (PWA)
 
 A React + Vite PWA lives in `web/` and is served same-origin by the API at `/app`.
@@ -181,8 +190,9 @@ protected by `API_TOKEN`.
 
 Phases 1 (single-narrator digest), 2 (two-host dialogue), and 3 (opt-in,
 watermarked, labeled voice cloning) are implemented, plus speaker-aware
-transcription, a Kokoro stock-voice catalog, and a speaker-preserving digest that
-voices the real detected cast (each in their own cloned or stock voice).
+transcription, a Kokoro stock-voice catalog, a speaker-preserving digest that
+voices the real detected cast (each in their own cloned or stock voice), and an
+interactive review that pauses after diarization to assign a voice per speaker.
 
 ## Roadmap
 
