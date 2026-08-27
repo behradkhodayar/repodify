@@ -50,6 +50,7 @@ def test_show_notes_synthetic_fields():
 
 def test_enums_have_expected_members():
     assert StageName.TRANSCRIBE.value == "transcribe"
+    assert StageName.DIARIZE.value == "diarize"
     assert JobStatus.COMPLETED.value == "completed"
     assert StageState.SKIPPED.value == "skipped"
-    assert len(list(StageName)) == 9
+    assert len(list(StageName)) == 10

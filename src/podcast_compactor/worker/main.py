@@ -47,6 +47,7 @@ def build_deps(settings: Settings) -> Deps:
     http = httpx.Client(timeout=60.0)
 
     if settings.use_fakes:
+        from podcast_compactor.ports.diarizer import FakeDiarizer
         from podcast_compactor.ports.llm import LocalStubLLM
         from podcast_compactor.ports.transcoder import FakeTranscoder
         from podcast_compactor.ports.transcriber import FakeTranscriber
@@ -59,6 +60,7 @@ def build_deps(settings: Settings) -> Deps:
                 segments=[TranscriptSegment(start=0.0, end=5.0, text="placeholder transcript")],
             )
         )
+        diarizer = FakeDiarizer()
         llm_map = LocalStubLLM()
         llm_reduce = LocalStubLLM()
         tts = FakeTTS()
@@ -75,9 +77,11 @@ def build_deps(settings: Settings) -> Deps:
         from podcast_compactor.synth.f5_tts import F5TTS
         from podcast_compactor.synth.transcode import FfmpegTranscoder
         from podcast_compactor.synth.watermark import AudioSealWatermarker
+        from podcast_compactor.transcribe.diarization import PyannoteDiarizer
         from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
 
         transcriber = FasterWhisperTranscriber(settings.whisper_model)
+        diarizer = PyannoteDiarizer(settings.hf_token)
         llm_map, llm_reduce = _build_real_llms(settings)
         tts = F5TTS()
         voices = {
@@ -106,6 +110,7 @@ def build_deps(settings: Settings) -> Deps:
         http=http,
         storage=storage,
         transcriber=transcriber,
+        diarizer=diarizer,
         llm_map=llm_map,
         llm_reduce=llm_reduce,
         tts=tts,

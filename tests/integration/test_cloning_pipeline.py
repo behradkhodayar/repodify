@@ -45,6 +45,10 @@ def test_cloning_pipeline_applies_guardrails(tmp_path, sample_feed_xml):
     job = repo.get_job(job_id)
     assert job.status == "completed"
 
+    # Cloning needs to know who said what, so diarization ran (not skipped).
+    states = {s.stage: s.state for s in job.stages}
+    assert states.get("diarize") == "done"
+
     store = FilesystemStorage(settings.data_dir)
     with wave.open(io.BytesIO(store.get_bytes(f"{job_id}/output/digest.wav")), "rb") as w:
         assert w.getnframes() > 0

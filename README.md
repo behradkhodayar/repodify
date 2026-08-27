@@ -161,3 +161,9 @@ protected by `API_TOKEN`.
 
 Phases 1 (single-narrator digest), 2 (two-host dialogue), and 3 (opt-in,
 watermarked, labeled voice cloning) are implemented.
+
+## Roadmap
+
+- [ ] Cross-episode speaker identity — recognize the same host/guest across
+  multiple episodes and merge their diarized speakers into one voice (today the
+  detected cast is per-episode).

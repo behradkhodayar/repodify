@@ -24,6 +24,7 @@ from podcast_compactor.synth.assemble import (
     disclaimer_segment,
     synthesize_script,
 )
+from podcast_compactor.transcribe.diarization import assign_speakers, roster_from_turns
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,15 @@ def _report(state: PipelineState) -> dict:
     report.setdefault("warnings", [])
     report.setdefault("skipped", [])
     return report
+
+
+def _wants_speaker_id(options) -> bool:
+    """Whether the job needs speaker-labeled transcripts (diarization).
+
+    Later phases widen this (per-speaker voice assignments, the speaker-preserving
+    digest); for now only opt-in cloning needs to know who said what.
+    """
+    return bool(options.clone)
 
 
 def make_nodes(deps: Deps) -> dict[str, NodeFn]:
@@ -65,6 +75,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
     def download_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
         selected = state["selected"]
+        options = state["options"]
         report = _report(state)
 
         # --- DOWNLOAD ---
@@ -107,12 +118,47 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 raise RuntimeError("all episodes failed to transcribe")
             repo.finish_stage(job_id, StageName.TRANSCRIBE, StageState.DONE,
                               detail=f"{len(transcripts)} transcribed")
-            repo.set_report(job_id, report)
-            return {"transcripts": transcripts, "report": report}
         finally:
-            # Free whisper's VRAM before the LLM and TTS stages; it reloads
-            # lazily if the clone path needs it again.
+            # Free whisper's VRAM before diarization and the LLM/TTS stages; it
+            # reloads lazily if the clone path needs it again.
             deps.transcriber.release()
+
+        # --- DIARIZE ---
+        # Label each transcript segment with who spoke it, so later stages can
+        # attribute content — and voices — to specific speakers. Only run when a
+        # voice feature needs it; otherwise the stage is skipped (no GPU cost).
+        repo.start_stage(job_id, StageName.DIARIZE)
+        if _wants_speaker_id(options):
+            try:
+                for ep in downloaded:
+                    if ep.guid not in transcripts:
+                        continue
+                    path = deps.storage.local_path(audio_key(job_id, ep))
+                    turns = deps.diarizer.diarize(path)
+                    transcripts[ep.guid] = transcripts[ep.guid].model_copy(
+                        update={
+                            "segments": assign_speakers(
+                                transcripts[ep.guid].segments, turns
+                            ),
+                            "speakers": roster_from_turns(turns),
+                        }
+                    )
+                cast = {s.id for t in transcripts.values() for s in t.speakers}
+                repo.finish_stage(job_id, StageName.DIARIZE, StageState.DONE,
+                                  detail=f"{len(cast)} speakers")
+            except Exception as exc:
+                repo.finish_stage(job_id, StageName.DIARIZE, StageState.FAILED,
+                                  detail=str(exc))
+                raise
+            finally:
+                # Free pyannote's VRAM before the LLM/TTS stages.
+                deps.diarizer.release()
+        else:
+            repo.finish_stage(job_id, StageName.DIARIZE, StageState.SKIPPED,
+                              detail="no voice feature requested")
+
+        repo.set_report(job_id, report)
+        return {"transcripts": transcripts, "report": report}
 
     def summarize_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
