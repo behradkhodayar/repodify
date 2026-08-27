@@ -30,11 +30,24 @@ class Feed(BaseModel):
 
 
 class TranscriptSegment(BaseModel):
-    """A time-stamped span of transcribed speech."""
+    """A time-stamped span of transcribed speech.
+
+    `speaker` is the diarization label (e.g. ``"SPEAKER_00"``) once the transcript
+    has been speaker-labeled; it is ``None`` on a raw, speaker-agnostic transcript.
+    """
 
     start: float
     end: float
     text: str
+    speaker: str | None = None
+
+
+class Speaker(BaseModel):
+    """A distinct voice detected in an episode's audio via diarization."""
+
+    id: str  # diarization label, e.g. "SPEAKER_00"
+    label: str | None = None  # optional human-facing name
+    speaking_seconds: float = 0.0
 
 
 class Transcript(BaseModel):
@@ -42,6 +55,7 @@ class Transcript(BaseModel):
 
     episode_guid: str
     segments: list[TranscriptSegment] = Field(default_factory=list)
+    speakers: list[Speaker] = Field(default_factory=list)
 
     @property
     def text(self) -> str:

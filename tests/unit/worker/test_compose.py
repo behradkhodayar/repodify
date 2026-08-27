@@ -1,4 +1,5 @@
 from podcast_compactor.config import Settings
+from podcast_compactor.ports.diarizer import FakeDiarizer
 from podcast_compactor.ports.llm import LocalStubLLM
 from podcast_compactor.ports.transcriber import FakeTranscriber
 from podcast_compactor.ports.tts import FakeTTS
@@ -17,6 +18,7 @@ def test_build_deps_uses_fakes_in_fake_mode(tmp_path):
     deps = build_deps(settings)
     try:
         assert isinstance(deps.transcriber, FakeTranscriber)
+        assert isinstance(deps.diarizer, FakeDiarizer)
         assert isinstance(deps.tts, FakeTTS)
         assert isinstance(deps.llm_map, LocalStubLLM)
         assert isinstance(deps.llm_reduce, LocalStubLLM)

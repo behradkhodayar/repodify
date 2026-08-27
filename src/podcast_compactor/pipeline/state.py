@@ -19,6 +19,7 @@ from podcast_compactor.models.domain import (
     Transcript,
 )
 from podcast_compactor.persistence.repo import JobRepository
+from podcast_compactor.ports.diarizer import Diarizer
 from podcast_compactor.ports.llm import StructuredLLM
 from podcast_compactor.ports.transcoder import Transcoder
 from podcast_compactor.ports.transcriber import Transcriber
@@ -52,6 +53,7 @@ class Deps:
     http: httpx.Client
     storage: Storage
     transcriber: Transcriber
+    diarizer: Diarizer
     llm_map: StructuredLLM
     llm_reduce: StructuredLLM
     tts: TTS

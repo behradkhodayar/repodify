@@ -17,6 +17,7 @@ from podcast_compactor.models.domain import (
 )
 from podcast_compactor.pipeline.graph import build_graph
 from podcast_compactor.pipeline.state import Deps
+from podcast_compactor.ports.diarizer import FakeDiarizer
 from podcast_compactor.ports.llm import FakeStructuredLLM
 from podcast_compactor.ports.transcoder import FakeTranscoder
 from podcast_compactor.ports.transcriber import FakeTranscriber
@@ -75,6 +76,7 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
                 http=http,
                 storage=storage,
                 transcriber=transcriber,
+                diarizer=FakeDiarizer(),
                 transcoder=FakeTranscoder(),
                 llm_map=llm_map,
                 llm_reduce=llm_reduce,
@@ -110,6 +112,8 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
     ]
     for stage in expected_stages:
         assert states.get(stage) == "done", f"stage {stage} was {states.get(stage)}"
+    # No voice feature requested here, so diarization is skipped (no GPU cost).
+    assert states.get("diarize") == "skipped"
 
     # Output artifact attached; both episodes were transcribed and summarized.
     kinds = {a.kind for a in job.artifacts}

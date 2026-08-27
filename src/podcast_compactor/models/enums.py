@@ -12,6 +12,7 @@ class StageName(StrEnum):
     LIST = "list"
     DOWNLOAD = "download"
     TRANSCRIBE = "transcribe"
+    DIARIZE = "diarize"
     SUMMARIZE = "summarize"
     ARC = "arc"
     SCRIPT = "script"
