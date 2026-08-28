@@ -1,8 +1,10 @@
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import type { EpisodeOut } from '../api/types'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Checkbox } from './ui/checkbox'
+import { Textarea } from './ui/textarea'
 
 function formatDuration(seconds: number | null): string | null {
   if (!seconds) return null
@@ -41,6 +43,20 @@ export function EpisodePicker({
     })
   }
 
+  function handleToggle(guid: string) {
+    // Deselecting an episode hides its note controls; forget its expanded state
+    // too, so re-selecting it starts collapsed rather than reopening the note.
+    if (selected.has(guid)) {
+      setOpen((prev) => {
+        if (!prev.has(guid)) return prev
+        const next = new Set(prev)
+        next.delete(guid)
+        return next
+      })
+    }
+    onToggle(guid)
+  }
+
   return (
     <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
       {episodes.map((ep) => {
@@ -61,7 +77,7 @@ export function EpisodePicker({
               <Checkbox
                 aria-label={ep.title}
                 checked={isSelected}
-                onChange={() => onToggle(ep.guid)}
+                onChange={() => handleToggle(ep.guid)}
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{ep.title}</span>
@@ -79,23 +95,24 @@ export function EpisodePicker({
                 <button
                   type="button"
                   onClick={() => toggleOpen(ep.guid)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  {isOpen ? '▾' : '▸'} {hasNote ? 'note' : 'add note'}
+                  {isOpen ? (
+                    <ChevronDown className="size-3" />
+                  ) : (
+                    <ChevronRight className="size-3" />
+                  )}
+                  {hasNote ? 'note' : 'add note'}
                 </button>
                 {isOpen && (
-                  <textarea
+                  <Textarea
                     aria-label={`Note for ${ep.title}`}
                     value={prompts[ep.guid] ?? ''}
                     onChange={(e) => onPromptChange(ep.guid, e.target.value)}
                     placeholder="e.g. keep only the interview; cut 4:20 to 6:09"
                     rows={2}
                     maxLength={4000} // mirrors MAX_PROMPT_CHARS server-side cap
-                    className={cn(
-                      'mt-1 flex w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm transition-colors',
-                      'placeholder:text-muted-foreground/70',
-                      'focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40',
-                    )}
+                    className="mt-1"
                   />
                 )}
               </div>
