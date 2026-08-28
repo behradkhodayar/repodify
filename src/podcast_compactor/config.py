@@ -6,13 +6,43 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The project root (config.py -> podcast_compactor -> src -> repo). Persistence
+# and the .env lookup anchor here rather than to the process working directory,
+# so a run launched from any CWD (API server, worker, or an ad-hoc CLI run)
+# shares one database and data dir — otherwise its jobs land in a private
+# ./data/app.db the web UI never reads (issue #27).
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _anchor(path: Path) -> Path:
+    """Resolve a relative path against the project root, not the CWD."""
+    return path if path.is_absolute() else (_PROJECT_ROOT / path).resolve()
+
+
+def _anchor_sqlite_url(url: str) -> str:
+    """Rewrite a relative sqlite file path to an absolute, project-anchored one.
+
+    SQLAlchemy resolves ``sqlite:///./data/app.db`` against the process CWD at
+    connect time, so the same URL points at different files depending on where
+    the process started. Non-sqlite URLs, in-memory databases, and already
+    absolute paths pass through unchanged.
+    """
+    prefix = "sqlite:///"
+    if not url.startswith(prefix):
+        return url
+    tail = url[len(prefix) :]
+    if not tail or tail.startswith("/") or tail.startswith(":memory:"):
+        return url
+    return f"{prefix}{_anchor(Path(tail))}"
 
 
 class Settings(BaseSettings):
     """Runtime configuration. Every value can be overridden via env vars."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_PROJECT_ROOT / ".env", extra="ignore")
 
     # Secrets / connections
     anthropic_api_key: str | None = None
@@ -85,6 +115,13 @@ class Settings(BaseSettings):
     # HTTP API
     api_token: str | None = None  # when set, all endpoints except /health require it
     cors_allow_origins: list[str] = ["*"]
+
+    @model_validator(mode="after")
+    def _anchor_persistence_to_project_root(self) -> Settings:
+        """Make persistence locations independent of the process CWD (issue #27)."""
+        self.data_dir = _anchor(self.data_dir)
+        self.database_url = _anchor_sqlite_url(self.database_url)
+        return self
 
 
 @lru_cache
