@@ -96,6 +96,8 @@ def create_app(
             voice_assignments=req.voice_assignments,
             preserve_speakers=req.preserve_speakers,
             review_voices=req.review_voices,
+            custom_prompt=req.custom_prompt,
+            episode_prompts=req.episode_prompts,
         )
         job_id = repo.create_job(req.feed_url, options)
         enqueue(job_id)

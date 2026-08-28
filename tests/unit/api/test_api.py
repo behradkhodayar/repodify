@@ -167,3 +167,21 @@ def test_create_job_persists_voice_assignments(repo, tmp_path):
     options = JobOptions.model_validate_json(repo.get_job(resp.json()["job_id"]).options_json)
     assert options.voice_assignments[0].speaker_id == "SPEAKER_00"
     assert options.voice_assignments[0].stock_voice == "af_heart"
+
+
+def test_create_job_persists_custom_prompts(repo, tmp_path):
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        resp = client.post(
+            "/jobs",
+            json={
+                "feed_url": "https://feed",
+                "episode_ids": ["ep-1"],
+                "custom_prompt": "skip sponsor reads",
+                "episode_prompts": {"ep-1": "keep the interview"},
+            },
+        )
+    assert resp.status_code == 200
+    options = JobOptions.model_validate_json(repo.get_job(resp.json()["job_id"]).options_json)
+    assert options.custom_prompt == "skip sponsor reads"
+    assert options.episode_prompts == {"ep-1": "keep the interview"}
