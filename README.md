@@ -196,6 +196,8 @@ interactive review that pauses after diarization to assign a voice per speaker.
 
 ## Roadmap
 
-- [ ] Cross-episode speaker identity — recognize the same host/guest across
-  multiple episodes and merge their diarized speakers into one voice (today the
-  detected cast is per-episode).
+- [x] Cross-episode speaker identity — recognize the same host/guest across
+  multiple episodes and merge their diarized speakers into one voice (was
+  per-episode; now clustered by voice embedding).
+- [ ] Let user choose their preferred stock speakers — a general selection menu
+  under settings, with a playable audio sample chunk in front of each name.
