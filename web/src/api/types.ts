@@ -29,6 +29,8 @@ export interface CreateJobRequest {
   voice_assignments?: VoiceAssignment[]
   preserve_speakers?: boolean
   review_voices?: boolean
+  custom_prompt?: string | null
+  episode_prompts?: Record<string, string>
 }
 
 export interface VoicesResponse {
