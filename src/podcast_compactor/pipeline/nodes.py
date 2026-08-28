@@ -203,7 +203,11 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             # Summarize in chronological order, only episodes we transcribed.
             ordered = [e for e in state["selected"] if e.guid in transcripts]
             summaries = [
-                summarize_episode(transcripts[e.guid], e.title, e.order_index, deps.llm_map)
+                summarize_episode(
+                    transcripts[e.guid], e.title, e.order_index, deps.llm_map,
+                    whole_prompt=state["options"].custom_prompt,
+                    episode_prompt=state["options"].episode_prompts.get(e.guid),
+                )
                 for e in ordered
             ]
             repo.finish_stage(job_id, StageName.SUMMARIZE, StageState.DONE,
@@ -217,7 +221,10 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         job_id = state["job_id"]
         repo.start_stage(job_id, StageName.ARC)
         try:
-            arc = synthesize_arc(state["summaries"], deps.llm_reduce)
+            arc = synthesize_arc(
+                state["summaries"], deps.llm_reduce,
+                whole_prompt=state["options"].custom_prompt,
+            )
             repo.finish_stage(job_id, StageName.ARC, StageState.DONE)
             return {"arc": arc}
         except Exception as exc:
@@ -241,6 +248,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 wpm=deps.settings.wpm,
                 host_count=options.host_count,
                 cast=cast if options.preserve_speakers else None,
+                whole_prompt=options.custom_prompt,
             )
             repo.finish_stage(job_id, StageName.SCRIPT, StageState.DONE,
                               detail=f"{script.word_count} words")

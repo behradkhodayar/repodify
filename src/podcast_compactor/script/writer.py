@@ -78,6 +78,8 @@ def write_script(
     wpm: int,
     host_count: int = 1,
     cast: list[Speaker] | None = None,
+    *,
+    whole_prompt: str | None = None,
 ) -> Script:
     """Write a spoken script for the digest.
 
@@ -126,6 +128,10 @@ def write_script(
 
         def normalize(script: Script) -> Script:
             return _normalize_speakers(script, host_count)
+
+    # Whole-digest guidance rides on the base prompt so it persists across the
+    # expansion retries below (which rebuild `user` from `base_user`).
+    base_user = prompts.with_guidance(base_user, whole=whole_prompt)
 
     floor = word_budget * (1 - _BUDGET_TOLERANCE)
 

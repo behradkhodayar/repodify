@@ -17,6 +17,8 @@ export function NewDigest() {
   const [targetMinutes, setTargetMinutes] = useState(30)
   const [hostCount, setHostCount] = useState(1)
   const [reviewVoices, setReviewVoices] = useState(false)
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [episodePrompts, setEpisodePrompts] = useState<Record<string, string>>({})
   const resolve = useResolveFeed()
   const create = useCreateJob()
   const navigate = useNavigate()
@@ -31,12 +33,19 @@ export function NewDigest() {
   }
 
   async function onCreate() {
+    const episode_prompts: Record<string, string> = {}
+    for (const guid of selected) {
+      const note = episodePrompts[guid]?.trim()
+      if (note) episode_prompts[guid] = note
+    }
     const { job_id } = await create.mutateAsync({
       feed_url: url,
       episode_ids: [...selected],
       host_count: hostCount,
       target_minutes: targetMinutes,
       review_voices: reviewVoices,
+      custom_prompt: customPrompt.trim() || undefined,
+      episode_prompts,
     })
     navigate(`/jobs/${job_id}`)
   }
@@ -104,7 +113,15 @@ export function NewDigest() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <EpisodePicker episodes={resolve.data.episodes} selected={selected} onToggle={toggle} />
+            <EpisodePicker
+              episodes={resolve.data.episodes}
+              selected={selected}
+              onToggle={toggle}
+              prompts={episodePrompts}
+              onPromptChange={(guid, value) =>
+                setEpisodePrompts((prev) => ({ ...prev, [guid]: value }))
+              }
+            />
 
             <Separator />
 
@@ -141,6 +158,22 @@ export function NewDigest() {
                   onChange={(e) => setReviewVoices(e.target.checked)}
                 />
                 <span className="text-sm font-medium">Assign voices per speaker</span>
+              </label>
+
+              <label className="w-full space-y-1.5">
+                <span className="block text-sm font-medium">Custom instructions</span>
+                <textarea
+                  aria-label="Custom instructions"
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  placeholder="Steer the whole digest — e.g. focus on the funding news; skip sponsor reads. You can reference times like 4:20."
+                  rows={3}
+                  maxLength={4000} // mirrors MAX_PROMPT_CHARS server-side cap
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm transition-colors placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                />
+                <span className="block text-xs text-muted-foreground">
+                  Optional. Leave blank to use the default summary.
+                </span>
               </label>
 
               <div className="flex items-center gap-3 sm:ml-auto">

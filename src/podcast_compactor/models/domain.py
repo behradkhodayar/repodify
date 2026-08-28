@@ -5,7 +5,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+MAX_PROMPT_CHARS = 4000
+
+
+def _fmt_mmss(seconds: float) -> str:
+    """Format a start offset as [MM:SS]; minutes may exceed 59 (e.g. 73:04)."""
+    total = int(seconds)
+    return f"{total // 60:02d}:{total % 60:02d}"
 
 
 class Episode(BaseModel):
@@ -82,6 +90,33 @@ class Transcript(BaseModel):
                 current_speaker = speaker
             else:
                 lines[-1] += " " + seg.text.strip()
+        return "\n".join(lines)
+
+    def speaker_labeled_text_timestamped(self) -> str:
+        """Like `speaker_labeled_text`, but each merged speaker turn is prefixed
+        with its start time as ``[MM:SS]`` so the LLM can honor time references.
+
+        When the transcript carries no speaker labels, each segment is emitted on
+        its own timestamped line (keeping time granularity for cut instructions).
+        """
+        labeled = [s for s in self.segments if s.text.strip()]
+        if not labeled:
+            return ""
+        has_speakers = any(s.speaker for s in labeled)
+        lines: list[str] = []
+        current_speaker: str | None = None
+        for seg in labeled:
+            ts = _fmt_mmss(seg.start)
+            text = seg.text.strip()
+            if not has_speakers:
+                lines.append(f"[{ts}] {text}")
+                continue
+            speaker = seg.speaker or "UNKNOWN"
+            if speaker != current_speaker:
+                lines.append(f"[{ts}] {speaker}: {text}")
+                current_speaker = speaker
+            else:
+                lines[-1] += " " + text
         return "\n".join(lines)
 
 
@@ -183,3 +218,25 @@ class JobOptions(BaseModel):
     # Interactive review: pause after diarization so the user can assign a voice to
     # each detected speaker before the digest is written. Implies preserve_speakers.
     review_voices: bool = False
+
+    # Free-text editorial guidance layered onto the built-in summarization
+    # prompts. `custom_prompt` steers the whole digest (applied at every LLM
+    # stage); `episode_prompts` maps an episode guid to guidance applied only to
+    # that episode's summary.
+    custom_prompt: str | None = Field(default=None, max_length=MAX_PROMPT_CHARS)
+    episode_prompts: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("episode_prompts")
+    @classmethod
+    def _clean_episode_prompts(cls, value: dict[str, str]) -> dict[str, str]:
+        cleaned: dict[str, str] = {}
+        for guid, text in value.items():
+            text = text.strip()
+            if not text:
+                continue
+            if len(text) > MAX_PROMPT_CHARS:
+                raise ValueError(
+                    f"episode prompt for {guid} exceeds {MAX_PROMPT_CHARS} chars"
+                )
+            cleaned[guid] = text
+        return cleaned

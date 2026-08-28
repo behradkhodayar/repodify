@@ -23,3 +23,14 @@ def test_synthesize_arc_orders_summaries_chronologically():
     assert schema is ArcOutline
     # Summaries appear oldest-first in the prompt regardless of input order.
     assert user.index("First") < user.index("Second") < user.index("Third")
+
+
+def test_synthesize_arc_appends_whole_prompt():
+    summaries = [EpisodeSummary(episode_guid="a", order_index=0, title="First")]
+    arc = ArcOutline(title="T", throughline="x", beats=[])
+    llm = FakeStructuredLLM([arc])
+
+    synthesize_arc(summaries, llm, whole_prompt="focus on funding")
+
+    _system, user, _schema = llm.calls[0]
+    assert "Whole digest: focus on funding" in user

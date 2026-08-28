@@ -37,6 +37,8 @@ class CreateJobRequest(BaseModel):
     voice_assignments: list[VoiceAssignment] = []
     preserve_speakers: bool = False
     review_voices: bool = False
+    custom_prompt: str | None = None
+    episode_prompts: dict[str, str] = {}
 
 
 class CreateJobResponse(BaseModel):

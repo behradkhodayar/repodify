@@ -152,3 +152,20 @@ def test_write_script_stops_after_max_attempts_and_keeps_longest():
 
     assert len(llm.calls) == 3  # capped at 3 attempts, no runaway loop
     assert script.word_count == 4  # kept the longest draft across attempts, not the last
+
+
+def test_write_script_appends_whole_prompt_and_keeps_it_on_expansion():
+    # budget = 2 * 10 = 20 words; floor 15 -> first draft is short, triggers retry.
+    short = Script(segments=[ScriptSegment(speaker="narrator", text="too short")])  # 2
+    full = Script(
+        segments=[ScriptSegment(speaker="narrator", text=" ".join(["word"] * 20))]
+    )
+    llm = FakeStructuredLLM([short, full])
+
+    write_script(_arc(), llm, target_minutes=2, wpm=10, whole_prompt="skip the ads")
+
+    assert len(llm.calls) == 2
+    _s0, user0, _ = llm.calls[0]
+    _s1, user1, _ = llm.calls[1]
+    assert "Whole digest: skip the ads" in user0   # present on first draft
+    assert "Whole digest: skip the ads" in user1   # ...and on the expansion retry
