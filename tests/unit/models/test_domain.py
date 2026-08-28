@@ -68,6 +68,39 @@ def test_show_notes_synthetic_fields():
     assert labeled.disclaimer == "AI voices"
 
 
+def test_speaker_labeled_text_timestamped_prefixes_turns():
+    t = Transcript(
+        episode_guid="ep-1",
+        segments=[
+            TranscriptSegment(start=0.0, end=1.0, text="hi there", speaker="SPEAKER_00"),
+            TranscriptSegment(start=1.0, end=2.0, text="and more", speaker="SPEAKER_00"),
+            TranscriptSegment(start=260.0, end=262.0, text="my turn", speaker="SPEAKER_01"),
+        ],
+    )
+    assert t.speaker_labeled_text_timestamped() == (
+        "[00:00] SPEAKER_00: hi there and more\n[04:20] SPEAKER_01: my turn"
+    )
+
+
+def test_speaker_labeled_text_timestamped_minutes_over_59():
+    t = Transcript(
+        episode_guid="ep-1",
+        segments=[TranscriptSegment(start=4384.0, end=4386.0, text="late", speaker="SPEAKER_00")],
+    )
+    assert t.speaker_labeled_text_timestamped() == "[73:04] SPEAKER_00: late"
+
+
+def test_speaker_labeled_text_timestamped_unlabeled_is_per_segment():
+    t = Transcript(
+        episode_guid="ep-1",
+        segments=[
+            TranscriptSegment(start=0.0, end=1.0, text="first"),
+            TranscriptSegment(start=90.0, end=92.0, text="second"),
+        ],
+    )
+    assert t.speaker_labeled_text_timestamped() == "[00:00] first\n[01:30] second"
+
+
 def test_enums_have_expected_members():
     assert StageName.TRANSCRIBE.value == "transcribe"
     assert StageName.DIARIZE.value == "diarize"
