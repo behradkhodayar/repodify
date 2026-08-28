@@ -25,12 +25,19 @@ class Voice(BaseModel):
 
     All fields are optional so the fake can run without any assets. `RoutingTTS`
     dispatches on `kokoro_voice` (set → Kokoro, unset → F5-TTS).
+
+    `instructions` is a backend-agnostic natural-language description of the voice
+    (e.g. "a warm British male voice"). The local F5-TTS/Kokoro backends ignore it;
+    a hosted backend that has no reference clip uses it to synthesize a distinct
+    voice — this is how stock and multi-host voices stay distinguishable on a
+    cloning TTS like Fish Audio when no reference audio is supplied.
     """
 
     name: str
     ref_audio_path: Path | None = None
     ref_text: str | None = None
     kokoro_voice: str | None = None
+    instructions: str | None = None
 
 
 @runtime_checkable

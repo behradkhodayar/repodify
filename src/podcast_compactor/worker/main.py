@@ -46,6 +46,26 @@ def _build_real_llms(settings: Settings) -> tuple[StructuredLLM, StructuredLLM]:
     )
 
 
+def _build_real_tts(settings: Settings):
+    """Return the real TTS backend per settings.tts_backend."""
+    if settings.tts_backend == "openrouter":
+        from podcast_compactor.synth.openrouter_tts import OpenRouterTTS
+
+        if not settings.openrouter_api_key:
+            raise RuntimeError("OPENROUTER_API_KEY is required when TTS_BACKEND=openrouter")
+        return OpenRouterTTS(
+            api_key=settings.openrouter_api_key,
+            model=settings.openrouter_tts_model,
+            base_url=settings.openrouter_base_url,
+        )
+    from podcast_compactor.synth.f5_tts import F5TTS
+    from podcast_compactor.synth.kokoro import KokoroTTS
+    from podcast_compactor.synth.routing_tts import RoutingTTS
+
+    # Cloned voices go to F5-TTS (zero-shot); stock catalog voices go to Kokoro.
+    return RoutingTTS(F5TTS(), KokoroTTS())
+
+
 def build_deps(settings: Settings) -> Deps:
     """Wire the pipeline's dependencies, choosing fakes or real backends."""
     engine = make_engine(settings.database_url)
@@ -82,9 +102,6 @@ def build_deps(settings: Settings) -> Deps:
         transcoder = FakeTranscoder()
     else:
         from podcast_compactor.synth.cloning import ClipVoiceCloner
-        from podcast_compactor.synth.f5_tts import F5TTS
-        from podcast_compactor.synth.kokoro import KokoroTTS
-        from podcast_compactor.synth.routing_tts import RoutingTTS
         from podcast_compactor.synth.transcode import FfmpegTranscoder
         from podcast_compactor.synth.watermark import AudioSealWatermarker
         from podcast_compactor.transcribe.diarization import PyannoteDiarizer
@@ -93,23 +110,28 @@ def build_deps(settings: Settings) -> Deps:
         transcriber = FasterWhisperTranscriber(settings.whisper_model)
         diarizer = PyannoteDiarizer(settings.hf_token)
         llm_map, llm_reduce = _build_real_llms(settings)
-        # Cloned voices go to F5-TTS (zero-shot); stock catalog voices go to Kokoro.
-        tts = RoutingTTS(F5TTS(), KokoroTTS())
+        tts = _build_real_tts(settings)
+        # `instructions` is a fallback voice description used only by a hosted
+        # backend (OpenRouter) when no reference clip is configured, so the two
+        # hosts stay distinct. F5-TTS ignores it and requires a real ref clip.
         voices = {
             "narrator": Voice(
                 name="narrator",
                 ref_audio_path=settings.narrator_ref_audio,
                 ref_text=settings.narrator_ref_text,
+                instructions="a clear, professional narrator voice",
             ),
             "host_a": Voice(
                 name="host_a",
                 ref_audio_path=settings.host_a_ref_audio,
                 ref_text=settings.host_a_ref_text,
+                instructions="a deep, low-pitched, warm male podcast host",
             ),
             "host_b": Voice(
                 name="host_b",
                 ref_audio_path=settings.host_b_ref_audio,
                 ref_text=settings.host_b_ref_text,
+                instructions="a high-pitched, bright female podcast host",
             ),
         }
         voice_cloner = ClipVoiceCloner()
