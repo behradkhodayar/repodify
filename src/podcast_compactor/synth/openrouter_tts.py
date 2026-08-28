@@ -5,17 +5,23 @@ Routes synthesis to a hosted text-to-speech model on OpenRouter's OpenAI-compati
 Unlike the F5-TTS/Kokoro backends this holds no local model and needs no GPU, so
 it is a drop-in `TTS` that trades VRAM for a network call.
 
-Voice mapping: a reference `Voice` (``ref_audio_path`` + ``ref_text``, e.g. the
-narrator or a per-host clip) is sent as Fish Audio ``input_references`` so the
-output imitates that clip. A voice without a reference (stock catalog / multi-host)
-is described in natural language via ``instructions`` so distinct speakers stay
-distinguishable; a bare voice with neither uses the model's default voice. The
-endpoint returns mp3; we decode it to the port's canonical 24kHz mono 16-bit WAV
-via ffmpeg so segments assemble uniformly.
+Voice mapping — every voice is resolved to a **stable reference clip** so a given
+speaker sounds identical across all their segments:
 
-Note: Fish Audio's text-style control is a soft nudge, not a hard lock — for
-guaranteed-stable, clearly distinct speakers, supply a reference clip per voice
-(HOST_*_REF_AUDIO or opt-in cloning) so the cloning path is used instead.
+- A `Voice` with ``ref_audio_path`` (narrator / per-host clip / a diarized clone)
+  is cloned directly via Fish Audio ``input_references``.
+- A voice without a clip (stock catalog / multi-host) is described in natural
+  language (``instructions`` / a Kokoro-id fallback). Fish Audio's text-style
+  control is a soft nudge that re-rolls a *different* voice on every call, so
+  instead of sending the description per segment we generate one **seed clip** from
+  it once, cache it per speaker, and clone that seed via ``input_references`` for
+  every segment. This locks the identity — the fix for a speaker's voice drifting
+  between segments — while keeping distinct speakers distinct (each seeds from its
+  own description). A bare voice with neither clip nor description uses the model's
+  default voice.
+
+The endpoint returns mp3; we decode it to the port's canonical 24kHz mono 16-bit
+WAV via ffmpeg so segments assemble uniformly.
 """
 
 from __future__ import annotations
@@ -31,6 +37,10 @@ import httpx
 
 from podcast_compactor.ports.tts import SAMPLE_RATE, Voice
 
+# A short, phonetically varied line spoken by each seed clip. Its only job is to
+# give Fish Audio a consistent voice reference to clone; the words don't matter.
+_SEED_TEXT = "Hello there, this is a quick voice sample to keep the speaker steady."
+
 
 class OpenRouterTTSError(RuntimeError):
     """Raised when the OpenRouter speech endpoint returns a non-audio response."""
@@ -38,10 +48,14 @@ class OpenRouterTTSError(RuntimeError):
 
 @lru_cache(maxsize=8)
 def _encode_reference(path: Path) -> str:
-    """Return the ``data:`` URI for a reference clip, cached per path."""
+    """Return the ``data:`` URI for a reference clip file, cached per path."""
     data = Path(path).read_bytes()
     suffix = Path(path).suffix.lstrip(".").lower() or "wav"
     return f"data:audio/{suffix};base64," + base64.b64encode(data).decode()
+
+
+def _wav_data_uri(wav_bytes: bytes) -> str:
+    return "data:audio/wav;base64," + base64.b64encode(wav_bytes).decode()
 
 
 def _fallback_instructions(kokoro_voice: str | None) -> str | None:
@@ -60,11 +74,17 @@ def _fallback_instructions(kokoro_voice: str | None) -> str | None:
     return f"a clear {accent} {gender} voice".replace("  ", " ").strip()
 
 
+def _voice_description(voice: Voice) -> str | None:
+    return voice.instructions or _fallback_instructions(voice.kokoro_voice)
+
+
 class OpenRouterTTS:
     """Synthesizes speech via OpenRouter; returns 24kHz mono 16-bit WAV bytes.
 
-    Stateless apart from a shared `httpx.Client`; `release()` is a no-op since
-    there is no GPU-resident model to free.
+    Holds a per-instance cache of seed reference clips so each speaker keeps one
+    voice for the whole job. `build_deps` constructs a fresh instance per job, so
+    the cache is naturally job-scoped; `release()` clears it and frees no GPU (there
+    is none).
     """
 
     def __init__(
@@ -82,44 +102,63 @@ class OpenRouterTTS:
         self._base_url = base_url.rstrip("/")
         self._sample_rate = sample_rate
         self._http = http or httpx.Client(timeout=120.0)
-
-    def _build_body(self, text: str, voice: Voice) -> dict:
-        body: dict = {
-            "model": self._model,
-            "input": text,
-            "response_format": "mp3",
-        }
-        if voice.ref_audio_path is not None:
-            # Reference clip present: zero-shot clone it via input_references.
-            refs: list[dict] = [
-                {
-                    "type": "input_audio",
-                    "input_audio": {"data": _encode_reference(Path(voice.ref_audio_path))},
-                }
-            ]
-            if voice.ref_text:
-                refs.append({"type": "text", "text": voice.ref_text})
-            body["input_references"] = refs
-        else:
-            # No reference clip (stock / multi-host voice): describe the voice in
-            # natural language so distinct speakers stay distinguishable. Falls back
-            # to a generic description derived from the stock catalog voice id.
-            instructions = voice.instructions or _fallback_instructions(voice.kokoro_voice)
-            if instructions:
-                body["instructions"] = instructions
-        return body
+        # speaker key -> (reference data URI, reference text)
+        self._seed_refs: dict[str, tuple[str, str]] = {}
 
     def synthesize(self, text: str, voice: Voice) -> bytes:
+        body: dict = {"model": self._model, "input": text, "response_format": "mp3"}
+        reference = self._reference_for(voice)
+        if reference is not None:
+            data_uri, ref_text = reference
+            refs: list[dict] = [{"type": "input_audio", "input_audio": {"data": data_uri}}]
+            if ref_text:
+                refs.append({"type": "text", "text": ref_text})
+            body["input_references"] = refs
+        return self._request_audio(body, label=voice.name)
+
+    def _reference_for(self, voice: Voice) -> tuple[str, str] | None:
+        """Resolve a voice to a (reference data URI, reference text), or None.
+
+        A configured clip is used directly. A described voice is seeded once and
+        reused so the speaker stays consistent. A bare voice returns None (the
+        model's default voice).
+        """
+        if voice.ref_audio_path is not None:
+            return (_encode_reference(Path(voice.ref_audio_path)), voice.ref_text or "")
+
+        description = _voice_description(voice)
+        if not description:
+            return None
+
+        key = voice.name or description
+        if key not in self._seed_refs:
+            self._seed_refs[key] = self._make_seed(description)
+        return self._seed_refs[key]
+
+    def _make_seed(self, description: str) -> tuple[str, str]:
+        """Generate one clip from a natural-language description, to clone later."""
+        wav = self._request_audio(
+            {
+                "model": self._model,
+                "input": _SEED_TEXT,
+                "response_format": "mp3",
+                "instructions": description,
+            },
+            label=f"seed:{description}",
+        )
+        return (_wav_data_uri(wav), _SEED_TEXT)
+
+    def _request_audio(self, body: dict, label: str) -> bytes:
         resp = self._http.post(
             f"{self._base_url}/audio/speech",
             headers={"Authorization": f"Bearer {self._api_key}"},
-            json=self._build_body(text, voice),
+            json=body,
         )
         content_type = resp.headers.get("content-type", "")
         if resp.status_code != 200 or content_type.startswith("application/json"):
             detail = resp.text[:500]
             raise OpenRouterTTSError(
-                f"OpenRouter TTS failed for voice {voice.name!r} "
+                f"OpenRouter TTS failed for voice {label!r} "
                 f"(HTTP {resp.status_code}, {content_type or 'no content-type'}): {detail}"
             )
         return self._mp3_to_wav(resp.content)
@@ -155,4 +194,5 @@ class OpenRouterTTS:
         return buf.getvalue()
 
     def release(self) -> None:
-        """No-op: OpenRouter holds no local model, so there is no VRAM to free."""
+        """Drop cached seed clips; no GPU model to free."""
+        self._seed_refs.clear()
