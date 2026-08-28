@@ -6,6 +6,7 @@ from podcast_compactor.synth.stock_voices import (
     STOCK_VOICES,
     interleave_by_register,
     list_stock_voices,
+    match_by_gender,
     stock_voice,
     stock_voice_register,
 )
@@ -69,3 +70,34 @@ def test_interleave_handles_single_register_and_empty():
     assert interleave_by_register([]) == []
     only_female = ["af_heart", "af_bella", "bf_emma"]
     assert interleave_by_register(only_female) == only_female  # nothing to alternate
+
+
+def test_match_by_gender_assigns_same_register_voices():
+    catalog = list_stock_voices()
+    registers = {"S0": "high", "S1": "low"}
+    got = match_by_gender(["S0", "S1"], registers, catalog)
+    assert stock_voice_register(got["S0"]) == "high"
+    assert stock_voice_register(got["S1"]) == "low"
+    assert got["S0"] != got["S1"]
+
+
+def test_match_by_gender_gives_distinct_voices_within_a_register():
+    catalog = list_stock_voices()
+    registers = {"S0": "high", "S1": "high"}  # two females
+    got = match_by_gender(["S0", "S1"], registers, catalog)
+    assert got["S0"] != got["S1"]
+    assert all(stock_voice_register(v) == "high" for v in got.values())
+
+
+def test_match_by_gender_skips_unknown_register():
+    got = match_by_gender(["S0", "S1"], {"S0": "low"}, list_stock_voices())
+    assert "S1" not in got  # no register known -> left for the caller to fall back
+    assert stock_voice_register(got["S0"]) == "low"
+
+
+def test_match_by_gender_skips_when_pool_exhausted():
+    # Only one male voice in the catalog -> a second male speaker is left unassigned.
+    catalog = ["af_heart", "am_adam"]
+    got = match_by_gender(["S0", "S1"], {"S0": "low", "S1": "low"}, catalog)
+    assert got["S0"] == "am_adam"
+    assert "S1" not in got

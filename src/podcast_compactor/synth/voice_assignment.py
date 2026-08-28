@@ -28,9 +28,17 @@ def resolve_voice_assignments(
     options: JobOptions,
     stock_catalog: list[str],
     default_stock_voice: str,
+    preferred_stock: dict[str, str] | None = None,
 ) -> dict[str, VoiceAssignment]:
-    """Return a `VoiceAssignment` for every detected speaker, keyed by speaker id."""
+    """Return a `VoiceAssignment` for every detected speaker, keyed by speaker id.
+
+    Precedence for a speaker's stock voice: an explicit user assignment wins;
+    otherwise a `preferred_stock` pick (e.g. gender-matched) is used; otherwise the
+    speaker takes the next voice from `stock_catalog` round-robin. `preferred_stock`
+    only affects speakers that would be voiced from the catalog (not `clone`).
+    """
     explicit = {a.speaker_id: a for a in options.voice_assignments}
+    preferred = preferred_stock or {}
     catalog = stock_catalog or [default_stock_voice]
 
     resolved: dict[str, VoiceAssignment] = {}
@@ -43,6 +51,10 @@ def resolve_voice_assignments(
             resolved[speaker_id] = a
         elif options.clone:
             resolved[speaker_id] = VoiceAssignment(speaker_id=speaker_id, mode="clone")
+        elif speaker_id in preferred:
+            resolved[speaker_id] = VoiceAssignment(
+                speaker_id=speaker_id, mode="stock", stock_voice=preferred[speaker_id]
+            )
         else:
             resolved[speaker_id] = VoiceAssignment(
                 speaker_id=speaker_id,

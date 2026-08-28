@@ -37,7 +37,7 @@ class ClipVoiceCloner:
     ) -> dict[str, Voice]:
         voices: dict[str, Voice] = {}
         for speaker_id in speaker_ids:
-            start, end, ref_text = _best_window(
+            start, end, ref_text = best_window(
                 transcript.segments, speaker_id, self._clip_seconds
             )
             ref_key = f"{job_id}/refs/{speaker_id}.wav"
@@ -55,7 +55,7 @@ class ClipVoiceCloner:
         return voices
 
 
-def _best_window(
+def best_window(
     segments: list[TranscriptSegment],
     speaker_id: str,
     clip_seconds: float,
