@@ -1,6 +1,8 @@
 import pytest
 
 from podcast_compactor.models.domain import (
+    JobOptions,
+    MAX_PROMPT_CHARS,
     Script,
     ScriptSegment,
     ShowNotes,
@@ -107,3 +109,27 @@ def test_enums_have_expected_members():
     assert JobStatus.COMPLETED.value == "completed"
     assert StageState.SKIPPED.value == "skipped"
     assert len(list(StageName)) == 10
+
+
+def test_job_options_defaults_have_no_prompts():
+    opts = JobOptions(episode_ids=["ep-1"])
+    assert opts.custom_prompt is None
+    assert opts.episode_prompts == {}
+
+
+def test_job_options_episode_prompts_are_stripped_and_emptied():
+    opts = JobOptions(
+        episode_ids=["ep-1"],
+        episode_prompts={"ep-1": "  keep the interview  ", "ep-2": "   "},
+    )
+    assert opts.episode_prompts == {"ep-1": "keep the interview"}
+
+
+def test_job_options_rejects_overlong_custom_prompt():
+    with pytest.raises(ValueError):
+        JobOptions(episode_ids=["ep-1"], custom_prompt="x" * (MAX_PROMPT_CHARS + 1))
+
+
+def test_job_options_rejects_overlong_episode_prompt():
+    with pytest.raises(ValueError):
+        JobOptions(episode_ids=["ep-1"], episode_prompts={"ep-1": "x" * (MAX_PROMPT_CHARS + 1)})

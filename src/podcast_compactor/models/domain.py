@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+MAX_PROMPT_CHARS = 4000
 
 
 def _fmt_mmss(seconds: float) -> str:
@@ -216,3 +218,25 @@ class JobOptions(BaseModel):
     # Interactive review: pause after diarization so the user can assign a voice to
     # each detected speaker before the digest is written. Implies preserve_speakers.
     review_voices: bool = False
+
+    # Free-text editorial guidance layered onto the built-in summarization
+    # prompts. `custom_prompt` steers the whole digest (applied at every LLM
+    # stage); `episode_prompts` maps an episode guid to guidance applied only to
+    # that episode's summary.
+    custom_prompt: str | None = Field(default=None, max_length=MAX_PROMPT_CHARS)
+    episode_prompts: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("episode_prompts")
+    @classmethod
+    def _clean_episode_prompts(cls, value: dict[str, str]) -> dict[str, str]:
+        cleaned: dict[str, str] = {}
+        for guid, text in value.items():
+            text = text.strip()
+            if not text:
+                continue
+            if len(text) > MAX_PROMPT_CHARS:
+                raise ValueError(
+                    f"episode prompt for {guid} exceeds {MAX_PROMPT_CHARS} chars"
+                )
+            cleaned[guid] = text
+        return cleaned
