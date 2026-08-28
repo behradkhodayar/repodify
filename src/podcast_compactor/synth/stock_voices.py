@@ -6,6 +6,8 @@ Used when a speaker shouldn't or can't be cloned. See `synth.kokoro.KokoroTTS`.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from podcast_compactor.ports.tts import Voice
 
 # Curated, stable Kokoro voice ids we expose. Kokoro ships more; this is a
@@ -44,6 +46,37 @@ STOCK_VOICE_STYLES: dict[str, str] = {
 def list_stock_voices() -> list[str]:
     """The stock voice names available for assignment."""
     return list(STOCK_VOICES)
+
+
+def stock_voice_register(name: str) -> Literal["high", "low"]:
+    """A stock voice's vocal register, from its Kokoro id (``a/b`` accent, ``f/m``).
+
+    ``m`` (male) voices are ``"low"``, ``f`` (female) are ``"high"``; anything that
+    doesn't look like a Kokoro id defaults to ``"high"``.
+    """
+    return "low" if len(name) >= 2 and name[1] == "m" else "high"
+
+
+def interleave_by_register(names: list[str]) -> list[str]:
+    """Reorder a catalog so consecutive voices alternate register (high/low).
+
+    Round-robin assignment over this order gives adjacent cast speakers audibly
+    distinct voices — a male and a female for a two-host show — instead of, say,
+    two similar female voices from a female-heavy catalog. The first name's
+    register leads, so the catalog's default voice stays first.
+    """
+    if not names:
+        return []
+    high = [n for n in names if stock_voice_register(n) == "high"]
+    low = [n for n in names if stock_voice_register(n) == "low"]
+    first, second = (high, low) if stock_voice_register(names[0]) == "high" else (low, high)
+    out: list[str] = []
+    for i in range(max(len(first), len(second))):
+        if i < len(first):
+            out.append(first[i])
+        if i < len(second):
+            out.append(second[i])
+    return out
 
 
 def stock_voice(name: str) -> Voice:

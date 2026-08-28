@@ -196,6 +196,14 @@ interactive review that pauses after diarization to assign a voice per speaker.
 
 ## Roadmap
 
-- [ ] Cross-episode speaker identity — recognize the same host/guest across
-  multiple episodes and merge their diarized speakers into one voice (today the
-  detected cast is per-episode).
+- [x] Cross-episode speaker identity — recognize the same host/guest across
+  multiple episodes and merge their diarized speakers into one voice (was
+  per-episode; now clustered by voice embedding).
+- [ ] Match stock voices to speaker gender by default — infer each speaker's
+  gender from their diarized audio and assign a same-gender catalog voice, so a
+  male host gets a male voice even without cloning. This is the default; the user
+  can override it. (Today stock voices only alternate register for distinctness,
+  which can invert a speaker's apparent gender.)
+- [ ] Let user choose their preferred stock speakers — a general selection menu
+  under settings, with a playable audio sample chunk in front of each name
+  (the per-speaker override for the gender-matching default above).

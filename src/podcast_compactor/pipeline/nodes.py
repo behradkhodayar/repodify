@@ -26,7 +26,11 @@ from podcast_compactor.synth.assemble import (
     disclaimer_segment,
     synthesize_script,
 )
-from podcast_compactor.synth.stock_voices import list_stock_voices, stock_voice
+from podcast_compactor.synth.stock_voices import (
+    interleave_by_register,
+    list_stock_voices,
+    stock_voice,
+)
 from podcast_compactor.synth.voice_assignment import MAX_CAST, resolve_voice_assignments
 from podcast_compactor.transcribe.diarization import (
     assign_speakers,
@@ -284,8 +288,14 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 # Speaker-preserving digest: each cast speaker in their assigned
                 # voice — their own clone or a stock catalog voice.
                 cast_ids = [s.id for s in state["cast"]]
+                # Interleave the catalog by register so auto-assigned stock voices
+                # alternate male/female — two hosts sound distinct, not two similar
+                # female voices from a female-heavy catalog.
                 assignments = resolve_voice_assignments(
-                    cast_ids, options, list_stock_voices(), deps.settings.default_stock_voice
+                    cast_ids,
+                    options,
+                    interleave_by_register(list_stock_voices()),
+                    deps.settings.default_stock_voice,
                 )
                 clone_ids = [i for i in cast_ids if assignments[i].mode == "clone"]
                 voices = {}
