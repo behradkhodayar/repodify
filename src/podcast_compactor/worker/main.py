@@ -108,7 +108,7 @@ def build_deps(settings: Settings) -> Deps:
         from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
 
         transcriber = FasterWhisperTranscriber(settings.whisper_model)
-        diarizer = PyannoteDiarizer(settings.hf_token)
+        diarizer = PyannoteDiarizer(settings.hf_token, settings.diarization_model)
         llm_map, llm_reduce = _build_real_llms(settings)
         tts = _build_real_tts(settings)
         # `instructions` is a fallback voice description used only by a hosted
@@ -283,3 +283,7 @@ class WorkerSettings:
 
     functions = [run_job, resume_job]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
+    # Heavy ML jobs (diarization + cloning across episodes) exceed arq's 300s
+    # default; size the timeout from settings and avoid retry storms.
+    job_timeout = get_settings().job_timeout_seconds
+    max_tries = get_settings().job_max_tries
