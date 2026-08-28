@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 
 from podcast_compactor.ingest.download import DownloadError, audio_key, download_episode
 from podcast_compactor.ingest.feed import parse_feed
+from podcast_compactor.models.domain import Transcript
 from podcast_compactor.models.enums import StageName, StageState
 from podcast_compactor.pipeline.state import Deps, PipelineState
 from podcast_compactor.script.writer import write_script
@@ -25,8 +27,12 @@ from podcast_compactor.synth.assemble import (
     synthesize_script,
 )
 from podcast_compactor.synth.stock_voices import list_stock_voices, stock_voice
-from podcast_compactor.synth.voice_assignment import resolve_voice_assignments, select_cast
-from podcast_compactor.transcribe.diarization import assign_speakers, roster_from_turns
+from podcast_compactor.synth.voice_assignment import MAX_CAST, resolve_voice_assignments
+from podcast_compactor.transcribe.diarization import (
+    assign_speakers,
+    roster_from_turns,
+    unify_speakers_across_episodes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,27 +146,35 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         cast: list = []
         if _wants_speaker_id(options):
             try:
+                # Diarize each episode independently (pyannote's labels are only
+                # consistent within a file), keeping per-speaker embeddings.
+                results = {}
                 for ep in downloaded:
                     if ep.guid not in transcripts:
                         continue
                     path = deps.storage.local_path(audio_key(job_id, ep))
-                    turns = deps.diarizer.diarize(path)
-                    transcripts[ep.guid] = transcripts[ep.guid].model_copy(
+                    results[ep.guid] = deps.diarizer.diarize(path)
+
+                # Match the same real person across episodes by embedding, so one
+                # speaker keeps a single identity — and voice — for the whole digest
+                # even when their per-episode label differs. Then label each
+                # transcript with the shared global ids.
+                relabeled, pooled_roster = unify_speakers_across_episodes(
+                    results, deps.settings.cross_episode_speaker_threshold
+                )
+                for guid, gturns in relabeled.items():
+                    transcripts[guid] = transcripts[guid].model_copy(
                         update={
-                            "segments": assign_speakers(
-                                transcripts[ep.guid].segments, turns
-                            ),
-                            "speakers": roster_from_turns(turns),
+                            "segments": assign_speakers(transcripts[guid].segments, gturns),
+                            "speakers": roster_from_turns(gturns),
                         }
                     )
-                # The digest cast (for the speaker-preserving / review flows) is the
-                # first transcribed episode's roster, capped.
-                first = next((e for e in downloaded if e.guid in transcripts), None)
-                if first is not None:
-                    cast = select_cast(transcripts[first.guid])
+                # Cast = the most-talkative speakers pooled across ALL episodes, so a
+                # recurring host quiet in any single episode still makes the cast.
+                cast = pooled_roster[:MAX_CAST]
                 speaker_ids = {s.id for t in transcripts.values() for s in t.speakers}
                 repo.finish_stage(job_id, StageName.DIARIZE, StageState.DONE,
-                                  detail=f"{len(speaker_ids)} speakers")
+                                  detail=f"{len(cast)} cast / {len(speaker_ids)} global speakers")
             except Exception as exc:
                 repo.finish_stage(job_id, StageName.DIARIZE, StageState.FAILED,
                                   detail=str(exc))
@@ -237,6 +251,19 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             state["transcripts"][first.guid],
         )
 
+    def _all_sources(state: PipelineState, job_id: str):
+        """(audio path, labeled transcript) for every transcribed episode, in order."""
+        return [
+            (deps.storage.local_path(audio_key(job_id, e)), state["transcripts"][e.guid])
+            for e in state["selected"]
+            if e.guid in state["transcripts"]
+        ]
+
+    def _speaker_seconds(transcript: Transcript, speaker_id: str) -> float:
+        return next(
+            (s.speaking_seconds for s in transcript.speakers if s.id == speaker_id), 0.0
+        )
+
     def _record_ref_clip(job_id: str, key: str, voice) -> None:
         if voice.ref_audio_path is not None:
             repo.add_artifact(
@@ -263,13 +290,26 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 clone_ids = [i for i in cast_ids if assignments[i].mode == "clone"]
                 voices = {}
                 if clone_ids:
-                    audio_path, transcript = _episode_source(state, job_id)
-                    cloned = deps.voice_cloner.clone(
-                        audio_path, transcript, clone_ids, deps.storage, job_id
-                    )
-                    for key, voice in cloned.items():
-                        voices[key] = voice
-                        _record_ref_clip(job_id, key, voice)
+                    # Cut each speaker's reference clip from the episode where they
+                    # talk most: a cross-episode identity may barely appear in (or be
+                    # absent from) episode 1, so a fixed episode would clone the wrong
+                    # voice or an empty clip.
+                    sources = _all_sources(state, job_id)
+                    by_source: dict[int, list[str]] = defaultdict(list)
+                    for sid in clone_ids:
+                        best = max(
+                            range(len(sources)),
+                            key=lambda i, s=sid: _speaker_seconds(sources[i][1], s),
+                        )
+                        by_source[best].append(sid)
+                    for i, sids in by_source.items():
+                        audio_path, transcript = sources[i]
+                        cloned = deps.voice_cloner.clone(
+                            audio_path, transcript, sids, deps.storage, job_id
+                        )
+                        for key, voice in cloned.items():
+                            voices[key] = voice
+                            _record_ref_clip(job_id, key, voice)
                 for sid in cast_ids:
                     if assignments[sid].mode == "stock":
                         voices[sid] = stock_voice(assignments[sid].stock_voice)
