@@ -49,3 +49,34 @@ def test_explicit_stock_without_voice_gets_default():
 def test_empty_catalog_falls_back_to_default():
     resolved = resolve_voice_assignments(["S0"], JobOptions(), [], "fallback")
     assert resolved["S0"].stock_voice == "fallback"
+
+
+def test_preferred_stock_used_for_catalog_speakers():
+    resolved = resolve_voice_assignments(
+        ["S0", "S1"], JobOptions(clone=False), CATALOG, "voice_a",
+        preferred_stock={"S0": "voice_b"},
+    )
+    assert resolved["S0"].stock_voice == "voice_b"  # gender-matched pick wins
+    # S1 has no preference -> round-robin from the top of the catalog.
+    assert resolved["S1"].stock_voice == "voice_a"
+
+
+def test_explicit_assignment_overrides_preferred_stock():
+    options = JobOptions(
+        clone=False,
+        voice_assignments=[
+            VoiceAssignment(speaker_id="S0", mode="stock", stock_voice="voice_a")
+        ],
+    )
+    resolved = resolve_voice_assignments(
+        ["S0"], options, CATALOG, "voice_a", preferred_stock={"S0": "voice_b"}
+    )
+    assert resolved["S0"].stock_voice == "voice_a"  # explicit user choice wins
+
+
+def test_preferred_stock_ignored_when_cloning():
+    resolved = resolve_voice_assignments(
+        ["S0"], JobOptions(clone=True), CATALOG, "voice_a",
+        preferred_stock={"S0": "voice_b"},
+    )
+    assert resolved["S0"].mode == "clone"  # clone wins over a stock preference

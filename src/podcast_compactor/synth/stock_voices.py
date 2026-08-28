@@ -57,6 +57,32 @@ def stock_voice_register(name: str) -> Literal["high", "low"]:
     return "low" if len(name) >= 2 and name[1] == "m" else "high"
 
 
+def match_by_gender(
+    ordered_ids: list[str],
+    registers: dict[str, str],
+    catalog: list[str],
+) -> dict[str, str]:
+    """Assign each speaker a distinct same-register stock voice, where known.
+
+    ``registers`` maps a speaker id to ``"high"``/``"low"`` (from pitch); speakers
+    absent from it, or once a register's pool is exhausted, are left unassigned so
+    the caller can fall back (e.g. to `interleave_by_register`). Voices are handed
+    out in catalog order within each register, so distinct speakers stay distinct.
+    """
+    pools: dict[str, list[str]] = {
+        "high": [v for v in catalog if stock_voice_register(v) == "high"],
+        "low": [v for v in catalog if stock_voice_register(v) == "low"],
+    }
+    used: dict[str, int] = {"high": 0, "low": 0}
+    assigned: dict[str, str] = {}
+    for sid in ordered_ids:
+        reg = registers.get(sid)
+        if reg in pools and used[reg] < len(pools[reg]):
+            assigned[sid] = pools[reg][used[reg]]
+            used[reg] += 1
+    return assigned
+
+
 def interleave_by_register(names: list[str]) -> list[str]:
     """Reorder a catalog so consecutive voices alternate register (high/low).
 

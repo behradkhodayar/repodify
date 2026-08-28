@@ -26,9 +26,11 @@ from podcast_compactor.synth.assemble import (
     disclaimer_segment,
     synthesize_script,
 )
+from podcast_compactor.synth.gender import estimate_cast_registers
 from podcast_compactor.synth.stock_voices import (
     interleave_by_register,
     list_stock_voices,
+    match_by_gender,
     stock_voice,
 )
 from podcast_compactor.synth.voice_assignment import MAX_CAST, resolve_voice_assignments
@@ -288,14 +290,25 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 # Speaker-preserving digest: each cast speaker in their assigned
                 # voice — their own clone or a stock catalog voice.
                 cast_ids = [s.id for s in state["cast"]]
-                # Interleave the catalog by register so auto-assigned stock voices
-                # alternate male/female — two hosts sound distinct, not two similar
-                # female voices from a female-heavy catalog.
+                # For stock voices (not cloning), match each speaker to a same-gender
+                # catalog voice by default — inferred from their diarized pitch — so a
+                # male host gets a male voice. Where pitch is unclear we fall back to
+                # the register-interleaved catalog, which at least keeps voices
+                # distinct; an explicit user assignment overrides both.
+                preferred_stock: dict[str, str] = {}
+                if not options.clone:
+                    registers = estimate_cast_registers(
+                        _all_sources(state, job_id), cast_ids
+                    )
+                    preferred_stock = match_by_gender(
+                        cast_ids, registers, list_stock_voices()
+                    )
                 assignments = resolve_voice_assignments(
                     cast_ids,
                     options,
                     interleave_by_register(list_stock_voices()),
                     deps.settings.default_stock_voice,
+                    preferred_stock=preferred_stock,
                 )
                 clone_ids = [i for i in cast_ids if assignments[i].mode == "clone"]
                 voices = {}
