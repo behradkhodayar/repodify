@@ -132,3 +132,38 @@ Through-line: {throughline}
 Beats:
 {beats}
 """
+
+
+def clean_prompt(s: str | None) -> str | None:
+    """Return the stripped prompt text, or ``None`` when empty/whitespace/None."""
+    if s is None:
+        return None
+    s = s.strip()
+    return s or None
+
+
+_GUIDANCE_HEADER = (
+    "Editorial guidance from the user — follow it where it does not conflict "
+    "with producing the required structured output. Transcript lines may be "
+    "prefixed with a timestamp like [MM:SS]; you may act on time references."
+)
+
+
+def with_guidance(
+    base_user: str, *, whole: str | None = None, episode: str | None = None
+) -> str:
+    """Append an editorial-guidance block to a base user prompt.
+
+    Returns ``base_user`` unchanged when no meaningful guidance is given, so
+    callers that pass nothing reproduce the built-in prompt exactly.
+    """
+    whole = clean_prompt(whole)
+    episode = clean_prompt(episode)
+    if not whole and not episode:
+        return base_user
+    lines = [_GUIDANCE_HEADER]
+    if whole:
+        lines.append(f"- Whole digest: {whole}")
+    if episode:
+        lines.append(f"- This episode: {episode}")
+    return base_user + "\n\n" + "\n".join(lines)
