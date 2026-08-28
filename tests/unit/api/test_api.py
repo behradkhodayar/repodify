@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from podcast_compactor.api.app import create_app
 from podcast_compactor.config import Settings
-from podcast_compactor.models.domain import JobOptions
+from podcast_compactor.models.domain import MAX_PROMPT_CHARS, JobOptions
 from podcast_compactor.models.enums import JobStatus
 from podcast_compactor.storage.filesystem import FilesystemStorage
 
@@ -185,3 +185,31 @@ def test_create_job_persists_custom_prompts(repo, tmp_path):
     options = JobOptions.model_validate_json(repo.get_job(resp.json()["job_id"]).options_json)
     assert options.custom_prompt == "skip sponsor reads"
     assert options.episode_prompts == {"ep-1": "keep the interview"}
+
+
+def test_create_job_rejects_over_long_custom_prompt(repo, tmp_path):
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        resp = client.post(
+            "/jobs",
+            json={
+                "feed_url": "https://feed",
+                "episode_ids": ["ep-1"],
+                "custom_prompt": "x" * (MAX_PROMPT_CHARS + 1),
+            },
+        )
+    assert resp.status_code == 422
+
+
+def test_create_job_rejects_over_long_episode_prompt(repo, tmp_path):
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        resp = client.post(
+            "/jobs",
+            json={
+                "feed_url": "https://feed",
+                "episode_ids": ["ep-1"],
+                "episode_prompts": {"ep-1": "x" * (MAX_PROMPT_CHARS + 1)},
+            },
+        )
+    assert resp.status_code == 422

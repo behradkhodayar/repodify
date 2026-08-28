@@ -90,6 +90,7 @@ export function EpisodePicker({
                     onChange={(e) => onPromptChange(ep.guid, e.target.value)}
                     placeholder="e.g. keep only the interview; cut 4:20 to 6:09"
                     rows={2}
+                    maxLength={4000} // mirrors MAX_PROMPT_CHARS server-side cap
                     className={cn(
                       'mt-1 flex w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm transition-colors',
                       'placeholder:text-muted-foreground/70',

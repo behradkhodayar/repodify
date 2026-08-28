@@ -14,6 +14,7 @@ import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
+from pydantic import ValidationError
 
 from podcast_compactor.api.audio import audio_response
 from podcast_compactor.api.auth import make_require_token
@@ -88,17 +89,20 @@ def create_app(
 
     @router.post("/jobs", response_model=CreateJobResponse)
     def create_job(req: CreateJobRequest) -> CreateJobResponse:
-        options = JobOptions(
-            episode_ids=req.episode_ids,
-            host_count=req.host_count,
-            clone=req.clone,
-            target_minutes=req.target_minutes,
-            voice_assignments=req.voice_assignments,
-            preserve_speakers=req.preserve_speakers,
-            review_voices=req.review_voices,
-            custom_prompt=req.custom_prompt,
-            episode_prompts=req.episode_prompts,
-        )
+        try:
+            options = JobOptions(
+                episode_ids=req.episode_ids,
+                host_count=req.host_count,
+                clone=req.clone,
+                target_minutes=req.target_minutes,
+                voice_assignments=req.voice_assignments,
+                preserve_speakers=req.preserve_speakers,
+                review_voices=req.review_voices,
+                custom_prompt=req.custom_prompt,
+                episode_prompts=req.episode_prompts,
+            )
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         job_id = repo.create_job(req.feed_url, options)
         enqueue(job_id)
         return CreateJobResponse(job_id=job_id)

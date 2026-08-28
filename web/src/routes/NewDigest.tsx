@@ -168,6 +168,7 @@ export function NewDigest() {
                   onChange={(e) => setCustomPrompt(e.target.value)}
                   placeholder="Steer the whole digest — e.g. focus on the funding news; skip sponsor reads. You can reference times like 4:20."
                   rows={3}
+                  maxLength={4000} // mirrors MAX_PROMPT_CHARS server-side cap
                   className="flex w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm transition-colors placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
                 />
                 <span className="block text-xs text-muted-foreground">
