@@ -10,7 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from podcast_compactor.models.domain import Speaker, TranscriptSegment
-from podcast_compactor.ports.diarizer import SpeakerTurn
+from podcast_compactor.ports.diarizer import DiarizationResult, SpeakerTurn
+from podcast_compactor.transcribe.speaker_clustering import LocalSpeaker, cluster_speakers
 
 
 class PyannoteDiarizer:
@@ -23,27 +24,48 @@ class PyannoteDiarizer:
     def __init__(
         self,
         hf_token: str | None,
-        model: str = "pyannote/speaker-diarization-3.1",
+        model: str = "pyannote/speaker-diarization-community-1",
     ) -> None:
         self._hf_token = hf_token
         self._model = model
         self._pipeline = None
 
     def _pipeline_(self):
+        import torch
         from pyannote.audio import Pipeline  # lazy: needs the [gpu] extra
 
         if self._pipeline is None:
-            self._pipeline = Pipeline.from_pretrained(
-                self._model, use_auth_token=self._hf_token
-            )
+            # pyannote.audio 4.x renamed the auth kwarg `use_auth_token` -> `token`.
+            pipeline = Pipeline.from_pretrained(self._model, token=self._hf_token)
+            if pipeline is None:
+                raise RuntimeError(
+                    f"could not load diarization pipeline {self._model!r} "
+                    "(check the HF token and that its license is accepted)"
+                )
+            # Pipelines load on CPU by default; move to GPU or diarization crawls.
+            if torch.cuda.is_available():
+                pipeline.to(torch.device("cuda"))
+            self._pipeline = pipeline
         return self._pipeline
 
-    def diarize(self, audio_path: Path) -> list[SpeakerTurn]:
-        diarization = self._pipeline_()(str(audio_path))
-        return [
+    def diarize(self, audio_path: Path) -> DiarizationResult:
+        result = self._pipeline_()(str(audio_path))
+        # pyannote 4.x returns a `DiarizeOutput` (annotation + per-speaker
+        # embeddings); 3.x returned a bare `Annotation`. Accept either.
+        annotation = getattr(result, "speaker_diarization", result)
+        turns = [
             SpeakerTurn(start=turn.start, end=turn.end, speaker=speaker)
-            for turn, _track, speaker in diarization.itertracks(yield_label=True)
+            for turn, _track, speaker in annotation.itertracks(yield_label=True)
         ]
+        # `speaker_embeddings` is (num_speakers, dim), row i aligned with the i-th
+        # sorted label; used to match the same speaker across episodes.
+        embeddings: dict[str, list[float]] = {}
+        raw = getattr(result, "speaker_embeddings", None)
+        if raw is not None:
+            for idx, label in enumerate(annotation.labels()):
+                if idx < len(raw):
+                    embeddings[label] = [float(x) for x in raw[idx]]
+        return DiarizationResult(turns=turns, embeddings=embeddings)
 
     def release(self) -> None:
         """Drop the pipeline and free VRAM. Idempotent; reloads lazily next call."""
@@ -95,3 +117,35 @@ def roster_from_turns(turns: list[SpeakerTurn]) -> list[Speaker]:
         Speaker(id=speaker, speaking_seconds=round(seconds, 3))
         for speaker, seconds in sorted(durations.items(), key=lambda kv: kv[1], reverse=True)
     ]
+
+
+def unify_speakers_across_episodes(
+    results: dict[str, DiarizationResult],
+    threshold: float,
+) -> tuple[dict[str, list[SpeakerTurn]], list[Speaker]]:
+    """Collapse independently-diarized episodes into one shared speaker space.
+
+    Diarization runs per file, so its labels are not consistent across episodes.
+    This matches each episode's speakers to cross-episode identities by voice
+    embedding, then relabels every episode's turns with the shared global ids.
+
+    Returns ``(relabeled_turns_by_guid, pooled_roster)`` — the pooled roster
+    (most-talkative speaker first) is the digest's cast. When embeddings are
+    unavailable it is an identity relabeling, so callers keep the per-episode labels.
+    """
+    locals_ = [
+        LocalSpeaker(guid, sp.id, res.embeddings[sp.id], sp.speaking_seconds)
+        for guid, res in results.items()
+        for sp in roster_from_turns(res.turns)
+        if sp.id in res.embeddings
+    ]
+    mapping = cluster_speakers(locals_, threshold)
+    relabeled = {
+        guid: [
+            t.model_copy(update={"speaker": mapping.get((guid, t.speaker), t.speaker)})
+            for t in res.turns
+        ]
+        for guid, res in results.items()
+    }
+    pooled = [t for turns in relabeled.values() for t in turns]
+    return relabeled, roster_from_turns(pooled)

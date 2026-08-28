@@ -68,6 +68,19 @@ class Settings(BaseSettings):
         "the original hosts."
     )
     hf_token: str | None = None  # Hugging Face token for pyannote diarization
+    # pyannote diarization pipeline (gated on HF; accept its license once). The
+    # 4.x-native "community-1" pipeline returns per-speaker embeddings, which the
+    # cross-episode speaker-identity clustering needs.
+    diarization_model: str = "pyannote/speaker-diarization-community-1"
+    # Cosine-distance threshold for merging same-speaker embeddings across
+    # episodes. Lower = stricter (fewer merges). Tuned against pyannote embeddings.
+    cross_episode_speaker_threshold: float = 0.70
+
+    # Worker: a multi-episode diarized+cloned job runs whisper, pyannote, the LLM
+    # and TTS back to back, well past arq's 300s default. Give it real headroom and
+    # do not silently retry a heavy job that fails deterministically.
+    job_timeout_seconds: int = 1800
+    job_max_tries: int = 1
 
     # HTTP API
     api_token: str | None = None  # when set, all endpoints except /health require it
