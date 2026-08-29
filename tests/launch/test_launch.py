@@ -115,3 +115,54 @@ def test_have_tool_true_for_bash() -> None:
 def test_have_tool_false_for_missing() -> None:
     out = run("__have-tool", "definitely-not-a-real-tool-xyz")
     assert out.returncode == 1
+
+
+def _env_map(path: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for line in path.read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, _, v = line.partition("=")
+            out[k] = v
+    return out
+
+
+def test_byok_openrouter_llm_and_tts_share_one_key(tmp_path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("")
+    # answers: LLM backend = openrouter(2), OpenRouter key, STT = local(1), skip HF token
+    answers = "2\nsk-or-shared\n1\n\n"
+    out = run("__byok", str(env), input=answers)
+    assert out.returncode == 0, out.stderr
+    m = _env_map(env)
+    assert m["USE_FAKES"] == "false"
+    assert m["LLM_BACKEND"] == "openrouter"
+    assert m["TTS_BACKEND"] == "openrouter"
+    assert m["OPENROUTER_API_KEY"] == "sk-or-shared"
+
+
+def test_byok_anthropic_llm_with_openrouter_tts(tmp_path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("")
+    # LLM = anthropic(1), anthropic key, OpenRouter key (for TTS), STT = local(1), HF token
+    answers = "1\nsk-ant-xyz\nsk-or-tts\n1\nhf_abc\n"
+    out = run("__byok", str(env), input=answers)
+    assert out.returncode == 0, out.stderr
+    m = _env_map(env)
+    assert m["LLM_BACKEND"] == "anthropic"
+    assert m["ANTHROPIC_API_KEY"] == "sk-ant-xyz"
+    assert m["TTS_BACKEND"] == "openrouter"
+    assert m["OPENROUTER_API_KEY"] == "sk-or-tts"
+    assert m["HF_TOKEN"] == "hf_abc"
+
+
+def test_byok_hosted_stt_warns_and_falls_back(tmp_path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("")
+    # LLM = openrouter(2), key, STT = hosted(2), skip HF token
+    answers = "2\nsk-or-shared\n2\n\n"
+    out = run("__byok", str(env), input=answers)
+    assert out.returncode == 0, out.stderr
+    assert "not yet implemented" in (out.stdout + out.stderr).lower()
+    m = _env_map(env)
+    # Forward-looking marker captured, but effective backend stays local for now.
+    assert m.get("STT_BACKEND", "local") == "local"

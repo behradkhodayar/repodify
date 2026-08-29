@@ -130,6 +130,69 @@ preflight() {
   fi
 }
 
+# Prompt for a numbered choice; echo the chosen number. Args: prompt, then options.
+prompt_choice() {
+  local prompt="$1"; shift
+  local i=1
+  echo "$prompt" >&2
+  for opt in "$@"; do echo "  $i) $opt" >&2; i=$((i + 1)); done
+  local ans
+  read -r ans
+  printf '%s\n' "$ans"
+}
+
+# Prompt for a secret without echoing; echo the entered value.
+prompt_secret() {
+  local prompt="$1" val
+  printf '%s: ' "$prompt" >&2
+  read -rs val
+  echo >&2
+  printf '%s\n' "$val"
+}
+
+byok_wizard() {
+  local env="$1"
+  echo "No CUDA GPU detected — configuring hosted services (BYOK)." >&2
+  echo "Local F5-TTS / faster-whisper / pyannote need a GPU; using hosted where possible." >&2
+  env_upsert "$env" USE_FAKES false
+
+  # LLM backend
+  local llm
+  llm="$(prompt_choice "Choose an LLM backend:" anthropic openrouter ollama)"
+  case "$llm" in
+    1) env_upsert "$env" LLM_BACKEND anthropic
+       env_upsert "$env" ANTHROPIC_API_KEY "$(prompt_secret 'ANTHROPIC_API_KEY')" ;;
+    2) env_upsert "$env" LLM_BACKEND openrouter
+       env_upsert "$env" OPENROUTER_API_KEY "$(prompt_secret 'OPENROUTER_API_KEY')" ;;
+    3) env_upsert "$env" LLM_BACKEND ollama ;;
+    *) echo "launch: invalid LLM choice '$llm'" >&2; return 1 ;;
+  esac
+
+  # TTS backend — hosted OpenRouter (local F5 needs a GPU). Reuse the key if set.
+  env_upsert "$env" TTS_BACKEND openrouter
+  if [[ -z "$(env_get "$env" OPENROUTER_API_KEY)" ]]; then
+    env_upsert "$env" OPENROUTER_API_KEY "$(prompt_secret 'OPENROUTER_API_KEY (for hosted TTS)')"
+  fi
+
+  # STT backend — local CPU whisper, or hosted (coming soon → falls back).
+  local stt
+  stt="$(prompt_choice "Choose an STT backend:" "local faster-whisper (CPU, slow)" "hosted (BYOK) — coming soon")"
+  case "$stt" in
+    1) env_upsert "$env" STT_BACKEND local
+       env_upsert "$env" WHISPER_MODEL small
+       echo "launch: STT will run faster-whisper on CPU — transcription is slow." >&2 ;;
+    2) env_upsert "$env" STT_BACKEND local
+       env_upsert "$env" WHISPER_MODEL small
+       echo "launch: hosted STT is not yet implemented — using CPU Whisper meanwhile." >&2 ;;
+    *) echo "launch: invalid STT choice '$stt'" >&2; return 1 ;;
+  esac
+
+  # Diarization (optional) — HF token for pyannote. Blank to skip.
+  local hf
+  hf="$(prompt_secret 'HF_TOKEN for diarization (optional, Enter to skip)')"
+  if [[ -n "$hf" ]]; then env_upsert "$env" HF_TOKEN "$hf"; fi
+}
+
 main() {
   parse_flags "$@"
   echo "launch: mode_flag='${MODE_FLAG}' with_postgres=${WITH_POSTGRES} (skeleton)"
@@ -143,5 +206,6 @@ case "${1:-}" in
   __env-set) shift; env_upsert "$@" ;;
   __resolve-mode) shift; parse_flags "$@"; resolve_mode ;;
   __have-tool) shift; have_tool "$1" ;;
+  __byok) shift; byok_wizard "$@" ;;
   *) main "$@" ;;
 esac
