@@ -282,19 +282,16 @@ _prefix() {
 }
 
 run_processes() {
-  local pids=()
-  # shellcheck disable=SC2064
-  trap 'echo; echo "launch: stopping…" >&2; kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; exit 0' INT TERM
+  # Ctrl-C must stop all three processes. Each runs inside a backgrounded
+  # subshell that pipes into _prefix; killing just those subshell PIDs orphans
+  # the real uvicorn/npm children, so tear down the whole process group instead.
+  # Reset the traps first so the group-wide signal doesn't re-enter this handler.
+  trap 'trap - INT TERM; echo >&2; echo "launch: stopping…" >&2; kill 0' INT TERM
 
   ( uv run uvicorn --factory podcast_compactor.api.app:build_default_app \
       --port "$API_PORT" 2>&1 | _prefix api $'\033[36m' ) &
-  pids+=($!)
-
   ( uv run arq podcast_compactor.worker.main.WorkerSettings 2>&1 | _prefix worker $'\033[35m' ) &
-  pids+=($!)
-
   ( npm --prefix web run dev -- --port "$VITE_PORT" --strictPort 2>&1 | _prefix web $'\033[32m' ) &
-  pids+=($!)
 
   wait
 }
