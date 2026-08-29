@@ -168,6 +168,24 @@ def test_byok_hosted_stt_warns_and_falls_back(tmp_path) -> None:
     assert m.get("STT_BACKEND", "local") == "local"
 
 
+def test_byok_rerun_keeps_existing_keys(tmp_path) -> None:
+    env = tmp_path / ".env"
+    env.write_text(
+        "USE_FAKES=false\nLLM_BACKEND=anthropic\nANTHROPIC_API_KEY=sk-ant-keep\n"
+        "TTS_BACKEND=openrouter\nOPENROUTER_API_KEY=sk-or-keep\nHF_TOKEN=hf-keep\n"
+        "STT_BACKEND=local\nWHISPER_MODEL=small\n"
+    )
+    # All keys already set: the wizard should keep them. Feed blank lines in case
+    # any prompt still fires; assert nothing was blanked.
+    out = run("__byok", str(env), input="\n\n\n\n\n\n")
+    assert out.returncode == 0, out.stderr
+    m = _env_map(env)
+    assert m["ANTHROPIC_API_KEY"] == "sk-ant-keep"
+    assert m["OPENROUTER_API_KEY"] == "sk-or-keep"
+    assert m["HF_TOKEN"] == "hf-keep"
+    assert m["USE_FAKES"] == "false"
+
+
 def test_npm_install_needed_when_node_modules_absent(tmp_path) -> None:
     web = tmp_path / "web"
     web.mkdir()

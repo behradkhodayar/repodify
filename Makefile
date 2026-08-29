@@ -7,4 +7,4 @@ fake:
 	./launch --fake
 
 stop:
-	docker compose stop
+	@sh -c 'if command -v docker >/dev/null 2>&1; then docker compose stop; else podman compose stop; fi'
