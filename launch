@@ -218,6 +218,44 @@ sync_deps() {
   npm --prefix web run build
 }
 
+# Announce a port substitution to stderr.
+_note_port() {
+  local name="$1" want="$2" got="$3"
+  if [[ "$want" != "$got" ]]; then
+    echo "launch: $name port $want is busy — using $got instead." >&2
+  fi
+}
+
+scan_ports() {
+  local want_api=8000 want_vite=5173 want_redis=6379 want_pg=5432
+  API_PORT="$(free_port "$want_api")";       _note_port API "$want_api" "$API_PORT"
+  VITE_PORT="$(free_port "$want_vite")";      _note_port Vite "$want_vite" "$VITE_PORT"
+  REDIS_HOST_PORT="$(free_port "$want_redis")"; _note_port Redis "$want_redis" "$REDIS_HOST_PORT"
+  API_PROXY_TARGET="http://localhost:${API_PORT}"
+  REDIS_URL="redis://localhost:${REDIS_HOST_PORT}"
+  export API_PORT VITE_PORT REDIS_HOST_PORT API_PROXY_TARGET REDIS_URL
+  if [[ "${WITH_POSTGRES:-0}" == "1" ]]; then
+    POSTGRES_HOST_PORT="$(free_port "$want_pg")"; _note_port Postgres "$want_pg" "$POSTGRES_HOST_PORT"
+    DATABASE_URL="postgresql+psycopg://podcast:podcast@localhost:${POSTGRES_HOST_PORT}/podcast_compactor"
+    export POSTGRES_HOST_PORT DATABASE_URL
+  fi
+}
+
+print_summary() {
+  local mode="$1"
+  cat >&2 <<EOF
+
+  cutcast is up — mode: ${mode}
+  ------------------------------------------------------------
+  API           http://localhost:${API_PORT}
+  Built app     http://localhost:${API_PORT}/app/
+  Vite dev      http://localhost:${VITE_PORT}/app/
+  Redis         localhost:${REDIS_HOST_PORT}
+  ------------------------------------------------------------
+  Press Ctrl-C to stop the app (Redis stays up; 'make stop' halts it).
+EOF
+}
+
 main() {
   parse_flags "$@"
   echo "launch: mode_flag='${MODE_FLAG}' with_postgres=${WITH_POSTGRES} (skeleton)"
@@ -233,5 +271,8 @@ case "${1:-}" in
   __have-tool) shift; have_tool "$1" ;;
   __byok) shift; byok_wizard "$@" ;;
   __npm-needed) shift; npm_install_needed "$@" ;;
+  __scanports) shift; parse_flags "$@"; scan_ports
+                printf 'API_PORT=%s\nVITE_PORT=%s\nREDIS_HOST_PORT=%s\nAPI_PROXY_TARGET=%s\nREDIS_URL=%s\n' \
+                  "$API_PORT" "$VITE_PORT" "$REDIS_HOST_PORT" "$API_PROXY_TARGET" "$REDIS_URL" ;;
   *) main "$@" ;;
 esac

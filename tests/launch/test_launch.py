@@ -191,3 +191,24 @@ def test_npm_install_not_needed_when_marker_fresh(tmp_path) -> None:
     os.utime(marker, (now, now))
     out = run("__npm-needed", str(web))
     assert out.returncode == 1  # 1 == up to date
+
+
+def test_scanports_remaps_occupied_api_port() -> None:
+    # Occupy 8000 so the API port must move; parse the KEY=value output.
+    with socket.socket() as s:
+        try:
+            s.bind(("127.0.0.1", 8000))
+        except OSError:
+            import pytest
+            pytest.skip("port 8000 unavailable to bind for the test")
+        s.listen()
+        out = run("__scanports")
+    assert out.returncode == 0, out.stderr
+    kv = dict(
+        line.split("=", 1)
+        for line in out.stdout.splitlines()
+        if "=" in line
+    )
+    assert kv["API_PORT"] != "8000"
+    assert kv["API_PROXY_TARGET"] == f"http://localhost:{kv['API_PORT']}"
+    assert kv["REDIS_URL"] == f"redis://localhost:{kv['REDIS_HOST_PORT']}"
