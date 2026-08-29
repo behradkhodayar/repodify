@@ -1,5 +1,6 @@
-import { Check, KeyRound, Save } from 'lucide-react'
-import { useState } from 'react'
+import { Check, Cpu, KeyRound, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useLlmSettings, useUpdateLlmSettings } from '../api/queries'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -54,6 +55,106 @@ export function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      <LlmCard />
     </div>
+  )
+}
+
+function LlmCard() {
+  const { data } = useLlmSettings()
+  const update = useUpdateLlmSettings()
+  const [backend, setBackend] = useState('anthropic')
+  const [openrouterModel, setOpenrouterModel] = useState('')
+  const [ollamaModel, setOllamaModel] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  // Hydrate local form state once the server config loads.
+  useEffect(() => {
+    if (!data) return
+    setBackend(data.backend)
+    setOpenrouterModel(data.openrouter_model)
+    setOllamaModel(data.ollama_model)
+  }, [data])
+
+  if (!data) return null
+
+  const modelValue = backend === 'openrouter' ? openrouterModel : ollamaModel
+  const setModelValue = backend === 'openrouter' ? setOpenrouterModel : setOllamaModel
+  const editable = backend === 'openrouter' || backend === 'ollama'
+  const needsKey = backend === 'openrouter' && !data.openrouter_configured
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Cpu className="size-[18px] text-primary" /> Summarization LLM
+        </CardTitle>
+        <CardDescription>
+          Pick which model summarizes episodes. Saved on the server; overrides the .env default.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">LLM backend</span>
+          <select
+            aria-label="LLM backend"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+            value={backend}
+            onChange={(e) => {
+              setBackend(e.target.value)
+              setSaved(false)
+            }}
+          >
+            {data.available_backends.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">Model</span>
+          <Input
+            aria-label="Model"
+            value={editable ? modelValue : `${data.anthropic_map_model} / ${data.anthropic_reduce_model}`}
+            disabled={!editable}
+            onChange={(e) => {
+              setModelValue(e.target.value)
+              setSaved(false)
+            }}
+            placeholder="e.g. openai/gpt-4o-mini"
+          />
+          {!editable && (
+            <span className="text-xs text-muted-foreground">
+              Anthropic uses MAP_MODEL / REDUCE_MODEL from .env.
+            </span>
+          )}
+          {needsKey && (
+            <span className="text-xs text-status-failed">Set OPENROUTER_API_KEY in .env to use OpenRouter.</span>
+          )}
+        </label>
+
+        <div className="flex items-center gap-3">
+          <Button
+            disabled={update.isPending}
+            onClick={() => {
+              update.mutate(
+                { backend, openrouter_model: openrouterModel, ollama_model: ollamaModel },
+                { onSuccess: () => setSaved(true) },
+              )
+            }}
+          >
+            <Save /> Save LLM settings
+          </Button>
+          {saved && (
+            <span className="flex items-center gap-1.5 text-sm text-status-done">
+              <Check className="size-4" /> Saved
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
