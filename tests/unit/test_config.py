@@ -97,13 +97,11 @@ def test_non_sqlite_url_is_left_unchanged():
 
 
 def test_openrouter_is_a_valid_llm_backend():
-    from podcast_compactor.config import Settings
-
     s = Settings(_env_file=None, llm_backend="openrouter")
     assert s.llm_backend == "openrouter"
     # Default model id is present and overridable.
     assert s.openrouter_llm_model == "openai/gpt-4o-mini"
-    assert (
-        Settings(_env_file=None, openrouter_llm_model="anthropic/claude-3.5-haiku").openrouter_llm_model
-        == "anthropic/claude-3.5-haiku"
+    custom = Settings(
+        _env_file=None, openrouter_llm_model="anthropic/claude-3.5-haiku"
     )
+    assert custom.openrouter_llm_model == "anthropic/claude-3.5-haiku"
