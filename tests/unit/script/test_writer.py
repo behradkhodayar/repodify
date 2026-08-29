@@ -37,9 +37,12 @@ def test_write_script_passes_word_budget_and_normalizes_speaker():
 
 
 def test_write_script_rejects_empty_result():
-    llm = FakeStructuredLLM([Script(segments=[])])
+    # An empty draft is a validation failure; it is retried up to the attempt cap
+    # and only then rejected.
+    llm = FakeStructuredLLM([Script(segments=[]) for _ in range(3)])
     with pytest.raises(ValueError):
         write_script(_arc(), llm, target_minutes=30, wpm=130)
+    assert len(llm.calls) == 3
 
 
 def test_write_script_two_hosts_uses_dialogue_and_keeps_speakers():
@@ -62,6 +65,7 @@ def test_write_script_two_hosts_uses_dialogue_and_keeps_speakers():
 
 
 def test_write_script_two_hosts_rejects_bad_speaker():
+    # Every attempt uses an out-of-cast speaker, so it is retried then rejected.
     llm = FakeStructuredLLM(
         [
             Script(
@@ -70,18 +74,24 @@ def test_write_script_two_hosts_rejects_bad_speaker():
                     ScriptSegment(speaker="host_b", text="hello back to you"),
                 ]
             )
+            for _ in range(3)
         ]
     )
     with pytest.raises(ValueError):
         write_script(_arc(), llm, target_minutes=30, wpm=130, host_count=2)
+    assert len(llm.calls) == 3
 
 
 def test_write_script_two_hosts_requires_both_hosts():
     llm = FakeStructuredLLM(
-        [Script(segments=[ScriptSegment(speaker="host_a", text="only me talking")])]
+        [
+            Script(segments=[ScriptSegment(speaker="host_a", text="only me talking")])
+            for _ in range(3)
+        ]
     )
     with pytest.raises(ValueError):
         write_script(_arc(), llm, target_minutes=30, wpm=130, host_count=2)
+    assert len(llm.calls) == 3
 
 
 def test_write_script_rejects_three_hosts():
@@ -108,12 +118,54 @@ def test_write_script_multivoice_uses_cast_ids():
 
 
 def test_write_script_multivoice_rejects_out_of_cast_speaker():
+    # SPEAKER_99 has no cast match to canonicalize to, so it is retried then rejected.
     cast = [Speaker(id="SPEAKER_00"), Speaker(id="SPEAKER_01")]
     llm = FakeStructuredLLM(
-        [Script(segments=[ScriptSegment(speaker="SPEAKER_99", text="who am i")])]
+        [
+            Script(segments=[ScriptSegment(speaker="SPEAKER_99", text="who am i")])
+            for _ in range(3)
+        ]
     )
     with pytest.raises(ValueError, match="cast"):
         write_script(_arc(), llm, target_minutes=30, wpm=130, cast=cast)
+    assert len(llm.calls) == 3
+
+
+def test_write_script_multivoice_canonicalizes_unpadded_speaker_label():
+    # The model labels a segment "SPEAKER_1" instead of the cast's "SPEAKER_01".
+    # The writer canonicalizes it back to the matching cast id rather than failing.
+    cast = [Speaker(id="SPEAKER_00"), Speaker(id="SPEAKER_01")]
+    returned = Script(
+        segments=[
+            ScriptSegment(speaker="SPEAKER_00", text=" ".join(["word"] * 1950)),
+            ScriptSegment(speaker="SPEAKER_1", text=" ".join(["word"] * 1950)),
+        ]
+    )
+    llm = FakeStructuredLLM([returned])
+
+    script = write_script(_arc(), llm, target_minutes=30, wpm=130, cast=cast)
+
+    assert len(llm.calls) == 1  # accepted in one pass, no retry
+    assert [s.speaker for s in script.segments] == ["SPEAKER_00", "SPEAKER_01"]
+
+
+def test_write_script_multivoice_retries_invalid_draft_then_succeeds():
+    # A first draft with a truly out-of-cast label is retried, not fatal; the next
+    # valid draft is used instead of failing the whole run.
+    cast = [Speaker(id="SPEAKER_00"), Speaker(id="SPEAKER_01")]
+    invalid = Script(segments=[ScriptSegment(speaker="SPEAKER_9", text="who am i")])
+    valid = Script(
+        segments=[
+            ScriptSegment(speaker="SPEAKER_00", text=" ".join(["word"] * 1950)),
+            ScriptSegment(speaker="SPEAKER_01", text=" ".join(["word"] * 1950)),
+        ]
+    )
+    llm = FakeStructuredLLM([invalid, valid])
+
+    script = write_script(_arc(), llm, target_minutes=30, wpm=130, cast=cast)
+
+    assert len(llm.calls) == 2  # retried after the invalid draft
+    assert {s.speaker for s in script.segments} == {"SPEAKER_00", "SPEAKER_01"}
 
 
 def test_write_script_multivoice_requires_non_empty_cast():

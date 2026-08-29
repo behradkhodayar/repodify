@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from podcast_compactor.models.domain import ArcOutline, Script, Speaker
 from podcast_compactor.ports.llm import StructuredLLM
@@ -47,17 +48,57 @@ def _normalize_speakers(script: Script, host_count: int) -> Script:
     return script
 
 
+_TRAILING_INT = re.compile(r"(\d+)$")
+
+
+def _cast_by_int(cast_ids: set[str]) -> dict[int, str]:
+    """Map each cast id's trailing integer to that id, dropping ambiguous ints.
+
+    Diarization ids look like ``SPEAKER_00``; this lets a near-miss label the LLM
+    emits (``SPEAKER_1``) be matched back to the canonical ``SPEAKER_01``. An
+    integer shared by two cast ids is dropped so we never guess between them.
+    """
+    by_int: dict[int, str | None] = {}
+    for cid in cast_ids:
+        m = _TRAILING_INT.search(cid)
+        if not m:
+            continue
+        n = int(m.group(1))
+        by_int[n] = cid if n not in by_int else None  # None marks ambiguous
+    return {n: cid for n, cid in by_int.items() if cid is not None}
+
+
+def _canonical_speaker(label: str, cast_ids: set[str], by_int: dict[int, str]) -> str | None:
+    """Return the cast id `label` denotes, canonicalizing a near-miss, or None."""
+    if label in cast_ids:
+        return label
+    m = _TRAILING_INT.search(label)
+    return by_int.get(int(m.group(1))) if m else None
+
+
 def _normalize_multivoice(script: Script, cast_ids: set[str]) -> Script:
-    """Validate a multi-speaker draft: non-empty and every speaker is in the cast."""
+    """Validate a multi-speaker draft: non-empty and every speaker maps to the cast.
+
+    LLMs (small local models especially) don't reliably echo the exact cast labels
+    they're given — a segment for ``SPEAKER_01`` may come back as ``SPEAKER_1``. We
+    canonicalize such near-misses back to the cast id before validating, and only
+    reject a label that matches no cast member at all.
+    """
     if not script.segments:
         raise ValueError("script writer produced no segments")
-    speakers = {seg.speaker for seg in script.segments}
-    if not speakers.issubset(cast_ids):
+    by_int = _cast_by_int(cast_ids)
+    segments = []
+    for seg in script.segments:
+        canon = _canonical_speaker(seg.speaker, cast_ids, by_int)
+        segments.append(seg if canon in (None, seg.speaker) else seg.model_copy(
+            update={"speaker": canon}
+        ))
+    if any(_canonical_speaker(s.speaker, cast_ids, by_int) is None for s in script.segments):
         raise ValueError(
             f"multi-voice script must use only cast {sorted(cast_ids)}, "
-            f"got {sorted(speakers)}"
+            f"got {sorted({s.speaker for s in script.segments})}"
         )
-    return script
+    return script.model_copy(update={"segments": segments})
 
 
 def _warn_on_budget_drift(script: Script, word_budget: int) -> None:
@@ -136,9 +177,18 @@ def write_script(
     floor = word_budget * (1 - _BUDGET_TOLERANCE)
 
     best: Script | None = None
+    last_error: ValueError | None = None
     user = base_user
     for _ in range(_MAX_SCRIPT_ATTEMPTS):
-        script = normalize(llm.generate(system, user, Script))
+        try:
+            script = normalize(llm.generate(system, user, Script))
+        except ValueError as err:
+            # A malformed draft (empty, or an unrecoverable speaker label) shouldn't
+            # kill the run on its own — re-ask, echoing the error, until we run out
+            # of attempts. Only then does the failure propagate.
+            last_error = err
+            user = base_user + "\n\n" + prompts.SCRIPT_FIX.format(error=err)
+            continue
         if best is None or script.word_count > best.word_count:
             best = script
         if script.word_count >= floor:
@@ -149,6 +199,8 @@ def write_script(
             words=script.word_count, word_budget=word_budget
         )
 
-    assert best is not None  # loop runs at least once
+    if best is None:  # every attempt failed validation
+        assert last_error is not None
+        raise last_error
     _warn_on_budget_drift(best, word_budget)
     return best

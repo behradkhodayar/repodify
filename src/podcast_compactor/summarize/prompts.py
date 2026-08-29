@@ -77,6 +77,13 @@ SCRIPT_EXPAND = (
     "the ear; do not pad with filler or repeat yourself."
 )
 
+SCRIPT_FIX = (
+    "Your previous draft was rejected: {error}. Rewrite the script using only the "
+    "exact speaker labels specified above — every segment's speaker must be one of "
+    "them, spelled identically (including any leading zeros). Keep it chronological "
+    "and written for the ear."
+)
+
 SCRIPT_DIALOGUE_SYSTEM = (
     "You are a scriptwriter for a two-host conversational podcast digest. Two "
     "co-hosts talk through a narrative arc together: they hand off naturally, "
