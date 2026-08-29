@@ -66,3 +66,16 @@ class Artifact(Base):
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
     job: Mapped[Job] = relationship(back_populates="artifacts")
+
+
+class AppSetting(Base):
+    """A single application setting as a key/value row.
+
+    Key/value (not typed columns) so new settings need no migration — the app has
+    no Alembic and `create_all` only adds missing tables, not missing columns.
+    """
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(primary_key=True)
+    value: Mapped[str]
