@@ -45,6 +45,27 @@ free_port() {
   printf '%s\n' "$port"
 }
 
+# Print the value of <key> in <file>, or nothing if absent (first match wins).
+env_get() {
+  local file="$1" key="$2"
+  [[ -f "$file" ]] || return 0
+  awk -v k="$key" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }' "$file"
+}
+
+# Set <key>=<value> in <file>: update the line in place if present, else append.
+# Keys are uppercase identifiers, safe to anchor. Values may contain '='.
+env_upsert() {
+  local file="$1" key="$2" value="$3" tmp
+  touch "$file"
+  tmp="$(mktemp)"
+  awk -v k="$key" -v v="$value" '
+    index($0, k "=") == 1 { print k "=" v; found = 1; next }
+    { print }
+    END { if (!found) print k "=" v }
+  ' "$file" >"$tmp"
+  mv "$tmp" "$file"
+}
+
 parse_flags() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -67,5 +88,7 @@ main() {
 # else runs the full launcher.
 case "${1:-}" in
   __freeport) shift; free_port "$@" ;;
+  __env-get) shift; env_get "$@" ;;
+  __env-set) shift; env_upsert "$@" ;;
   *) main "$@" ;;
 esac

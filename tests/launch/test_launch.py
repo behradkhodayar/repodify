@@ -38,3 +38,38 @@ def test_free_port_skips_occupied_port() -> None:
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip() != str(occupied)
     assert int(out.stdout.strip()) > occupied
+
+
+def test_env_upsert_appends_new_key(tmp_path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("EXISTING=1\n")
+    assert run("__env-set", str(env), "API_TOKEN", "abc").returncode == 0
+    text = env.read_text()
+    assert "EXISTING=1\n" in text
+    assert "API_TOKEN=abc\n" in text
+
+
+def test_env_upsert_updates_in_place_without_duplicating(tmp_path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("USE_FAKES=true\nKEEP=yes\n")
+    assert run("__env-set", str(env), "USE_FAKES", "false").returncode == 0
+    text = env.read_text()
+    assert text.count("USE_FAKES=") == 1
+    assert "USE_FAKES=false\n" in text
+    assert "KEEP=yes\n" in text
+
+
+def test_env_upsert_preserves_values_with_equals_signs(tmp_path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("")
+    url = "postgresql+psycopg://u:p@localhost:5432/db?x=1"
+    assert run("__env-set", str(env), "DATABASE_URL", url).returncode == 0
+    assert run("__env-get", str(env), "DATABASE_URL").stdout.strip() == url
+
+
+def test_env_get_missing_key_is_empty(tmp_path) -> None:
+    env = tmp_path / ".env"
+    env.write_text("A=1\n")
+    out = run("__env-get", str(env), "NOPE")
+    assert out.returncode == 0
+    assert out.stdout.strip() == ""
