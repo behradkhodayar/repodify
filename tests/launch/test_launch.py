@@ -1,6 +1,7 @@
 """Unit tests for the pure helpers in ./launch, exercised via subcommands."""
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 from pathlib import Path
@@ -73,3 +74,34 @@ def test_env_get_missing_key_is_empty(tmp_path) -> None:
     out = run("__env-get", str(env), "NOPE")
     assert out.returncode == 0
     assert out.stdout.strip() == ""
+
+
+def run_env(*args: str, env_extra: dict[str, str]):
+    env = {**os.environ, **env_extra}
+    return subprocess.run(
+        [str(LAUNCH), *args],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def test_resolve_mode_fake_flag_wins() -> None:
+    out = run_env("__resolve-mode", "--fake", env_extra={"CUTCAST_GPU_OVERRIDE": "1"})
+    assert out.stdout.strip() == "fake"
+
+
+def test_resolve_mode_gpu_present_is_real_gpu() -> None:
+    out = run_env("__resolve-mode", env_extra={"CUTCAST_GPU_OVERRIDE": "1"})
+    assert out.stdout.strip() == "real-gpu"
+
+
+def test_resolve_mode_no_gpu_is_real_byok() -> None:
+    out = run_env("__resolve-mode", env_extra={"CUTCAST_GPU_OVERRIDE": "0"})
+    assert out.stdout.strip() == "real-byok"
+
+
+def test_resolve_mode_real_flag_without_gpu_is_real_byok() -> None:
+    out = run_env("__resolve-mode", "--real", env_extra={"CUTCAST_GPU_OVERRIDE": "0"})
+    assert out.stdout.strip() == "real-byok"

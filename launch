@@ -79,6 +79,27 @@ parse_flags() {
   done
 }
 
+# 0 (true) if a CUDA GPU is available. CUTCAST_GPU_OVERRIDE forces the answer
+# for tests: "1" => available, "0" => not.
+gpu_available() {
+  if [[ -n "${CUTCAST_GPU_OVERRIDE:-}" ]]; then
+    [[ "$CUTCAST_GPU_OVERRIDE" == "1" ]]
+    return
+  fi
+  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+}
+
+# Print the resolved run mode: fake | real-gpu | real-byok.
+resolve_mode() {
+  if [[ "$MODE_FLAG" == "fake" ]]; then
+    printf 'fake\n'
+  elif gpu_available; then
+    printf 'real-gpu\n'
+  else
+    printf 'real-byok\n'
+  fi
+}
+
 main() {
   parse_flags "$@"
   echo "launch: mode_flag='${MODE_FLAG}' with_postgres=${WITH_POSTGRES} (skeleton)"
@@ -90,5 +111,6 @@ case "${1:-}" in
   __freeport) shift; free_port "$@" ;;
   __env-get) shift; env_get "$@" ;;
   __env-set) shift; env_upsert "$@" ;;
+  __resolve-mode) shift; parse_flags "$@"; resolve_mode ;;
   *) main "$@" ;;
 esac
