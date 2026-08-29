@@ -12,7 +12,40 @@ from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
 
+from podcast_compactor.config import Settings
+
 T = TypeVar("T", bound=BaseModel)
+
+LLM_BACKENDS: tuple[str, ...] = ("anthropic", "ollama", "openrouter")
+
+
+class LlmOverrides(BaseModel):
+    """Persisted, user-picked LLM settings. A None field falls back to .env."""
+
+    llm_backend: str | None = None
+    openrouter_llm_model: str | None = None
+    ollama_model: str | None = None
+
+
+class EffectiveLlm(BaseModel):
+    """The resolved LLM config (overrides layered over .env)."""
+
+    backend: str
+    openrouter_model: str
+    ollama_model: str
+    anthropic_map_model: str
+    anthropic_reduce_model: str
+
+
+def effective_llm(settings: Settings, overrides: LlmOverrides) -> EffectiveLlm:
+    """Layer persisted overrides over the env-based settings, per field."""
+    return EffectiveLlm(
+        backend=overrides.llm_backend or settings.llm_backend,
+        openrouter_model=overrides.openrouter_llm_model or settings.openrouter_llm_model,
+        ollama_model=overrides.ollama_model or settings.ollama_model,
+        anthropic_map_model=settings.map_model,
+        anthropic_reduce_model=settings.reduce_model,
+    )
 
 
 def _multivoice_labels(user: str) -> list[str]:
