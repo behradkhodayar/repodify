@@ -226,3 +226,13 @@ interactive review that pauses after diarization to assign a voice per speaker.
 - [ ] Let user choose their preferred stock speakers — a general selection menu
   under settings, with a playable audio sample chunk in front of each name
   (the per-speaker override for the gender-matching default above).
+- [ ] OpenRouter follow-up: add a comment in `effective_llm` (`ports/llm.py`)
+  noting its `override or settings.field` precedence relies on the API rejecting
+  empty-string models, so an empty override is never persisted.
+- [ ] OpenRouter follow-up: make `_build_real_llms` (`worker/main.py`) raise on an
+  unrecognized `effective.backend` instead of silently falling through to
+  Anthropic (only reachable via direct DB tampering, since the API validates it).
+- [ ] Watch base-install size: `langchain-openai` is a base dependency (the no-GPU
+  OpenRouter path must work without the `[gpu]` extra), so it pulls `openai`,
+  `tiktoken`, etc. into every install — deliberate, mirroring `langchain-ollama` /
+  `langchain-anthropic`, but revisit if base image size becomes a concern.
