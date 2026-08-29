@@ -1,0 +1,382 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# cutcast one-command launcher. Runs from the repo root regardless of CWD.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+
+MODE_FLAG=""       # "fake" | "real" | "" (auto-detect)
+WITH_POSTGRES=0
+
+usage() {
+  cat <<'EOF'
+cutcast launcher — set up and run the whole stack with one command.
+
+Usage: ./launch [options]
+
+Options:
+  --fake        Force fake mode (CPU, instant, no keys). Dev path.
+  --real        Force real mode even if GPU detection is inconclusive.
+  --postgres    Also start Postgres and use it (default run uses SQLite + Redis).
+  --help        Show this help.
+
+With no flags: detect a CUDA GPU and run real local backends; with no GPU,
+run the BYOK setup wizard for hosted services. Occupied ports are remapped
+automatically.
+EOF
+}
+
+# True if something is listening on 127.0.0.1:<port>. Uses bash /dev/tcp, no deps.
+port_in_use() {
+  local port="$1"
+  if (exec 3<>"/dev/tcp/127.0.0.1/${port}") 2>/dev/null; then
+    exec 3>&- 3<&-
+    return 0
+  fi
+  return 1
+}
+
+# Print <preferred> if free, else the next free port scanning upward.
+free_port() {
+  local port="$1"
+  while port_in_use "$port"; do
+    port=$((port + 1))
+  done
+  printf '%s\n' "$port"
+}
+
+# Print the value of <key> in <file>, or nothing if absent (first match wins).
+env_get() {
+  local file="$1" key="$2"
+  [[ -f "$file" ]] || return 0
+  awk -v k="$key" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }' "$file"
+}
+
+# Set <key>=<value> in <file>: update the line in place if present, else append.
+# Keys are uppercase identifiers, safe to anchor. Values may contain '='.
+env_upsert() {
+  local file="$1" key="$2" value="$3" tmp
+  touch "$file"
+  tmp="$(mktemp)"
+  awk -v k="$key" -v v="$value" '
+    index($0, k "=") == 1 { print k "=" v; found = 1; next }
+    { print }
+    END { if (!found) print k "=" v }
+  ' "$file" >"$tmp"
+  mv "$tmp" "$file"
+}
+
+parse_flags() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --fake)     MODE_FLAG="fake" ;;
+      --real)     MODE_FLAG="real" ;;
+      --postgres) WITH_POSTGRES=1 ;;
+      --help|-h)  usage; exit 0 ;;
+      *) echo "launch: unknown option: $1" >&2; usage >&2; exit 2 ;;
+    esac
+    shift
+  done
+}
+
+# 0 (true) if a CUDA GPU is available. CUTCAST_GPU_OVERRIDE forces the answer
+# for tests: "1" => available, "0" => not.
+gpu_available() {
+  if [[ -n "${CUTCAST_GPU_OVERRIDE:-}" ]]; then
+    [[ "$CUTCAST_GPU_OVERRIDE" == "1" ]]
+    return
+  fi
+  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+}
+
+# Print the resolved run mode: fake | real-gpu | real-byok.
+resolve_mode() {
+  if [[ "$MODE_FLAG" == "fake" ]]; then
+    printf 'fake\n'
+  elif gpu_available; then
+    printf 'real-gpu\n'
+  else
+    printf 'real-byok\n'
+  fi
+}
+
+have_tool() { command -v "$1" >/dev/null 2>&1; }
+
+require_tool() {
+  local name="$1" hint="$2"
+  if ! have_tool "$name"; then
+    echo "launch: required tool '$name' not found. $hint" >&2
+    exit 1
+  fi
+}
+
+# Detect a container engine; echo the command to use ("docker" or "podman").
+container_cmd() {
+  if have_tool docker; then echo "docker";
+  elif have_tool podman; then echo "podman";
+  else return 1; fi
+}
+
+preflight() {
+  require_tool uv "Install uv: https://docs.astral.sh/uv/"
+  require_tool node "Install Node.js 20+: https://nodejs.org/"
+  require_tool npm "npm ships with Node.js: https://nodejs.org/"
+  if ! container_cmd >/dev/null; then
+    echo "launch: need docker or podman for Redis. Install Docker: https://docs.docker.com/get-docker/" >&2
+    exit 1
+  fi
+  if ! have_tool ffmpeg; then
+    echo "launch: warning — ffmpeg not found; real runs transcode to mp3 and need it." >&2
+  fi
+}
+
+# Prompt for a numbered choice; echo the chosen number. Args: prompt, then options.
+prompt_choice() {
+  local prompt="$1"; shift
+  local i=1
+  echo "$prompt" >&2
+  for opt in "$@"; do echo "  $i) $opt" >&2; i=$((i + 1)); done
+  local ans=""
+  read -r ans || true
+  printf '%s\n' "$ans"
+}
+
+# Prompt for a secret without echoing; echo the entered value.
+prompt_secret() {
+  local prompt="$1" val=""
+  printf '%s: ' "$prompt" >&2
+  read -rs val || true
+  echo >&2
+  printf '%s\n' "$val"
+}
+
+# Prompt for a secret only if <key> is not already set in <file>; upsert it.
+# Keeps an existing value on a re-run instead of blanking it. A blank first-run
+# answer is treated as skip (do not write an empty value).
+env_upsert_secret() {
+  local file="$1" key="$2" label="$3" cur val
+  cur="$(env_get "$file" "$key")"
+  if [[ -n "$cur" ]]; then
+    echo "launch: keeping existing $key" >&2
+    return
+  fi
+  val="$(prompt_secret "$label")"
+  if [[ -n "$val" ]]; then
+    env_upsert "$file" "$key" "$val"
+  fi
+}
+
+_llm_key_for() {
+  local env="$1" backend="$2"
+  case "$backend" in
+    anthropic) env_get "$env" ANTHROPIC_API_KEY ;;
+    openrouter) env_get "$env" OPENROUTER_API_KEY ;;
+    *) printf '\n' ;;
+  esac
+}
+
+byok_wizard() {
+  local env="$1"
+  echo "No CUDA GPU detected — configuring hosted services (BYOK)." >&2
+  echo "Local F5-TTS / faster-whisper / pyannote need a GPU; using hosted where possible." >&2
+  env_upsert "$env" USE_FAKES false
+
+  # LLM backend — skip when already configured (ollama needs no key; others
+  # need their key present so a re-run cannot blank it via an empty prompt).
+  local llm_cur llm_key
+  llm_cur="$(env_get "$env" LLM_BACKEND)"
+  llm_key="$(_llm_key_for "$env" "$llm_cur")"
+  if [[ -n "$llm_cur" && ( "$llm_cur" == "ollama" || -n "$llm_key" ) ]]; then
+    echo "launch: keeping existing LLM_BACKEND=$llm_cur" >&2
+  else
+    local llm
+    llm="$(prompt_choice "Choose an LLM backend:" anthropic openrouter ollama)"
+    case "$llm" in
+      1) env_upsert "$env" LLM_BACKEND anthropic
+         env_upsert_secret "$env" ANTHROPIC_API_KEY 'ANTHROPIC_API_KEY' ;;
+      2) env_upsert "$env" LLM_BACKEND openrouter
+         env_upsert_secret "$env" OPENROUTER_API_KEY 'OPENROUTER_API_KEY' ;;
+      3) env_upsert "$env" LLM_BACKEND ollama ;;
+      *) echo "launch: invalid LLM choice '$llm'" >&2; return 1 ;;
+    esac
+  fi
+
+  # TTS backend — hosted OpenRouter (local F5 needs a GPU). Reuse the key if set.
+  env_upsert "$env" TTS_BACKEND openrouter
+  env_upsert_secret "$env" OPENROUTER_API_KEY 'OPENROUTER_API_KEY (for hosted TTS)'
+
+  # STT backend — local CPU whisper, or hosted (coming soon → falls back).
+  local stt_cur
+  stt_cur="$(env_get "$env" STT_BACKEND)"
+  if [[ -n "$stt_cur" ]]; then
+    echo "launch: keeping existing STT_BACKEND=$stt_cur" >&2
+  else
+    local stt
+    stt="$(prompt_choice "Choose an STT backend:" "local faster-whisper (CPU, slow)" "hosted (BYOK) — coming soon")"
+    case "$stt" in
+      1) env_upsert "$env" STT_BACKEND local
+         env_upsert "$env" WHISPER_MODEL small
+         echo "launch: STT will run faster-whisper on CPU — transcription is slow." >&2 ;;
+      2) env_upsert "$env" STT_BACKEND local
+         env_upsert "$env" WHISPER_MODEL small
+         echo "launch: hosted STT is not yet implemented — using CPU Whisper meanwhile." >&2 ;;
+      *) echo "launch: invalid STT choice '$stt'" >&2; return 1 ;;
+    esac
+  fi
+
+  # Diarization (optional) — HF token for pyannote. Blank to skip.
+  env_upsert_secret "$env" HF_TOKEN 'HF_TOKEN for diarization (optional, Enter to skip)'
+}
+
+# Return 0 (needed) if web deps must be (re)installed, else 1 (up to date).
+npm_install_needed() {
+  local web="$1" marker="$1/node_modules/.package-lock.json"
+  [[ -d "$web/node_modules" ]] || return 0
+  [[ -f "$marker" ]] || return 0
+  [[ "$web/package-lock.json" -nt "$marker" ]] && return 0
+  return 1
+}
+
+sync_deps() {
+  local mode="$1"
+  echo "==> Syncing Python deps" >&2
+  if [[ "$mode" == "fake" ]]; then
+    uv sync
+  else
+    uv sync --extra gpu
+  fi
+  if npm_install_needed web; then
+    echo "==> Installing web deps" >&2
+    npm --prefix web install
+  fi
+  echo "==> Building web/dist" >&2
+  npm --prefix web run build
+}
+
+# Announce a port substitution to stderr.
+_note_port() {
+  local name="$1" want="$2" got="$3"
+  if [[ "$want" != "$got" ]]; then
+    echo "launch: $name port $want is busy — using $got instead." >&2
+  fi
+}
+
+# Echo the host port an already-running compose <service> publishes for
+# <container_port>, or nothing if the service isn't up under this project.
+# Always returns 0 so callers under `set -e` can treat empty output as "not up".
+compose_published_port() {
+  local service="$1" container_port="$2" engine out
+  engine="$(container_cmd)" || return 0
+  [[ -n "$("$engine" compose ps -q "$service" 2>/dev/null || true)" ]] || return 0
+  out="$("$engine" compose port "$service" "$container_port" 2>/dev/null | sed 's/.*://' || true)"
+  printf '%s\n' "$out"
+}
+
+scan_ports() {
+  local want_api=8000 want_vite=5173 want_redis=6379 want_pg=5432
+  API_PORT="$(free_port "$want_api")";       _note_port API "$want_api" "$API_PORT"
+  VITE_PORT="$(free_port "$want_vite")";      _note_port Vite "$want_vite" "$VITE_PORT"
+  REDIS_HOST_PORT="$(compose_published_port redis 6379)"
+  [[ -n "$REDIS_HOST_PORT" ]] || { REDIS_HOST_PORT="$(free_port "$want_redis")"; _note_port Redis "$want_redis" "$REDIS_HOST_PORT"; }
+  API_PROXY_TARGET="http://localhost:${API_PORT}"
+  REDIS_URL="redis://localhost:${REDIS_HOST_PORT}"
+  export API_PORT VITE_PORT REDIS_HOST_PORT API_PROXY_TARGET REDIS_URL
+  if [[ "${WITH_POSTGRES:-0}" == "1" ]]; then
+    POSTGRES_HOST_PORT="$(compose_published_port postgres 5432)"
+    [[ -n "$POSTGRES_HOST_PORT" ]] || { POSTGRES_HOST_PORT="$(free_port "$want_pg")"; _note_port Postgres "$want_pg" "$POSTGRES_HOST_PORT"; }
+    DATABASE_URL="postgresql+psycopg://podcast:podcast@localhost:${POSTGRES_HOST_PORT}/podcast_compactor"
+    export POSTGRES_HOST_PORT DATABASE_URL
+  fi
+}
+
+print_summary() {
+  local mode="$1"
+  cat >&2 <<EOF
+
+  cutcast is up — mode: ${mode}
+  ------------------------------------------------------------
+  API           http://localhost:${API_PORT}
+  Built app     http://localhost:${API_PORT}/app/
+  Vite dev      http://localhost:${VITE_PORT}/app/
+  Redis         localhost:${REDIS_HOST_PORT}
+  ------------------------------------------------------------
+  Press Ctrl-C to stop the app (Redis stays up; 'make stop' halts it).
+EOF
+}
+
+start_infra() {
+  local engine; engine="$(container_cmd)"
+  local services=("redis")
+  [[ "${WITH_POSTGRES:-0}" == "1" ]] && services+=("postgres")
+  echo "==> Starting infra: ${services[*]}" >&2
+  "$engine" compose up -d "${services[@]}"
+  echo "==> Waiting for Redis to be healthy" >&2
+  local tries=0
+  until [[ "$("$engine" compose ps -q redis | xargs -r "$engine" inspect -f '{{.State.Health.Status}}' 2>/dev/null)" == "healthy" ]]; do
+    tries=$((tries + 1))
+    if (( tries > 60 )); then
+      echo "launch: Redis did not become healthy in time." >&2
+      "$engine" compose ps >&2
+      "$engine" compose logs --tail=40 redis >&2
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
+# Prefix each line of a stream with a colored [label].
+_prefix() {
+  local label="$1" color="$2" reset=$'\033[0m'
+  while IFS= read -r line; do printf '%b[%s]%b %s\n' "$color" "$label" "$reset" "$line"; done
+}
+
+run_processes() {
+  # Ctrl-C must stop all three processes. Each runs inside a backgrounded
+  # subshell that pipes into _prefix; killing just those subshell PIDs orphans
+  # the real uvicorn/npm children, so tear down the whole process group instead.
+  # Reset the traps first so the group-wide signal doesn't re-enter this handler.
+  trap 'trap - INT TERM; echo >&2; echo "launch: stopping…" >&2; kill 0' INT TERM
+
+  ( uv run uvicorn --factory podcast_compactor.api.app:build_default_app \
+      --port "$API_PORT" 2>&1 | _prefix api $'\033[36m' ) &
+  ( uv run arq podcast_compactor.worker.main.WorkerSettings 2>&1 | _prefix worker $'\033[35m' ) &
+  ( npm --prefix web run dev -- --port "$VITE_PORT" --strictPort 2>&1 | _prefix web $'\033[32m' ) &
+
+  wait
+}
+
+main() {
+  parse_flags "$@"
+  preflight
+  local mode; mode="$(resolve_mode)"
+  echo "==> Run mode: $mode" >&2
+  [[ -f .env ]] || { echo "==> Creating .env from .env.example" >&2; cp .env.example .env; }
+  if [[ "$mode" == "fake" ]]; then
+    env_upsert .env USE_FAKES true
+  elif [[ "$mode" == "real-byok" ]]; then
+    byok_wizard .env
+  else
+    env_upsert .env USE_FAKES false
+  fi
+  sync_deps "$mode"
+  scan_ports
+  start_infra
+  print_summary "$mode"
+  run_processes
+}
+
+# Dispatch: hidden __subcommands route to helpers (used by tests); everything
+# else runs the full launcher.
+case "${1:-}" in
+  __freeport) shift; free_port "$@" ;;
+  __env-get) shift; env_get "$@" ;;
+  __env-set) shift; env_upsert "$@" ;;
+  __resolve-mode) shift; parse_flags "$@"; resolve_mode ;;
+  __have-tool) shift; have_tool "$1" ;;
+  __byok) shift; byok_wizard "$@" ;;
+  __npm-needed) shift; npm_install_needed "$@" ;;
+  __scanports) shift; parse_flags "$@"; scan_ports
+                printf 'API_PORT=%s\nVITE_PORT=%s\nREDIS_HOST_PORT=%s\nAPI_PROXY_TARGET=%s\nREDIS_URL=%s\n' \
+                  "$API_PORT" "$VITE_PORT" "$REDIS_HOST_PORT" "$API_PROXY_TARGET" "$REDIS_URL" ;;
+  *) main "$@" ;;
+esac
