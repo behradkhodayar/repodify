@@ -25,6 +25,8 @@ from podcast_compactor.api.schemas import (
     JobListResponse,
     JobStatusResponse,
     JobSummaryOut,
+    LlmSettingsResponse,
+    LlmSettingsUpdate,
     ResolveRequest,
     ResolveResponse,
     ResultResponse,
@@ -41,6 +43,8 @@ from podcast_compactor.models.domain import JobOptions
 from podcast_compactor.models.enums import JobStatus
 from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
 from podcast_compactor.persistence.repo import JobRepository
+from podcast_compactor.persistence.settings_repo import SettingsRepository
+from podcast_compactor.ports.llm import LLM_BACKENDS, LlmOverrides, effective_llm
 from podcast_compactor.storage.base import Storage
 from podcast_compactor.storage.filesystem import FilesystemStorage
 
@@ -57,6 +61,7 @@ def create_app(
     settings: Settings,
     static_dir: Path | None = None,
     enqueue_resume: EnqueueFn | None = None,
+    settings_repo: SettingsRepository | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Podcast Compactor")
     app.add_middleware(
@@ -112,6 +117,46 @@ def create_app(
         from podcast_compactor.synth.stock_voices import list_stock_voices
 
         return VoicesResponse(stock_voices=list_stock_voices())
+
+    def _llm_settings_response() -> LlmSettingsResponse:
+        eff = effective_llm(settings, settings_repo.get_llm_overrides())
+        return LlmSettingsResponse(
+            backend=eff.backend,
+            openrouter_model=eff.openrouter_model,
+            ollama_model=eff.ollama_model,
+            anthropic_map_model=eff.anthropic_map_model,
+            anthropic_reduce_model=eff.anthropic_reduce_model,
+            available_backends=list(LLM_BACKENDS),
+            openrouter_configured=bool(settings.openrouter_api_key),
+        )
+
+    @router.get("/settings/llm", response_model=LlmSettingsResponse)
+    def get_llm_settings() -> LlmSettingsResponse:
+        if settings_repo is None:
+            raise HTTPException(status_code=503, detail="settings store unavailable")
+        return _llm_settings_response()
+
+    @router.put("/settings/llm", response_model=LlmSettingsResponse)
+    def put_llm_settings(req: LlmSettingsUpdate) -> LlmSettingsResponse:
+        if settings_repo is None:
+            raise HTTPException(status_code=503, detail="settings store unavailable")
+        if req.backend is not None and req.backend not in LLM_BACKENDS:
+            raise HTTPException(status_code=422, detail=f"unknown backend: {req.backend}")
+        if req.backend == "openrouter" and not settings.openrouter_api_key:
+            raise HTTPException(
+                status_code=400, detail="OPENROUTER_API_KEY is not configured on the server"
+            )
+        for field in (req.openrouter_model, req.ollama_model):
+            if field is not None and not field.strip():
+                raise HTTPException(status_code=422, detail="model id must not be empty")
+        settings_repo.set_llm_overrides(
+            LlmOverrides(
+                llm_backend=req.backend,
+                openrouter_llm_model=req.openrouter_model,
+                ollama_model=req.ollama_model,
+            )
+        )
+        return _llm_settings_response()
 
     @router.get("/jobs/{job_id}/speakers", response_model=SpeakersResponse)
     def get_speakers(job_id: str) -> SpeakersResponse:
@@ -265,7 +310,9 @@ def build_default_app() -> FastAPI:
     settings = get_settings()
     engine = make_engine(settings.database_url)
     init_db(engine)
-    repo = JobRepository(session_factory(engine))
+    sf = session_factory(engine)
+    repo = JobRepository(sf)
+    settings_repo = SettingsRepository(sf)
     http = httpx.Client(timeout=60.0)
     storage = FilesystemStorage(settings.data_dir)
     static_dir = Path("web/dist")
@@ -273,4 +320,5 @@ def build_default_app() -> FastAPI:
         repo, resolve, http, _arq_enqueue, storage, settings,
         static_dir=static_dir if static_dir.is_dir() else None,
         enqueue_resume=_arq_enqueue_resume,
+        settings_repo=settings_repo,
     )
