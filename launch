@@ -26,6 +26,25 @@ automatically.
 EOF
 }
 
+# True if something is listening on 127.0.0.1:<port>. Uses bash /dev/tcp, no deps.
+port_in_use() {
+  local port="$1"
+  if (exec 3<>"/dev/tcp/127.0.0.1/${port}") 2>/dev/null; then
+    exec 3>&- 3<&-
+    return 0
+  fi
+  return 1
+}
+
+# Print <preferred> if free, else the next free port scanning upward.
+free_port() {
+  local port="$1"
+  while port_in_use "$port"; do
+    port=$((port + 1))
+  done
+  printf '%s\n' "$port"
+}
+
 parse_flags() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -47,5 +66,6 @@ main() {
 # Dispatch: hidden __subcommands route to helpers (used by tests); everything
 # else runs the full launcher.
 case "${1:-}" in
+  __freeport) shift; free_port "$@" ;;
   *) main "$@" ;;
 esac
