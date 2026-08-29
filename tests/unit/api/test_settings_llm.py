@@ -69,3 +69,10 @@ def test_put_rejects_unknown_backend(repo, tmp_path):
     settings = Settings(_env_file=None)
     client = _client(repo, tmp_path, settings)
     assert client.put("/settings/llm", json={"backend": "not-a-backend"}).status_code == 422
+
+
+def test_put_rejects_whitespace_model(repo, tmp_path):
+    settings = Settings(_env_file=None, openrouter_api_key="sk-or-secret")
+    client = _client(repo, tmp_path, settings)
+    assert client.put("/settings/llm", json={"openrouter_model": "   "}).status_code == 422
+    assert client.put("/settings/llm", json={"ollama_model": ""}).status_code == 422

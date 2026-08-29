@@ -61,6 +61,7 @@ def create_app(
     settings: Settings,
     static_dir: Path | None = None,
     enqueue_resume: EnqueueFn | None = None,
+    *,
     settings_repo: SettingsRepository | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Podcast Compactor")
