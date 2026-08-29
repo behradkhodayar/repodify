@@ -100,6 +100,36 @@ resolve_mode() {
   fi
 }
 
+have_tool() { command -v "$1" >/dev/null 2>&1; }
+
+require_tool() {
+  local name="$1" hint="$2"
+  if ! have_tool "$name"; then
+    echo "launch: required tool '$name' not found. $hint" >&2
+    exit 1
+  fi
+}
+
+# Detect a container engine; echo the command to use ("docker" or "podman").
+container_cmd() {
+  if have_tool docker; then echo "docker";
+  elif have_tool podman; then echo "podman";
+  else return 1; fi
+}
+
+preflight() {
+  require_tool uv "Install uv: https://docs.astral.sh/uv/"
+  require_tool node "Install Node.js 20+: https://nodejs.org/"
+  require_tool npm "npm ships with Node.js: https://nodejs.org/"
+  if ! container_cmd >/dev/null; then
+    echo "launch: need docker or podman for Redis. Install Docker: https://docs.docker.com/get-docker/" >&2
+    exit 1
+  fi
+  if ! have_tool ffmpeg; then
+    echo "launch: warning — ffmpeg not found; real runs transcode to mp3 and need it." >&2
+  fi
+}
+
 main() {
   parse_flags "$@"
   echo "launch: mode_flag='${MODE_FLAG}' with_postgres=${WITH_POSTGRES} (skeleton)"
@@ -112,5 +142,6 @@ case "${1:-}" in
   __env-get) shift; env_get "$@" ;;
   __env-set) shift; env_upsert "$@" ;;
   __resolve-mode) shift; parse_flags "$@"; resolve_mode ;;
+  __have-tool) shift; have_tool "$1" ;;
   *) main "$@" ;;
 esac

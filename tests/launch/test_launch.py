@@ -105,3 +105,13 @@ def test_resolve_mode_no_gpu_is_real_byok() -> None:
 def test_resolve_mode_real_flag_without_gpu_is_real_byok() -> None:
     out = run_env("__resolve-mode", "--real", env_extra={"CUTCAST_GPU_OVERRIDE": "0"})
     assert out.stdout.strip() == "real-byok"
+
+
+def test_have_tool_true_for_bash() -> None:
+    out = run("__have-tool", "bash")
+    assert out.returncode == 0
+
+
+def test_have_tool_false_for_missing() -> None:
+    out = run("__have-tool", "definitely-not-a-real-tool-xyz")
+    assert out.returncode == 1
