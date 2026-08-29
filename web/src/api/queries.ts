@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import type { CreateJobRequest, SubmitVoicesRequest } from './types'
+import type { CreateJobRequest, LlmSettingsUpdate, SubmitVoicesRequest } from './types'
 
 export function useResolveFeed() {
   return useMutation({ mutationFn: (url: string) => api.resolveFeed(url) })
@@ -46,5 +46,17 @@ export function useSubmitVoices(id: string) {
   return useMutation({
     mutationFn: (body: SubmitVoicesRequest) => api.submitVoices(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['job', id] }),
+  })
+}
+
+export function useLlmSettings() {
+  return useQuery({ queryKey: ['llm-settings'], queryFn: () => api.getLlmSettings() })
+}
+
+export function useUpdateLlmSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: LlmSettingsUpdate) => api.updateLlmSettings(body),
+    onSuccess: (data) => qc.setQueryData(['llm-settings'], data),
   })
 }

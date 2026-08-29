@@ -2,6 +2,8 @@ import type {
   CreateJobRequest,
   JobListResponse,
   JobStatusResponse,
+  LlmSettingsResponse,
+  LlmSettingsUpdate,
   ResolveResponse,
   ResultResponse,
   SpeakersResponse,
@@ -56,6 +58,12 @@ export const api = {
   submitVoices: (id: string, body: SubmitVoicesRequest) =>
     apiFetch<{ job_id: string }>(`/jobs/${id}/voices`, {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getLlmSettings: () => apiFetch<LlmSettingsResponse>('/settings/llm'),
+  updateLlmSettings: (body: LlmSettingsUpdate) =>
+    apiFetch<LlmSettingsResponse>('/settings/llm', {
+      method: 'PUT',
       body: JSON.stringify(body),
     }),
 }

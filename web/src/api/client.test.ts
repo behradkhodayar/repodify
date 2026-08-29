@@ -34,4 +34,34 @@ describe('api client', () => {
     await expect(api.getJob('x')).rejects.toMatchObject({ status: 404 })
     await expect(api.getJob('x')).rejects.toBeInstanceOf(ApiError)
   })
+
+  it('gets and updates llm settings', async () => {
+    server.use(
+      http.get('/settings/llm', () =>
+        HttpResponse.json({
+          backend: 'anthropic',
+          openrouter_model: 'openai/gpt-4o-mini',
+          ollama_model: 'qwen2.5-coder:7b',
+          anthropic_map_model: 'claude-haiku-4-5-20251001',
+          anthropic_reduce_model: 'claude-opus-4-8',
+          available_backends: ['anthropic', 'ollama', 'openrouter'],
+          openrouter_configured: true,
+        }),
+      ),
+      http.put('/settings/llm', async ({ request }) => {
+        const body = (await request.json()) as { backend?: string }
+        return HttpResponse.json({
+          backend: body.backend ?? 'anthropic',
+          openrouter_model: 'openai/gpt-4o-mini',
+          ollama_model: 'qwen2.5-coder:7b',
+          anthropic_map_model: 'claude-haiku-4-5-20251001',
+          anthropic_reduce_model: 'claude-opus-4-8',
+          available_backends: ['anthropic', 'ollama', 'openrouter'],
+          openrouter_configured: true,
+        })
+      }),
+    )
+    expect((await api.getLlmSettings()).backend).toBe('anthropic')
+    expect((await api.updateLlmSettings({ backend: 'openrouter' })).backend).toBe('openrouter')
+  })
 })
