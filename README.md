@@ -9,6 +9,19 @@ See the full [system architecture reference](docs/architecture.md), the designs
 in [`docs/superpowers/specs/`](docs/superpowers/specs/), and the build plans in
 [`docs/superpowers/plans/`](docs/superpowers/plans/).
 
+## Quick start: one command
+
+```bash
+./launch          # or: make run
+```
+
+Sets up and runs everything: syncs deps, builds the web app, starts Redis, and
+runs the API, worker, and Vite dev server together. It detects a CUDA GPU and
+runs the real local backends; with no GPU it walks you through a BYOK setup for
+hosted services. Occupied ports are remapped automatically and reported. Use
+`./launch --fake` for a keyless CPU dev run, `--postgres` to add Postgres, and
+`make stop` to halt the containers. Press Ctrl-C to stop the app processes.
+
 ## Architecture (Phase 1)
 
 ```

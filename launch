@@ -256,9 +256,67 @@ print_summary() {
 EOF
 }
 
+start_infra() {
+  local services=("redis")
+  [[ "${WITH_POSTGRES:-0}" == "1" ]] && services+=("postgres")
+  echo "==> Starting infra: ${services[*]}" >&2
+  docker compose up -d "${services[@]}"
+  echo "==> Waiting for Redis to be healthy" >&2
+  local tries=0
+  until [[ "$(docker compose ps -q redis | xargs -r docker inspect -f '{{.State.Health.Status}}' 2>/dev/null)" == "healthy" ]]; do
+    tries=$((tries + 1))
+    if (( tries > 60 )); then
+      echo "launch: Redis did not become healthy in time." >&2
+      docker compose ps >&2
+      docker compose logs --tail=40 redis >&2
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
+# Prefix each line of a stream with a colored [label].
+_prefix() {
+  local label="$1" color="$2" reset=$'\033[0m'
+  while IFS= read -r line; do printf '%b[%s]%b %s\n' "$color" "$label" "$reset" "$line"; done
+}
+
+run_processes() {
+  local pids=()
+  # shellcheck disable=SC2064
+  trap 'echo; echo "launch: stopping…" >&2; kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; exit 0' INT TERM
+
+  ( uv run uvicorn --factory podcast_compactor.api.app:build_default_app \
+      --port "$API_PORT" 2>&1 | _prefix api $'\033[36m' ) &
+  pids+=($!)
+
+  ( uv run arq podcast_compactor.worker.main.WorkerSettings 2>&1 | _prefix worker $'\033[35m' ) &
+  pids+=($!)
+
+  ( npm --prefix web run dev -- --port "$VITE_PORT" --strictPort 2>&1 | _prefix web $'\033[32m' ) &
+  pids+=($!)
+
+  wait
+}
+
 main() {
   parse_flags "$@"
-  echo "launch: mode_flag='${MODE_FLAG}' with_postgres=${WITH_POSTGRES} (skeleton)"
+  preflight
+  local mode; mode="$(resolve_mode)"
+  echo "==> Run mode: $mode" >&2
+  [[ -f .env ]] || { echo "==> Creating .env from .env.example" >&2; cp .env.example .env; }
+  if [[ "$mode" == "fake" ]]; then
+    env_upsert .env USE_FAKES true
+  elif [[ "$mode" == "real-byok" ]]; then
+    byok_wizard .env
+  else
+    env_upsert .env USE_FAKES false
+  fi
+  sync_deps "$mode"
+  scan_ports
+  start_infra
+  print_summary "$mode"
+  run_processes
 }
 
 # Dispatch: hidden __subcommands route to helpers (used by tests); everything
