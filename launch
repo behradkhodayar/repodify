@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# cutcast one-command launcher. Runs from the repo root regardless of CWD.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+
+MODE_FLAG=""       # "fake" | "real" | "" (auto-detect)
+WITH_POSTGRES=0
+
+usage() {
+  cat <<'EOF'
+cutcast launcher — set up and run the whole stack with one command.
+
+Usage: ./launch [options]
+
+Options:
+  --fake        Force fake mode (CPU, instant, no keys). Dev path.
+  --real        Force real mode even if GPU detection is inconclusive.
+  --postgres    Also start Postgres and use it (default run uses SQLite + Redis).
+  --help        Show this help.
+
+With no flags: detect a CUDA GPU and run real local backends; with no GPU,
+run the BYOK setup wizard for hosted services. Occupied ports are remapped
+automatically.
+EOF
+}
+
+parse_flags() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --fake)     MODE_FLAG="fake" ;;
+      --real)     MODE_FLAG="real" ;;
+      --postgres) WITH_POSTGRES=1 ;;
+      --help|-h)  usage; exit 0 ;;
+      *) echo "launch: unknown option: $1" >&2; usage >&2; exit 2 ;;
+    esac
+    shift
+  done
+}
+
+main() {
+  parse_flags "$@"
+  echo "launch: mode_flag='${MODE_FLAG}' with_postgres=${WITH_POSTGRES} (skeleton)"
+}
+
+# Dispatch: hidden __subcommands route to helpers (used by tests); everything
+# else runs the full launcher.
+case "${1:-}" in
+  *) main "$@" ;;
+esac
