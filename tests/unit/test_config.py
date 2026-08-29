@@ -101,7 +101,5 @@ def test_openrouter_is_a_valid_llm_backend():
     assert s.llm_backend == "openrouter"
     # Default model id is present and overridable.
     assert s.openrouter_llm_model == "openai/gpt-4o-mini"
-    custom = Settings(
-        _env_file=None, openrouter_llm_model="anthropic/claude-3.5-haiku"
-    )
+    custom = Settings(_env_file=None, openrouter_llm_model="anthropic/claude-3.5-haiku")
     assert custom.openrouter_llm_model == "anthropic/claude-3.5-haiku"

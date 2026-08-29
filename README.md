@@ -118,6 +118,26 @@ One model serves both the per-episode summary and the arc/script stages
 produce valid output but weaker narratives than Claude; a general instruct model
 of 7B+ summarizes better.
 
+### Hosted LLM via OpenRouter
+
+Or hand summarization to a hosted model on [OpenRouter](https://openrouter.ai) —
+no GPU or `ANTHROPIC_API_KEY` needed, just an OpenRouter key. The key and base URL
+live in `.env` (shared with the OpenRouter TTS backend); the backend and model can
+also be picked at runtime from the web **Settings** page, which overrides these
+defaults.
+
+```bash
+# in .env:
+#   USE_FAKES=false
+#   LLM_BACKEND=openrouter
+#   OPENROUTER_API_KEY=sk-or-...
+#   OPENROUTER_LLM_MODEL=openai/gpt-4o-mini
+#   OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+As with Ollama, one model serves both stages (`MAP_MODEL`/`REDUCE_MODEL` are
+ignored). The model must support tool/function calling for structured output.
+
 ### Voice cloning (opt-in)
 
 Set `"clone": true` on a job to synthesize the digest in the **cloned voices of
