@@ -193,6 +193,31 @@ byok_wizard() {
   if [[ -n "$hf" ]]; then env_upsert "$env" HF_TOKEN "$hf"; fi
 }
 
+# Return 0 (needed) if web deps must be (re)installed, else 1 (up to date).
+npm_install_needed() {
+  local web="$1" marker="$1/node_modules/.package-lock.json"
+  [[ -d "$web/node_modules" ]] || return 0
+  [[ -f "$marker" ]] || return 0
+  [[ "$web/package-lock.json" -nt "$marker" ]] && return 0
+  return 1
+}
+
+sync_deps() {
+  local mode="$1"
+  echo "==> Syncing Python deps" >&2
+  if [[ "$mode" == "fake" ]]; then
+    uv sync
+  else
+    uv sync --extra gpu
+  fi
+  if npm_install_needed web; then
+    echo "==> Installing web deps" >&2
+    npm --prefix web install
+  fi
+  echo "==> Building web/dist" >&2
+  npm --prefix web run build
+}
+
 main() {
   parse_flags "$@"
   echo "launch: mode_flag='${MODE_FLAG}' with_postgres=${WITH_POSTGRES} (skeleton)"
@@ -207,5 +232,6 @@ case "${1:-}" in
   __resolve-mode) shift; parse_flags "$@"; resolve_mode ;;
   __have-tool) shift; have_tool "$1" ;;
   __byok) shift; byok_wizard "$@" ;;
+  __npm-needed) shift; npm_install_needed "$@" ;;
   *) main "$@" ;;
 esac

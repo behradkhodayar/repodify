@@ -166,3 +166,28 @@ def test_byok_hosted_stt_warns_and_falls_back(tmp_path) -> None:
     m = _env_map(env)
     # Forward-looking marker captured, but effective backend stays local for now.
     assert m.get("STT_BACKEND", "local") == "local"
+
+
+def test_npm_install_needed_when_node_modules_absent(tmp_path) -> None:
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "package-lock.json").write_text("{}")
+    out = run("__npm-needed", str(web))
+    assert out.returncode == 0  # 0 == install needed
+
+
+def test_npm_install_not_needed_when_marker_fresh(tmp_path) -> None:
+    web = tmp_path / "web"
+    (web / "node_modules").mkdir(parents=True)
+    lock = web / "package-lock.json"
+    lock.write_text("{}")
+    marker = web / "node_modules" / ".package-lock.json"
+    marker.write_text("{}")
+    # Make the marker newer than the lockfile.
+    import os
+    import time
+    now = time.time()
+    os.utime(lock, (now - 10, now - 10))
+    os.utime(marker, (now, now))
+    out = run("__npm-needed", str(web))
+    assert out.returncode == 1  # 1 == up to date
