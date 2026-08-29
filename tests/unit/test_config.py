@@ -94,3 +94,16 @@ def test_explicit_absolute_paths_are_preserved(tmp_path):
 def test_non_sqlite_url_is_left_unchanged():
     pg = "postgresql+psycopg://u:p@localhost:5432/db"
     assert str(Settings(_env_file=None, database_url=pg).database_url) == pg
+
+
+def test_openrouter_is_a_valid_llm_backend():
+    from podcast_compactor.config import Settings
+
+    s = Settings(_env_file=None, llm_backend="openrouter")
+    assert s.llm_backend == "openrouter"
+    # Default model id is present and overridable.
+    assert s.openrouter_llm_model == "openai/gpt-4o-mini"
+    assert (
+        Settings(_env_file=None, openrouter_llm_model="anthropic/claude-3.5-haiku").openrouter_llm_model
+        == "anthropic/claude-3.5-haiku"
+    )

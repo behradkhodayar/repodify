@@ -56,8 +56,10 @@ class Settings(BaseSettings):
     use_fakes: bool = True
 
     # LLM backend selection. "anthropic" (default) uses the Claude API and needs
-    # ANTHROPIC_API_KEY; "ollama" uses a local Ollama server and needs no key.
-    llm_backend: Literal["anthropic", "ollama"] = "anthropic"
+    # ANTHROPIC_API_KEY; "ollama" uses a local Ollama server and needs no key;
+    # "openrouter" calls a hosted model on OpenRouter (OpenAI-compatible chat
+    # completions) and reuses OPENROUTER_API_KEY / OPENROUTER_BASE_URL below.
+    llm_backend: Literal["anthropic", "ollama", "openrouter"] = "anthropic"
     ollama_model: str = "qwen2.5-coder:7b"
     ollama_base_url: str = "http://localhost:11434"
 
@@ -69,6 +71,11 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     openrouter_tts_model: str = "fish-audio/s2.1-pro"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
+
+    # OpenRouter LLM model used when LLM_BACKEND=openrouter. Must support tool /
+    # function calling (langchain's structured-output method). Picked at runtime
+    # from the Settings page; this is only the fallback default.
+    openrouter_llm_model: str = "openai/gpt-4o-mini"
 
     # Models
     whisper_model: str = "large-v3"
