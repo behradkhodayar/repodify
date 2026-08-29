@@ -92,3 +92,19 @@ export interface JobListResponse {
   jobs: JobSummaryOut[]
   total: number
 }
+
+export interface LlmSettingsResponse {
+  backend: string
+  openrouter_model: string
+  ollama_model: string
+  anthropic_map_model: string
+  anthropic_reduce_model: string
+  available_backends: string[]
+  openrouter_configured: boolean
+}
+
+export interface LlmSettingsUpdate {
+  backend?: string
+  openrouter_model?: string
+  ollama_model?: string
+}

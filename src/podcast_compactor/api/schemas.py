@@ -103,3 +103,19 @@ class JobSummaryOut(BaseModel):
 class JobListResponse(BaseModel):
     jobs: list[JobSummaryOut]
     total: int
+
+
+class LlmSettingsResponse(BaseModel):
+    backend: str
+    openrouter_model: str
+    ollama_model: str
+    anthropic_map_model: str
+    anthropic_reduce_model: str
+    available_backends: list[str]
+    openrouter_configured: bool
+
+
+class LlmSettingsUpdate(BaseModel):
+    backend: str | None = None
+    openrouter_model: str | None = None
+    ollama_model: str | None = None

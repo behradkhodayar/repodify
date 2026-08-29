@@ -12,7 +12,40 @@ from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
 
+from podcast_compactor.config import Settings
+
 T = TypeVar("T", bound=BaseModel)
+
+LLM_BACKENDS: tuple[str, ...] = ("anthropic", "ollama", "openrouter")
+
+
+class LlmOverrides(BaseModel):
+    """Persisted, user-picked LLM settings. A None field falls back to .env."""
+
+    llm_backend: str | None = None
+    openrouter_llm_model: str | None = None
+    ollama_model: str | None = None
+
+
+class EffectiveLlm(BaseModel):
+    """The resolved LLM config (overrides layered over .env)."""
+
+    backend: str
+    openrouter_model: str
+    ollama_model: str
+    anthropic_map_model: str
+    anthropic_reduce_model: str
+
+
+def effective_llm(settings: Settings, overrides: LlmOverrides) -> EffectiveLlm:
+    """Layer persisted overrides over the env-based settings, per field."""
+    return EffectiveLlm(
+        backend=overrides.llm_backend or settings.llm_backend,
+        openrouter_model=overrides.openrouter_llm_model or settings.openrouter_llm_model,
+        ollama_model=overrides.ollama_model or settings.ollama_model,
+        anthropic_map_model=settings.map_model,
+        anthropic_reduce_model=settings.reduce_model,
+    )
 
 
 def _multivoice_labels(user: str) -> list[str]:
@@ -58,6 +91,28 @@ class OllamaStructuredLLM:
         # soon as the call returns, so its memory is freed before the TTS stage
         # instead of lingering for the default 5 minutes.
         chat = ChatOllama(model=self._model, base_url=self._base_url, keep_alive=0)
+        structured = chat.with_structured_output(schema)
+        result = structured.invoke([("system", system), ("human", user)])
+        return result  # type: ignore[return-value]
+
+
+class OpenRouterStructuredLLM:
+    """Real backend: a hosted model on OpenRouter via its OpenAI-compatible chat
+    completions API, using langchain-openai structured output.
+
+    The chosen model must support tool / function calling (langchain's default
+    structured-output method); models without it raise at call time.
+    """
+
+    def __init__(self, model: str, api_key: str, base_url: str) -> None:
+        self._model = model
+        self._api_key = api_key
+        self._base_url = base_url
+
+    def generate(self, system: str, user: str, schema: type[T]) -> T:
+        from langchain_openai import ChatOpenAI  # lazy import
+
+        chat = ChatOpenAI(model=self._model, api_key=self._api_key, base_url=self._base_url)
         structured = chat.with_structured_output(schema)
         result = structured.invoke([("system", system), ("human", user)])
         return result  # type: ignore[return-value]

@@ -23,26 +23,49 @@ from podcast_compactor.persistence.engine import init_db, make_engine, session_f
 from podcast_compactor.persistence.repo import JobRepository
 from podcast_compactor.pipeline.graph import build_digest_graph, build_graph, build_ingest_graph
 from podcast_compactor.pipeline.state import Deps
-from podcast_compactor.ports.llm import StructuredLLM
+from podcast_compactor.ports.llm import LlmOverrides, StructuredLLM
 from podcast_compactor.ports.tts import FakeTTS, Voice
 
 logger = logging.getLogger(__name__)
 
 
-def _build_real_llms(settings: Settings) -> tuple[StructuredLLM, StructuredLLM]:
-    """Return (llm_map, llm_reduce) for the real path per settings.llm_backend."""
-    if settings.llm_backend == "ollama":
+def _build_real_llms(
+    settings: Settings, overrides: LlmOverrides | None = None
+) -> tuple[StructuredLLM, StructuredLLM]:
+    """Return (llm_map, llm_reduce) for the real path per the effective backend.
+
+    `overrides` (persisted, from the Settings page) beats `settings` (.env) per
+    field; the default means "use .env".
+    """
+    from podcast_compactor.ports.llm import LlmOverrides, effective_llm
+
+    effective = effective_llm(settings, overrides or LlmOverrides())
+
+    if effective.backend == "ollama":
         from podcast_compactor.ports.llm import OllamaStructuredLLM
 
-        llm = OllamaStructuredLLM(settings.ollama_model, settings.ollama_base_url)
+        llm = OllamaStructuredLLM(effective.ollama_model, settings.ollama_base_url)
         return llm, llm  # one local model serves both map and reduce
+
+    if effective.backend == "openrouter":
+        from podcast_compactor.ports.llm import OpenRouterStructuredLLM
+
+        if not settings.openrouter_api_key:
+            raise RuntimeError("OPENROUTER_API_KEY is required when LLM_BACKEND=openrouter")
+        llm = OpenRouterStructuredLLM(
+            effective.openrouter_model,
+            settings.openrouter_api_key,
+            settings.openrouter_base_url,
+        )
+        return llm, llm  # one hosted model serves both map and reduce
+
     from podcast_compactor.ports.llm import AnthropicStructuredLLM
 
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is required when LLM_BACKEND=anthropic")
     return (
-        AnthropicStructuredLLM(settings.map_model, settings.anthropic_api_key),
-        AnthropicStructuredLLM(settings.reduce_model, settings.anthropic_api_key),
+        AnthropicStructuredLLM(effective.anthropic_map_model, settings.anthropic_api_key),
+        AnthropicStructuredLLM(effective.anthropic_reduce_model, settings.anthropic_api_key),
     )
 
 
@@ -68,9 +91,13 @@ def _build_real_tts(settings: Settings):
 
 def build_deps(settings: Settings) -> Deps:
     """Wire the pipeline's dependencies, choosing fakes or real backends."""
+    from podcast_compactor.persistence.settings_repo import SettingsRepository
+
     engine = make_engine(settings.database_url)
     init_db(engine)
-    repo = JobRepository(session_factory(engine))
+    sf = session_factory(engine)
+    repo = JobRepository(sf)
+    settings_repo = SettingsRepository(sf)
     storage = _import_filesystem_storage()(settings.data_dir)
     http = httpx.Client(timeout=60.0)
 
@@ -109,7 +136,7 @@ def build_deps(settings: Settings) -> Deps:
 
         transcriber = FasterWhisperTranscriber(settings.whisper_model)
         diarizer = PyannoteDiarizer(settings.hf_token, settings.diarization_model)
-        llm_map, llm_reduce = _build_real_llms(settings)
+        llm_map, llm_reduce = _build_real_llms(settings, settings_repo.get_llm_overrides())
         tts = _build_real_tts(settings)
         # `instructions` is a fallback voice description used only by a hosted
         # backend (OpenRouter) when no reference clip is configured, so the two
