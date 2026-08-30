@@ -2,12 +2,17 @@ import pytest
 
 from podcast_compactor.synth.stock_voices import (
     DEFAULT_STOCK_VOICE,
+    SAMPLE_LINE,
     STOCK_VOICE_STYLES,
     STOCK_VOICES,
+    bundled_sample_path,
+    effective_stock_catalog,
     interleave_by_register,
     list_stock_voices,
     match_by_gender,
     stock_voice,
+    stock_voice_display_name,
+    stock_voice_gender,
     stock_voice_register,
 )
 
@@ -22,7 +27,26 @@ def test_stock_voice_resolves_to_kokoro_voice():
     v = stock_voice(DEFAULT_STOCK_VOICE)
     assert v.kokoro_voice == DEFAULT_STOCK_VOICE
     assert v.name == DEFAULT_STOCK_VOICE
-    assert v.ref_audio_path is None  # catalog voice needs no reference clip
+    sample = bundled_sample_path(DEFAULT_STOCK_VOICE)
+    assert v.ref_audio_path == sample
+    assert v.ref_text == SAMPLE_LINE
+    assert sample.is_file(), "bundled catalog previews must ship with the app"
+
+
+def test_every_catalog_voice_ships_a_preview_clip():
+    import wave
+
+    for name in STOCK_VOICES:
+        path = bundled_sample_path(name)
+        assert path.is_file(), f"missing preview for {name}"
+        v = stock_voice(name)
+        assert v.ref_audio_path == path
+        assert v.ref_text == SAMPLE_LINE
+        with wave.open(str(path), "rb") as w:
+            duration = w.getnframes() / float(w.getframerate())
+            assert w.getnchannels() == 1
+            assert w.getframerate() == 24000
+            assert 3.0 <= duration <= 8.0, f"{name} preview is {duration:.2f}s"
 
 
 def test_unknown_stock_voice_raises():
@@ -43,6 +67,44 @@ def test_stock_voice_register_reads_gender_from_kokoro_id():
     assert stock_voice_register("am_michael") == "low"  # American male
     assert stock_voice_register("bm_george") == "low"  # British male
     assert stock_voice_register("weird") == "high"  # non-Kokoro name defaults high
+
+
+def test_stock_voice_gender_reads_kokoro_id():
+    assert stock_voice_gender("af_heart") == "female"
+    assert stock_voice_gender("bf_emma") == "female"
+    assert stock_voice_gender("am_adam") == "male"
+    assert stock_voice_gender("bm_george") == "male"
+    assert stock_voice_gender("weird") is None
+    assert stock_voice_gender("x") is None
+
+
+def test_stock_voice_display_name_uses_the_given_name():
+    assert stock_voice_display_name("af_heart") == "Heart"
+    assert stock_voice_display_name("am_adam") == "Adam"
+    assert stock_voice_display_name("bf_emma") == "Emma"
+    assert stock_voice_display_name("no_prefix") == "Prefix"
+    assert stock_voice_display_name("heart") == "Heart"
+
+
+def test_every_catalog_voice_has_a_known_gender():
+    for name in STOCK_VOICES:
+        assert stock_voice_gender(name) in ("female", "male"), name
+
+
+def test_effective_stock_catalog_defaults_to_full_catalog():
+    assert effective_stock_catalog(None) == list_stock_voices()
+    assert effective_stock_catalog([]) == list_stock_voices()
+
+
+def test_effective_stock_catalog_keeps_preferred_order_and_drops_unknown():
+    assert effective_stock_catalog(["am_adam", "not_a_voice", "af_heart"]) == [
+        "am_adam",
+        "af_heart",
+    ]
+
+
+def test_effective_stock_catalog_falls_back_when_preferred_are_all_unknown():
+    assert effective_stock_catalog(["nope"]) == list_stock_voices()
 
 
 def test_interleave_alternates_register_and_keeps_default_first():

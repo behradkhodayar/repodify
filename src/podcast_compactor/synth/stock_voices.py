@@ -1,14 +1,21 @@
 """The stock (catalog) voice registry — a thin layer over Kokoro's built-in voices.
 
-A stock voice needs no reference clip: it is just a `Voice` naming a Kokoro voice.
-Used when a speaker shouldn't or can't be cloned. See `synth.kokoro.KokoroTTS`.
+A stock voice names a Kokoro id. Bundled preview clips in ``assets/voice-samples/``
+are attached as ``ref_audio_path`` so hosted TTS can clone a real female/male
+sample instead of guessing from a text description. Local Kokoro still keys off
+``kokoro_voice``. See `synth.kokoro.KokoroTTS`.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 from podcast_compactor.ports.tts import Voice
+
+# Spoken by the bundled 5-second previews in assets/voice-samples/. Hosted TTS
+# clones those clips, so this transcript must stay in lockstep with the WAVs.
+SAMPLE_LINE = "Hello, this is a short preview of how I sound when I speak to you today."
 
 # Curated, stable Kokoro voice ids we expose. Kokoro ships more; this is a
 # sensible, gender-balanced default set (a*/b* = American/British, f/m = voice).
@@ -46,6 +53,46 @@ STOCK_VOICE_STYLES: dict[str, str] = {
 def list_stock_voices() -> list[str]:
     """The stock voice names available for assignment."""
     return list(STOCK_VOICES)
+
+
+def bundled_sample_path(name: str) -> Path:
+    """On-disk preview WAV for a catalog voice (may not exist yet)."""
+    return Path(__file__).resolve().parents[3] / "assets" / "voice-samples" / f"{name}.wav"
+
+
+def stock_voice_gender(name: str) -> Literal["female", "male"] | None:
+    """A stock voice's gender, from the Kokoro id (``a/b`` accent, ``f/m`` gender).
+
+    Returns ``None`` when the id doesn't look like a Kokoro voice.
+    """
+    if len(name) < 2:
+        return None
+    return {"f": "female", "m": "male"}.get(name[1])
+
+
+def stock_voice_display_name(name: str) -> str:
+    """Human label for a catalog id, e.g. ``af_heart`` → ``Heart``."""
+    _, sep, rest = name.partition("_")
+    label = rest if sep else name
+    if not label:
+        return name
+    return label[0].upper() + label[1:]
+
+
+def effective_stock_catalog(preferred: list[str] | None = None) -> list[str]:
+    """The catalog gender-matching and round-robin assignment should use.
+
+    A non-empty ``preferred`` list (Settings) is treated as an ordered subset of
+    the built-in catalog; unknown ids are dropped. Empty/unset preferred, or a
+    list that survives filtering as empty, falls back to the full catalog so a
+    misconfigured setting can't leave the pipeline with no voices.
+    """
+    full = list_stock_voices()
+    if not preferred:
+        return full
+    known = set(full)
+    chosen = [v for v in preferred if v in known]
+    return chosen or full
 
 
 def stock_voice_register(name: str) -> Literal["high", "low"]:
@@ -106,7 +153,21 @@ def interleave_by_register(names: list[str]) -> list[str]:
 
 
 def stock_voice(name: str) -> Voice:
-    """Resolve a stock voice name to a `Voice`. Raises on an unknown name."""
+    """Resolve a stock voice name to a `Voice`. Raises on an unknown name.
+
+    When a bundled preview clip exists it is attached as ``ref_audio_path`` so
+    hosted backends (Fish Audio via OpenRouter) clone the real female/male
+    sample instead of guessing gender from a text description. Local Kokoro
+    still keys off ``kokoro_voice`` and ignores the clip.
+    """
     if name not in STOCK_VOICES:
         raise ValueError(f"unknown stock voice {name!r}; choose from {list(STOCK_VOICES)}")
-    return Voice(name=name, kokoro_voice=name, instructions=STOCK_VOICE_STYLES.get(name))
+    sample = bundled_sample_path(name)
+    has_sample = sample.is_file()
+    return Voice(
+        name=name,
+        kokoro_voice=name,
+        instructions=STOCK_VOICE_STYLES.get(name),
+        ref_audio_path=sample if has_sample else None,
+        ref_text=SAMPLE_LINE if has_sample else None,
+    )

@@ -8,6 +8,8 @@ import type {
   ResultResponse,
   SpeakersResponse,
   SubmitVoicesRequest,
+  VoiceSettingsResponse,
+  VoiceSettingsUpdate,
   VoicesResponse,
 } from './types'
 
@@ -54,6 +56,17 @@ export const api = {
   getJob: (id: string) => apiFetch<JobStatusResponse>(`/jobs/${id}`),
   getResult: (id: string) => apiFetch<ResultResponse>(`/jobs/${id}/result`),
   getVoices: () => apiFetch<VoicesResponse>('/voices'),
+  getVoiceSample: async (id: string) => {
+    const resp = await fetch(apiUrl(`/voices/${id}/sample`), { headers: authHeaders() })
+    if (!resp.ok) throw new ApiError(resp.status, await resp.text())
+    return resp.blob()
+  },
+  getVoiceSettings: () => apiFetch<VoiceSettingsResponse>('/settings/voices'),
+  updateVoiceSettings: (body: VoiceSettingsUpdate) =>
+    apiFetch<VoiceSettingsResponse>('/settings/voices', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   getSpeakers: (id: string) => apiFetch<SpeakersResponse>(`/jobs/${id}/speakers`),
   submitVoices: (id: string, body: SubmitVoicesRequest) =>
     apiFetch<{ job_id: string }>(`/jobs/${id}/voices`, {

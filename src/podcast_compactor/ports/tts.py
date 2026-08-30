@@ -20,8 +20,9 @@ class Voice(BaseModel):
 
     - **Cloned / reference voice** (F5-TTS, zero-shot): `ref_audio_path` + `ref_text`
       describe the clip to imitate. Even the "default" narrator is one of these.
-    - **Stock catalog voice** (Kokoro): `kokoro_voice` names a built-in voice; no
-      reference clip is needed.
+    - **Stock catalog voice** (Kokoro): `kokoro_voice` names a built-in voice.
+      A bundled preview clip may also be set as `ref_audio_path` so hosted
+      backends can clone a real sample; local Kokoro ignores the clip.
 
     All fields are optional so the fake can run without any assets. `RoutingTTS`
     dispatches on `kokoro_voice` (set → Kokoro, unset → F5-TTS).

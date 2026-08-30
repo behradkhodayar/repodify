@@ -66,3 +66,6 @@ class Deps:
     settings: Settings
     transcoder: Transcoder
     intro_outro: dict[str, bytes] = field(default_factory=dict)
+    # Ordered catalog used for gender-matching / round-robin stock assignment.
+    # Empty means "use the built-in catalog".
+    stock_catalog: list[str] = field(default_factory=list)

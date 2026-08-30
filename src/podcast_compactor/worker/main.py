@@ -165,6 +165,10 @@ def build_deps(settings: Settings) -> Deps:
         watermarker = AudioSealWatermarker()
         transcoder = FfmpegTranscoder()
 
+    from podcast_compactor.synth.stock_voices import effective_stock_catalog
+
+    stock_catalog = effective_stock_catalog(settings_repo.get_preferred_stock_voices())
+
     return Deps(
         resolver_resolve=resolve,
         http=http,
@@ -180,6 +184,7 @@ def build_deps(settings: Settings) -> Deps:
         repo=repo,
         settings=settings,
         transcoder=transcoder,
+        stock_catalog=stock_catalog,
     )
 
 

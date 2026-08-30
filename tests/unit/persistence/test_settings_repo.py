@@ -36,3 +36,18 @@ def test_set_upserts_and_leaves_unspecified_fields(settings_repo):
     ov = settings_repo.get_llm_overrides()
     assert ov.llm_backend == "openrouter"
     assert ov.ollama_model == "llama3"
+
+
+def test_preferred_stock_voices_default_empty(settings_repo):
+    assert settings_repo.get_preferred_stock_voices() == []
+
+
+def test_preferred_stock_voices_round_trip(settings_repo):
+    settings_repo.set_preferred_stock_voices(["am_adam", "af_bella"])
+    assert settings_repo.get_preferred_stock_voices() == ["am_adam", "af_bella"]
+
+
+def test_preferred_stock_voices_can_clear(settings_repo):
+    settings_repo.set_preferred_stock_voices(["af_heart"])
+    settings_repo.set_preferred_stock_voices([])
+    assert settings_repo.get_preferred_stock_voices() == []

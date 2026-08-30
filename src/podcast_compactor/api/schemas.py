@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -45,8 +46,24 @@ class CreateJobResponse(BaseModel):
     job_id: str
 
 
+class StockVoiceOut(BaseModel):
+    id: str
+    name: str
+    gender: Literal["female", "male"] | None = None
+    sample_url: str
+
+
 class VoicesResponse(BaseModel):
     stock_voices: list[str]
+    voices: list[StockVoiceOut] = []
+
+
+class VoiceSettingsResponse(BaseModel):
+    preferred_stock_voices: list[str]
+
+
+class VoiceSettingsUpdate(BaseModel):
+    preferred_stock_voices: list[str]
 
 
 class SpeakerOut(BaseModel):

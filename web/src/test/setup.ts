@@ -27,6 +27,11 @@ class MemoryStorage {
   }
 }
 
+if (typeof URL.createObjectURL !== 'function') {
+  URL.createObjectURL = () => 'blob:test'
+  URL.revokeObjectURL = () => {}
+}
+
 try {
   Object.defineProperty(globalThis, 'localStorage', {
     value: new MemoryStorage(),

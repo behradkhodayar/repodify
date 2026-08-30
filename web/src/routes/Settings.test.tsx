@@ -16,6 +16,22 @@ const LLM = {
   openrouter_configured: true,
 }
 
+const VOICES = {
+  stock_voices: ['af_heart', 'am_adam'],
+  voices: [
+    { id: 'af_heart', name: 'Heart', gender: 'female', sample_url: '/voices/af_heart/sample' },
+    { id: 'am_adam', name: 'Adam', gender: 'male', sample_url: '/voices/am_adam/sample' },
+  ],
+}
+
+function stubSettingsApis() {
+  server.use(
+    http.get('/settings/llm', () => HttpResponse.json(LLM)),
+    http.get('/voices', () => HttpResponse.json(VOICES)),
+    http.get('/settings/voices', () => HttpResponse.json({ preferred_stock_voices: [] })),
+  )
+}
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -27,7 +43,7 @@ function renderPage() {
 
 describe('Settings', () => {
   it('saves the token to localStorage', async () => {
-    server.use(http.get('/settings/llm', () => HttpResponse.json(LLM)))
+    stubSettingsApis()
     const user = userEvent.setup()
     renderPage()
     await user.type(screen.getByLabelText(/api token/i), 'secret')
@@ -38,6 +54,8 @@ describe('Settings', () => {
   it('selects the openrouter backend + model and saves it', async () => {
     let putBody: unknown = null
     server.use(
+      http.get('/voices', () => HttpResponse.json(VOICES)),
+      http.get('/settings/voices', () => HttpResponse.json({ preferred_stock_voices: [] })),
       http.get('/settings/llm', () => HttpResponse.json(LLM)),
       http.put('/settings/llm', async ({ request }) => {
         putBody = await request.json()
@@ -56,5 +74,26 @@ describe('Settings', () => {
     await waitFor(() =>
       expect(putBody).toEqual({ backend: 'openrouter', openrouter_model: 'x/y', ollama_model: 'qwen2.5-coder:7b' }),
     )
+  })
+
+  it('saves preferred stock voices with gender-tagged names', async () => {
+    let putBody: unknown = null
+    server.use(
+      http.get('/settings/llm', () => HttpResponse.json(LLM)),
+      http.get('/voices', () => HttpResponse.json(VOICES)),
+      http.get('/settings/voices', () => HttpResponse.json({ preferred_stock_voices: [] })),
+      http.put('/settings/voices', async ({ request }) => {
+        putBody = await request.json()
+        return HttpResponse.json(putBody as { preferred_stock_voices: string[] })
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Heart')).toBeInTheDocument())
+    expect(screen.getByText('female')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /play sample of heart/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: /prefer adam \(male\)/i }))
+    await user.click(screen.getByRole('button', { name: /save preferred voices/i }))
+    await waitFor(() => expect(putBody).toEqual({ preferred_stock_voices: ['am_adam'] }))
   })
 })

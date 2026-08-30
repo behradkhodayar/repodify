@@ -2,6 +2,8 @@ import { Loader2, Mic, ShieldCheck, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useSpeakers, useSubmitVoices, useVoices } from '../api/queries'
 import type { VoiceAssignment } from '../api/types'
+import { stockVoiceLabel } from '../lib/format'
+import { PlaySample } from './PlaySample'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Select } from './ui/select'
@@ -68,39 +70,47 @@ export function VoiceReview({ jobId }: { jobId: string }) {
         </div>
 
         <ul className="space-y-2">
-          {list.map((s) => (
-            <li
-              key={s.speaker_id}
-              className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center"
-            >
-              <span className="flex items-center gap-2.5 sm:w-52">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-medium text-primary">
-                  {initials(s.display_name ?? s.speaker_id)}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate font-mono text-sm">
-                    {s.display_name ?? s.speaker_id}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {Math.round(s.speaking_seconds)}s speaking
-                  </span>
-                </span>
-              </span>
-              <Select
-                aria-label={`Voice for ${s.speaker_id}`}
-                value={choiceFor(s.speaker_id)}
-                onChange={(e) => setChoices((p) => ({ ...p, [s.speaker_id]: e.target.value }))}
-                className="sm:ml-auto sm:max-w-xs"
+          {list.map((s) => {
+            const choice = choiceFor(s.speaker_id)
+            const selected = (voices.data?.voices ?? []).find((v) => v.id === choice)
+            return (
+              <li
+                key={s.speaker_id}
+                className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center"
               >
-                <option value={CLONE}>Clone this speaker</option>
-                {(voices.data?.stock_voices ?? []).map((v) => (
-                  <option key={v} value={v}>
-                    Stock: {v}
-                  </option>
-                ))}
-              </Select>
-            </li>
-          ))}
+                <span className="flex items-center gap-2.5 sm:w-52">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-medium text-primary">
+                    {initials(s.display_name ?? s.speaker_id)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-mono text-sm">
+                      {s.display_name ?? s.speaker_id}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {Math.round(s.speaking_seconds)}s speaking
+                    </span>
+                  </span>
+                </span>
+                <span className="flex min-w-0 flex-1 items-center gap-1 sm:ml-auto sm:max-w-xs">
+                  {choice !== CLONE ? (
+                    <PlaySample voiceId={choice} name={selected?.name ?? choice} />
+                  ) : null}
+                  <Select
+                    aria-label={`Voice for ${s.speaker_id}`}
+                    value={choice}
+                    onChange={(e) => setChoices((p) => ({ ...p, [s.speaker_id]: e.target.value }))}
+                  >
+                    <option value={CLONE}>Clone this speaker</option>
+                    {(voices.data?.voices ?? []).map((v) => (
+                      <option key={v.id} value={v.id}>
+                        Stock: {stockVoiceLabel(v.name, v.gender)}
+                      </option>
+                    ))}
+                  </Select>
+                </span>
+              </li>
+            )
+          })}
         </ul>
 
         <div className="flex items-center justify-end gap-3">

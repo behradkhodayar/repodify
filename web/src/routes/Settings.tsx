@@ -1,7 +1,14 @@
-import { Check, Cpu, KeyRound, Save } from 'lucide-react'
+import { Check, Cpu, KeyRound, Mic, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useLlmSettings, useUpdateLlmSettings } from '../api/queries'
+import {
+  useLlmSettings,
+  useUpdateLlmSettings,
+  useUpdateVoiceSettings,
+  useVoiceSettings,
+  useVoices,
+} from '../api/queries'
 import { PageHeader } from '../components/PageHeader'
+import { StockVoiceList } from '../components/StockVoiceList'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
@@ -57,6 +64,7 @@ export function Settings() {
       </Card>
 
       <LlmCard />
+      <VoicesCard />
     </div>
   )
 }
@@ -149,6 +157,57 @@ function LlmCard() {
             <Save /> Save LLM settings
           </Button>
           {saved && (
+            <span className="flex items-center gap-1.5 text-sm text-status-done">
+              <Check className="size-4" /> Saved
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function VoicesCard() {
+  const catalog = useVoices()
+  const saved = useVoiceSettings()
+  const update = useUpdateVoiceSettings()
+  const [preferred, setPreferred] = useState<string[]>([])
+  const [justSaved, setJustSaved] = useState(false)
+
+  useEffect(() => {
+    if (!saved.data) return
+    setPreferred(saved.data.preferred_stock_voices)
+  }, [saved.data])
+
+  const voices = catalog.data?.voices ?? []
+  if (!catalog.data || !saved.data) return null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Mic className="size-[18px] text-primary" /> Preferred stock voices
+        </CardTitle>
+        <CardDescription>
+          Hear each catalog voice and pick the ones gender-matching should use when a
+          speaker isn&apos;t cloned. Leave none selected to use the full catalog.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <StockVoiceList voices={voices} preferredIds={preferred} onPreferredChange={setPreferred} />
+        <div className="flex items-center gap-3">
+          <Button
+            disabled={update.isPending}
+            onClick={() => {
+              update.mutate(
+                { preferred_stock_voices: preferred },
+                { onSuccess: () => setJustSaved(true) },
+              )
+            }}
+          >
+            <Save /> Save preferred voices
+          </Button>
+          {justSaved && (
             <span className="flex items-center gap-1.5 text-sm text-status-done">
               <Check className="size-4" /> Saved
             </span>
