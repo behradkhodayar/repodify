@@ -9,7 +9,7 @@ import { VoiceReview } from '../components/VoiceReview'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Progress } from '../components/ui/progress'
 import { Skeleton } from '../components/ui/skeleton'
-import { shortId } from '../lib/format'
+import { PIPELINE_STAGES, shortId, statusLabel } from '../lib/format'
 
 export function JobDetail() {
   const { id = '' } = useParams()
@@ -39,9 +39,19 @@ export function JobDetail() {
     )
   }
 
-  const { status, stages } = job.data
-  const doneCount = stages.filter((s) => s.state === 'done').length
-  const pct = stages.length ? Math.round((doneCount / stages.length) * 100) : 0
+  const { status, stages, current_stage } = job.data
+  const byName = new Map(stages.map((s) => [s.stage, s]))
+  const doneCount = PIPELINE_STAGES.filter((name) => {
+    const state = byName.get(name)?.state
+    return state === 'done' || state === 'skipped'
+  }).length
+  const pct = Math.round((doneCount / PIPELINE_STAGES.length) * 100)
+  const current = current_stage ? byName.get(current_stage) : undefined
+  const runningTitle = current_stage
+    ? statusLabel(current_stage.replace(/_/g, ' '))
+    : 'Queued'
+  const runningDetail =
+    current?.detail ?? 'This page updates live as each stage progresses.'
 
   return (
     <div className="space-y-6">
@@ -67,7 +77,7 @@ export function JobDetail() {
             <div className="space-y-1.5 pt-1">
               <Progress value={pct} />
               <p className="text-xs text-muted-foreground">
-                {doneCount}/{stages.length} stages · {pct}%
+                {doneCount}/{PIPELINE_STAGES.length} stages · {pct}%
               </p>
             </div>
           </CardHeader>
@@ -107,10 +117,8 @@ export function JobDetail() {
               <CardContent className="flex items-center gap-4 py-8">
                 <Waveform bars={12} className="h-10" />
                 <div>
-                  <p className="font-display font-medium">Working on your digest…</p>
-                  <p className="text-sm text-muted-foreground">
-                    This page updates live as each stage completes.
-                  </p>
+                  <p className="font-display font-medium">{runningTitle}</p>
+                  <p className="text-sm text-muted-foreground">{runningDetail}</p>
                 </div>
               </CardContent>
             </Card>

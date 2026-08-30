@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Loader2, Minus, X } from 'lucide-react'
 import type { StageOut } from '../api/types'
+import { elapsedLabel, parsePercent, PIPELINE_STAGES } from '../lib/format'
 import { cn } from '../lib/utils'
+import { Progress } from './ui/progress'
 
 function node(state: string) {
   switch (state) {
@@ -24,15 +27,50 @@ function node(state: string) {
   }
 }
 
+function mergeStages(stages: StageOut[]): StageOut[] {
+  const byName = new Map(stages.map((s) => [s.stage, s]))
+  return PIPELINE_STAGES.map(
+    (name) =>
+      byName.get(name) ?? {
+        stage: name,
+        state: 'pending',
+        detail: null,
+        started_at: null,
+        finished_at: null,
+      },
+  )
+}
+
+function useNow(enabled: boolean) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!enabled) return
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [enabled])
+  return now
+}
+
 export function StageProgress({ stages }: { stages: StageOut[] }) {
+  const rows = mergeStages(stages)
+  const ticking = rows.some((s) => s.state === 'running' && s.started_at)
+  const now = useNow(ticking)
+
   return (
     <ol className="relative">
-      {stages.map((s, i) => {
-        const isLast = i === stages.length - 1
+      {rows.map((s, i) => {
+        const isLast = i === rows.length - 1
         const { ring, icon } = node(s.state)
+        const pct = s.state === 'running' ? parsePercent(s.detail) : null
+        const time =
+          s.state === 'running'
+            ? elapsedLabel(s.started_at, null, now)
+            : s.state === 'done' || s.state === 'failed'
+              ? elapsedLabel(s.started_at, s.finished_at)
+              : ''
         return (
           <motion.li
-            key={i}
+            key={s.stage}
             initial={{ opacity: 0, x: -6 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3, delay: i * 0.05 }}
@@ -55,8 +93,16 @@ export function StageProgress({ stages }: { stages: StageOut[] }) {
               {icon}
             </span>
             <div className="min-w-0 flex-1 pt-1">
-              <span className="text-sm font-medium capitalize">{s.stage.replace(/_/g, ' ')}</span>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-medium capitalize">{s.stage.replace(/_/g, ' ')}</span>
+                {time && (
+                  <span className="tabular shrink-0 font-mono text-[11px] text-muted-foreground">
+                    {time}
+                  </span>
+                )}
+              </div>
               {s.detail && <p className="mt-0.5 text-sm text-muted-foreground">{s.detail}</p>}
+              {pct !== null && <Progress value={pct} className="mt-2 h-1.5" />}
             </div>
           </motion.li>
         )
