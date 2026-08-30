@@ -11,7 +11,6 @@ from pathlib import Path
 
 from podcast_compactor.models.domain import Speaker, TranscriptSegment
 from podcast_compactor.ports.diarizer import DiarizationResult, SpeakerTurn
-from podcast_compactor.transcribe.speaker_clustering import LocalSpeaker, cluster_speakers
 
 
 class PyannoteDiarizer:
@@ -134,6 +133,11 @@ def unify_speakers_across_episodes(
     (most-talkative speaker first) is the digest's cast. When embeddings are
     unavailable it is an identity relabeling, so callers keep the per-episode labels.
     """
+    # Lazy: numpy lives in speaker_clustering. Importing it at module load
+    # takes down the fake-mode worker (`./launch --fake` used to `uv sync`
+    # without numpy).
+    from podcast_compactor.transcribe.speaker_clustering import LocalSpeaker, cluster_speakers
+
     locals_ = [
         LocalSpeaker(guid, sp.id, res.embeddings[sp.id], sp.speaking_seconds)
         for guid, res in results.items()
