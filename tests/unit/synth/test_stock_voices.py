@@ -4,10 +4,13 @@ from podcast_compactor.synth.stock_voices import (
     DEFAULT_STOCK_VOICE,
     STOCK_VOICE_STYLES,
     STOCK_VOICES,
+    effective_stock_catalog,
     interleave_by_register,
     list_stock_voices,
     match_by_gender,
     stock_voice,
+    stock_voice_display_name,
+    stock_voice_gender,
     stock_voice_register,
 )
 
@@ -43,6 +46,44 @@ def test_stock_voice_register_reads_gender_from_kokoro_id():
     assert stock_voice_register("am_michael") == "low"  # American male
     assert stock_voice_register("bm_george") == "low"  # British male
     assert stock_voice_register("weird") == "high"  # non-Kokoro name defaults high
+
+
+def test_stock_voice_gender_reads_kokoro_id():
+    assert stock_voice_gender("af_heart") == "female"
+    assert stock_voice_gender("bf_emma") == "female"
+    assert stock_voice_gender("am_adam") == "male"
+    assert stock_voice_gender("bm_george") == "male"
+    assert stock_voice_gender("weird") is None
+    assert stock_voice_gender("x") is None
+
+
+def test_stock_voice_display_name_uses_the_given_name():
+    assert stock_voice_display_name("af_heart") == "Heart"
+    assert stock_voice_display_name("am_adam") == "Adam"
+    assert stock_voice_display_name("bf_emma") == "Emma"
+    assert stock_voice_display_name("no_prefix") == "Prefix"
+    assert stock_voice_display_name("heart") == "Heart"
+
+
+def test_every_catalog_voice_has_a_known_gender():
+    for name in STOCK_VOICES:
+        assert stock_voice_gender(name) in ("female", "male"), name
+
+
+def test_effective_stock_catalog_defaults_to_full_catalog():
+    assert effective_stock_catalog(None) == list_stock_voices()
+    assert effective_stock_catalog([]) == list_stock_voices()
+
+
+def test_effective_stock_catalog_keeps_preferred_order_and_drops_unknown():
+    assert effective_stock_catalog(["am_adam", "not_a_voice", "af_heart"]) == [
+        "am_adam",
+        "af_heart",
+    ]
+
+
+def test_effective_stock_catalog_falls_back_when_preferred_are_all_unknown():
+    assert effective_stock_catalog(["nope"]) == list_stock_voices()
 
 
 def test_interleave_alternates_register_and_keeps_default_first():

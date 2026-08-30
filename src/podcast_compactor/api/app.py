@@ -33,7 +33,10 @@ from podcast_compactor.api.schemas import (
     SpeakerOut,
     SpeakersResponse,
     StageOut,
+    StockVoiceOut,
     SubmitVoicesRequest,
+    VoiceSettingsResponse,
+    VoiceSettingsUpdate,
     VoicesResponse,
 )
 from podcast_compactor.config import Settings, get_settings
@@ -45,6 +48,7 @@ from podcast_compactor.persistence.engine import init_db, make_engine, session_f
 from podcast_compactor.persistence.repo import JobRepository
 from podcast_compactor.persistence.settings_repo import SettingsRepository
 from podcast_compactor.ports.llm import LLM_BACKENDS, LlmOverrides, effective_llm
+from podcast_compactor.ports.tts import TTS
 from podcast_compactor.storage.base import Storage
 from podcast_compactor.storage.filesystem import FilesystemStorage
 
@@ -63,6 +67,7 @@ def create_app(
     enqueue_resume: EnqueueFn | None = None,
     *,
     settings_repo: SettingsRepository | None = None,
+    tts: TTS | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Podcast Compactor")
     app.add_middleware(
@@ -77,6 +82,12 @@ def create_app(
         return {"status": "ok"}
 
     router = APIRouter(dependencies=[Depends(make_require_token(settings.api_token))])
+    if tts is None:
+        from podcast_compactor.ports.tts import FakeTTS
+
+        sample_tts: TTS = FakeTTS()
+    else:
+        sample_tts = tts
 
     @router.post("/feeds/resolve", response_model=ResolveResponse)
     def resolve_feed(req: ResolveRequest) -> ResolveResponse:
@@ -115,9 +126,42 @@ def create_app(
 
     @router.get("/voices", response_model=VoicesResponse)
     def list_voices() -> VoicesResponse:
-        from podcast_compactor.synth.stock_voices import list_stock_voices
+        from podcast_compactor.synth.stock_voices import (
+            list_stock_voices,
+            stock_voice_display_name,
+            stock_voice_gender,
+        )
 
-        return VoicesResponse(stock_voices=list_stock_voices())
+        ids = list_stock_voices()
+        return VoicesResponse(
+            stock_voices=ids,
+            voices=[
+                StockVoiceOut(
+                    id=vid,
+                    name=stock_voice_display_name(vid),
+                    gender=stock_voice_gender(vid),
+                    sample_url=f"/voices/{vid}/sample",
+                )
+                for vid in ids
+            ],
+        )
+
+    @router.get("/voices/{voice_id}/sample")
+    def voice_sample(voice_id: str) -> FileResponse:
+        from podcast_compactor.synth.stock_voices import STOCK_VOICES
+        from podcast_compactor.synth.voice_samples import (
+            ensure_voice_sample,
+            sample_storage_key,
+        )
+
+        if voice_id not in STOCK_VOICES:
+            raise HTTPException(status_code=404, detail="unknown stock voice")
+        ensure_voice_sample(voice_id, storage, sample_tts)
+        return FileResponse(
+            storage.local_path(sample_storage_key(voice_id)),
+            media_type="audio/wav",
+            filename=f"{voice_id}.wav",
+        )
 
     def _llm_settings_response() -> LlmSettingsResponse:
         eff = effective_llm(settings, settings_repo.get_llm_overrides())
@@ -158,6 +202,29 @@ def create_app(
             )
         )
         return _llm_settings_response()
+
+    @router.get("/settings/voices", response_model=VoiceSettingsResponse)
+    def get_voice_settings() -> VoiceSettingsResponse:
+        if settings_repo is None:
+            raise HTTPException(status_code=503, detail="settings store unavailable")
+        return VoiceSettingsResponse(
+            preferred_stock_voices=settings_repo.get_preferred_stock_voices()
+        )
+
+    @router.put("/settings/voices", response_model=VoiceSettingsResponse)
+    def put_voice_settings(req: VoiceSettingsUpdate) -> VoiceSettingsResponse:
+        if settings_repo is None:
+            raise HTTPException(status_code=503, detail="settings store unavailable")
+        from podcast_compactor.synth.stock_voices import list_stock_voices
+
+        known = set(list_stock_voices())
+        unknown = [v for v in req.preferred_stock_voices if v not in known]
+        if unknown:
+            raise HTTPException(status_code=422, detail=f"unknown stock voices: {unknown}")
+        settings_repo.set_preferred_stock_voices(req.preferred_stock_voices)
+        return VoiceSettingsResponse(
+            preferred_stock_voices=settings_repo.get_preferred_stock_voices()
+        )
 
     @router.get("/jobs/{job_id}/speakers", response_model=SpeakersResponse)
     def get_speakers(job_id: str) -> SpeakersResponse:
@@ -317,9 +384,23 @@ def build_default_app() -> FastAPI:
     http = httpx.Client(timeout=60.0)
     storage = FilesystemStorage(settings.data_dir)
     static_dir = Path("web/dist")
+    if settings.use_fakes:
+        from podcast_compactor.ports.tts import FakeTTS
+
+        sample_tts: TTS = FakeTTS()
+    else:
+        from podcast_compactor.synth.kokoro import KokoroTTS
+
+        sample_tts = KokoroTTS()
     return create_app(
-        repo, resolve, http, _arq_enqueue, storage, settings,
+        repo,
+        resolve,
+        http,
+        _arq_enqueue,
+        storage,
+        settings,
         static_dir=static_dir if static_dir.is_dir() else None,
         enqueue_resume=_arq_enqueue_resume,
         settings_repo=settings_repo,
+        tts=sample_tts,
     )

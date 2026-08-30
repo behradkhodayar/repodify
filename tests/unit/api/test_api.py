@@ -96,12 +96,23 @@ def test_jobs_list_returns_created_jobs(repo, tmp_path):
 
 
 def test_voices_lists_stock_catalog(repo, tmp_path):
-    from podcast_compactor.synth.stock_voices import list_stock_voices
+    from podcast_compactor.synth.stock_voices import (
+        list_stock_voices,
+        stock_voice_display_name,
+        stock_voice_gender,
+    )
 
     with httpx.Client() as http:
         client = TestClient(_app(repo, http, tmp_path))
         body = client.get("/voices").json()
     assert body["stock_voices"] == list_stock_voices()
+    catalog = {v["id"]: v for v in body["voices"]}
+    for vid in list_stock_voices():
+        assert catalog[vid]["name"] == stock_voice_display_name(vid)
+        assert catalog[vid]["gender"] == stock_voice_gender(vid)
+        assert catalog[vid]["sample_url"] == f"/voices/{vid}/sample"
+    assert catalog["af_heart"]["gender"] == "female"
+    assert catalog["am_adam"]["gender"] == "male"
 
 
 def test_speakers_endpoint_reports_status_and_detected_cast(repo, tmp_path):

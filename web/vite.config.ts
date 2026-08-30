@@ -26,7 +26,7 @@ export default defineConfig(() => {
         workbox: {
           navigateFallback: '/app/index.html',
           runtimeCaching: [
-            { urlPattern: /\/(jobs|feeds|health)(\/.*)?$/, handler: 'NetworkOnly' },
+            { urlPattern: /\/(jobs|feeds|health|voices|settings)(\/.*)?$/, handler: 'NetworkOnly' },
           ],
         },
       }),
@@ -36,6 +36,7 @@ export default defineConfig(() => {
         '/feeds': apiTarget,
         '/jobs': apiTarget,
         '/voices': apiTarget,
+        '/settings': apiTarget,
         '/health': apiTarget,
       },
     },

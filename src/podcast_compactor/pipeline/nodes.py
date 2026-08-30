@@ -36,8 +36,8 @@ from podcast_compactor.synth.assemble import (
 )
 from podcast_compactor.synth.gender import estimate_cast_registers
 from podcast_compactor.synth.stock_voices import (
+    effective_stock_catalog,
     interleave_by_register,
-    list_stock_voices,
     match_by_gender,
     stock_voice,
 )
@@ -384,17 +384,18 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 # the register-interleaved catalog, which at least keeps voices
                 # distinct; an explicit user assignment overrides both.
                 preferred_stock: dict[str, str] = {}
+                catalog = effective_stock_catalog(deps.stock_catalog)
                 if not options.clone:
                     registers = estimate_cast_registers(
                         _all_sources(state, job_id), cast_ids
                     )
                     preferred_stock = match_by_gender(
-                        cast_ids, registers, list_stock_voices()
+                        cast_ids, registers, catalog
                     )
                 assignments = resolve_voice_assignments(
                     cast_ids,
                     options,
-                    interleave_by_register(list_stock_voices()),
+                    interleave_by_register(catalog),
                     deps.settings.default_stock_voice,
                     preferred_stock=preferred_stock,
                 )

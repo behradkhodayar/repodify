@@ -33,8 +33,24 @@ export interface CreateJobRequest {
   episode_prompts?: Record<string, string>
 }
 
+export interface StockVoiceOut {
+  id: string
+  name: string
+  gender: 'female' | 'male' | null
+  sample_url: string
+}
+
 export interface VoicesResponse {
   stock_voices: string[]
+  voices: StockVoiceOut[]
+}
+
+export interface VoiceSettingsResponse {
+  preferred_stock_voices: string[]
+}
+
+export interface VoiceSettingsUpdate {
+  preferred_stock_voices: string[]
 }
 
 export interface SpeakerOut {

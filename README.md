@@ -236,9 +236,11 @@ interactive review that pauses after diarization to assign a voice per speaker.
   gender from their diarized audio (median F0) and assign a same-gender catalog
   voice, so a male host gets a male voice even without cloning. The default; the
   user can override it, and an ambiguous pitch falls back to register-alternation.
-- [ ] Let user choose their preferred stock speakers — a general selection menu
+- [x] Let user choose their preferred stock speakers — a general selection menu
   under settings, with a playable audio sample chunk in front of each name
-  (the per-speaker override for the gender-matching default above).
+  (the per-speaker override for the gender-matching default above). The voice
+  review dropdown tags each catalog voice with its gender so unisex names stay
+  unambiguous.
 - [ ] OpenRouter follow-up: add a comment in `effective_llm` (`ports/llm.py`)
   noting its `override or settings.field` precedence relies on the API rejecting
   empty-string models, so an empty override is never persisted.

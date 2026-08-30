@@ -72,3 +72,8 @@ export function elapsedLabel(
   const s = secs % 60
   return s ? `${m}m ${String(s).padStart(2, '0')}s` : `${m}m`
 }
+
+/** Catalog voice label with an explicit gender tag, e.g. `Heart (female)`. */
+export function stockVoiceLabel(name: string, gender: string | null | undefined): string {
+  return gender ? `${name} (${gender})` : name
+}

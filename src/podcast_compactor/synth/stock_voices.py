@@ -48,6 +48,41 @@ def list_stock_voices() -> list[str]:
     return list(STOCK_VOICES)
 
 
+def stock_voice_gender(name: str) -> Literal["female", "male"] | None:
+    """A stock voice's gender, from the Kokoro id (``a/b`` accent, ``f/m`` gender).
+
+    Returns ``None`` when the id doesn't look like a Kokoro voice.
+    """
+    if len(name) < 2:
+        return None
+    return {"f": "female", "m": "male"}.get(name[1])
+
+
+def stock_voice_display_name(name: str) -> str:
+    """Human label for a catalog id, e.g. ``af_heart`` → ``Heart``."""
+    _, sep, rest = name.partition("_")
+    label = rest if sep else name
+    if not label:
+        return name
+    return label[0].upper() + label[1:]
+
+
+def effective_stock_catalog(preferred: list[str] | None = None) -> list[str]:
+    """The catalog gender-matching and round-robin assignment should use.
+
+    A non-empty ``preferred`` list (Settings) is treated as an ordered subset of
+    the built-in catalog; unknown ids are dropped. Empty/unset preferred, or a
+    list that survives filtering as empty, falls back to the full catalog so a
+    misconfigured setting can't leave the pipeline with no voices.
+    """
+    full = list_stock_voices()
+    if not preferred:
+        return full
+    known = set(full)
+    chosen = [v for v in preferred if v in known]
+    return chosen or full
+
+
 def stock_voice_register(name: str) -> Literal["high", "low"]:
     """A stock voice's vocal register, from its Kokoro id (``a/b`` accent, ``f/m``).
 

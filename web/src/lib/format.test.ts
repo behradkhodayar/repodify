@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { elapsedLabel, parsePercent, PIPELINE_STAGES } from './format'
+import { elapsedLabel, parsePercent, PIPELINE_STAGES, stockVoiceLabel } from './format'
 
 describe('parsePercent', () => {
   it('reads the first 0–100 percent token', () => {
@@ -27,6 +27,14 @@ describe('elapsedLabel', () => {
   it('returns empty for missing or inverted timestamps', () => {
     expect(elapsedLabel(null, from)).toBe('')
     expect(elapsedLabel(from, '2025-01-01T00:00:00.000Z')).toBe('')
+  })
+})
+
+describe('stockVoiceLabel', () => {
+  it('tags gender so unisex names stay unambiguous', () => {
+    expect(stockVoiceLabel('Heart', 'female')).toBe('Heart (female)')
+    expect(stockVoiceLabel('Adam', 'male')).toBe('Adam (male)')
+    expect(stockVoiceLabel('Heart', null)).toBe('Heart')
   })
 })
 

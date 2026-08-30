@@ -87,7 +87,14 @@ describe('JobDetail', () => {
           speakers: [{ speaker_id: 'SPEAKER_00', speaking_seconds: 10, display_name: null }],
         }),
       ),
-      http.get('/voices', () => HttpResponse.json({ stock_voices: ['af_heart'] })),
+      http.get('/voices', () =>
+        HttpResponse.json({
+          stock_voices: ['af_heart'],
+          voices: [
+            { id: 'af_heart', name: 'Heart', gender: 'female', sample_url: '/voices/af_heart/sample' },
+          ],
+        }),
+      ),
     )
     renderAt('j2')
     await waitFor(() =>
