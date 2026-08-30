@@ -31,3 +31,44 @@ const ACTIVE = new Set(['queued', 'running', 'awaiting_review'])
 export function isActive(status: string): boolean {
   return ACTIVE.has(status)
 }
+
+/** Pipeline stages in execution order. `list` is unused (selection happens at create). */
+export const PIPELINE_STAGES = [
+  'resolve',
+  'download',
+  'transcribe',
+  'diarize',
+  'summarize',
+  'arc',
+  'script',
+  'tts',
+  'assemble',
+] as const
+
+export type PipelineStage = (typeof PIPELINE_STAGES)[number]
+
+/** First whole-number percent in `text`, or null if missing / >100. */
+export function parsePercent(text: string | null | undefined): number | null {
+  if (!text) return null
+  const m = text.match(/\b(\d{1,3})%/)
+  if (!m) return null
+  const n = Number(m[1])
+  return n <= 100 ? n : null
+}
+
+/** Compact duration between two instants, e.g. `12s`, `1m`, `1m 03s`. */
+export function elapsedLabel(
+  fromIso: string | null | undefined,
+  toIso?: string | null,
+  now = Date.now(),
+): string {
+  if (!fromIso) return ''
+  const from = new Date(fromIso).getTime()
+  const to = toIso ? new Date(toIso).getTime() : now
+  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return ''
+  const secs = Math.round((to - from) / 1000)
+  if (secs < 60) return `${secs}s`
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return s ? `${m}m ${String(s).padStart(2, '0')}s` : `${m}m`
+}

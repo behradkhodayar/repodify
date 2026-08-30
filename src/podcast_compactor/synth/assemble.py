@@ -6,6 +6,7 @@ import io
 import subprocess
 import tempfile
 import wave
+from collections.abc import Callable
 from pathlib import Path
 
 from podcast_compactor.models.domain import (
@@ -22,13 +23,21 @@ def synthesize_script(
     script: Script,
     tts: TTS,
     voices: dict[str, Voice],
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> list[bytes]:
-    """Render each script segment to WAV bytes using its speaker's voice."""
+    """Render each script segment to WAV bytes using its speaker's voice.
+
+    `on_progress`, when set, is called after each segment with `(i, n)`
+    (1-based index, total segment count).
+    """
     out: list[bytes] = []
-    for seg in script.segments:
+    n = len(script.segments)
+    for i, seg in enumerate(script.segments, start=1):
         if seg.speaker not in voices:
             raise KeyError(f"no voice configured for speaker {seg.speaker!r}")
         out.append(tts.synthesize(seg.text, voices[seg.speaker]))
+        if on_progress is not None:
+            on_progress(i, n)
     return out
 
 

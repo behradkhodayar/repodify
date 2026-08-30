@@ -45,6 +45,31 @@ describe('JobDetail', () => {
     expect(screen.getByRole('button', { name: /intro/i })).toBeInTheDocument()
   })
 
+  it('shows live download detail on a running job', async () => {
+    server.use(
+      http.get('/jobs/j-run', () =>
+        HttpResponse.json({
+          id: 'j-run',
+          status: 'running',
+          current_stage: 'download',
+          stages: [
+            {
+              stage: 'download',
+              state: 'running',
+              detail: 'Episode 1 · 1/3 · 42%',
+              started_at: new Date().toISOString(),
+              finished_at: null,
+            },
+          ],
+          report: {},
+        }),
+      ),
+    )
+    renderAt('j-run')
+    await waitFor(() => expect(screen.getAllByText(/42%/).length).toBeGreaterThanOrEqual(2))
+    expect(screen.getByText('Download')).toBeInTheDocument()
+  })
+
   it('shows the voice review when a job is awaiting review', async () => {
     server.use(
       http.get('/jobs/j2', () =>

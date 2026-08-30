@@ -97,6 +97,7 @@ class OpenRouterTTS:
     ) -> None:
         if not api_key:
             raise ValueError("OpenRouterTTS requires an OpenRouter API key")
+        self.model_id = model
         self._api_key = api_key
         self._model = model
         self._base_url = base_url.rstrip("/")

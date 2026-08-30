@@ -24,7 +24,9 @@ export function useJob(id: string) {
     queryFn: () => api.getJob(id),
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      return status === 'completed' || status === 'failed' ? false : 2000
+      if (status === 'completed' || status === 'failed') return false
+      if (status === 'queued' || status === 'running') return 1000
+      return 2000
     },
   })
 }

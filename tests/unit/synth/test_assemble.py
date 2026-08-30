@@ -42,6 +42,15 @@ def test_assemble_wav_frame_count_is_sum_of_inputs():
     assert _frames(combined) == sum(_frames(s) for s in segments)
 
 
+def test_synthesize_script_reports_segment_progress():
+    seen: list[tuple[int, int]] = []
+    segments = synthesize_script(
+        _script(), FakeTTS(), _voices(), on_progress=lambda i, n: seen.append((i, n))
+    )
+    assert len(segments) == 2
+    assert seen == [(1, 2), (2, 2)]
+
+
 def test_build_show_notes_one_chapter_per_beat_ascending():
     segments = synthesize_script(_script(), FakeTTS(), _voices())
     arc = ArcOutline(

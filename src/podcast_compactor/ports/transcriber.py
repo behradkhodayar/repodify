@@ -30,6 +30,8 @@ class FakeTranscriber:
     keyed by the audio file name.
     """
 
+    model_id: str | None = None
+
     def __init__(self, canned: Transcript | dict[str, Transcript]) -> None:
         self._canned = canned
         self.calls: list[Path] = []

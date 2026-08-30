@@ -35,3 +35,29 @@ def test_stage_lifecycle_and_artifact(repo):
     assert len(job.artifacts) == 1
     assert job.artifacts[0].kind == "output_audio"
     assert "skipped ep 3" in job.report_json
+
+
+def test_start_stage_can_set_initial_detail(repo):
+    job_id = repo.create_job("https://feed", JobOptions())
+    repo.start_stage(job_id, StageName.DOWNLOAD, detail="0/3")
+    job = repo.get_job(job_id)
+    assert job.stages[0].state == StageState.RUNNING.value
+    assert job.stages[0].detail == "0/3"
+
+
+def test_update_stage_detail_rewrites_running_row(repo):
+    job_id = repo.create_job("https://feed", JobOptions())
+    repo.start_stage(job_id, StageName.DOWNLOAD)
+    repo.update_stage_detail(job_id, StageName.DOWNLOAD, "1/3 · 40%")
+    assert repo.get_job(job_id).stages[0].detail == "1/3 · 40%"
+    repo.finish_stage(job_id, StageName.DOWNLOAD, StageState.DONE, detail="3/3 downloaded")
+    assert repo.get_job(job_id).stages[0].detail == "3/3 downloaded"
+
+
+def test_update_stage_detail_without_running_row_raises(repo):
+    import pytest
+
+    job_id = repo.create_job("https://feed", JobOptions())
+    with pytest.raises(KeyError):
+        repo.update_stage_detail(job_id, StageName.DOWNLOAD, "nope")
+

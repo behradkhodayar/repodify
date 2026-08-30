@@ -61,6 +61,8 @@ class FakeTTS:
     Lets the whole pipeline (and assembly) run on CPU with no model.
     """
 
+    model_id: str | None = None
+
     def __init__(self, sample_rate: int = SAMPLE_RATE) -> None:
         self.sample_rate = sample_rate
 
