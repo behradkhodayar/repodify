@@ -22,6 +22,9 @@ dependencies = [
     "pydantic-settings>=2.2",
     "langchain-ollama>=1.1.0",
     "langchain-openai>=0.2",
+    # Cross-episode speaker clustering is imported by the worker even in fake
+    # mode (`./launch --fake` runs `uv sync` without [gpu]).
+    "numpy>=2.0",
 ]
 
 [project.optional-dependencies]
