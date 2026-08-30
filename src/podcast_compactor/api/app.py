@@ -151,17 +151,16 @@ def create_app(
         from podcast_compactor.synth.stock_voices import STOCK_VOICES
         from podcast_compactor.synth.voice_samples import (
             ensure_voice_sample,
-            sample_storage_key,
+            resolve_sample_path,
         )
 
         if voice_id not in STOCK_VOICES:
             raise HTTPException(status_code=404, detail="unknown stock voice")
         ensure_voice_sample(voice_id, storage, sample_tts)
-        return FileResponse(
-            storage.local_path(sample_storage_key(voice_id)),
-            media_type="audio/wav",
-            filename=f"{voice_id}.wav",
-        )
+        path = resolve_sample_path(voice_id, storage)
+        if path is None:
+            raise HTTPException(status_code=404, detail="sample not found")
+        return FileResponse(path, media_type="audio/wav", filename=f"{voice_id}.wav")
 
     def _llm_settings_response() -> LlmSettingsResponse:
         eff = effective_llm(settings, settings_repo.get_llm_overrides())

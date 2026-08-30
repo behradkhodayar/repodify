@@ -1,22 +1,39 @@
-"""On-disk previews of catalog voices, synthesized once and then served as files.
+"""On-disk previews of catalog voices.
 
-The API plays these from Settings and the voice-review picker. Generation goes
-through the injected TTS (FakeTTS in tests/fake mode, Kokoro in real mode) so
-the API stays a thin cache in front of whatever backend the process was wired
-with. Cache hits never touch the model.
+Bundled WAVs in ``assets/voice-samples/`` are the source of truth — they play
+in Settings/review even in fake mode, and hosted TTS clones them so gender is
+audible. If a bundle file is missing, we synthesize once through the injected
+TTS and cache under the data dir.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from podcast_compactor.ports.tts import TTS
 from podcast_compactor.storage.base import Storage
-from podcast_compactor.synth.stock_voices import stock_voice
+from podcast_compactor.synth.stock_voices import (
+    SAMPLE_LINE,
+    bundled_sample_path,
+    stock_voice,
+)
 
-SAMPLE_LINE = "Hi, this is a short preview of my voice."
+__all__ = ["SAMPLE_LINE", "ensure_voice_sample", "resolve_sample_path", "sample_storage_key"]
 
 
 def sample_storage_key(voice_id: str) -> str:
     return f"voice-samples/{voice_id}.wav"
+
+
+def resolve_sample_path(voice_id: str, storage: Storage) -> Path | None:
+    """Filesystem path of an existing sample, preferring the bundled preview."""
+    bundled = bundled_sample_path(voice_id)
+    if bundled.is_file():
+        return bundled
+    key = sample_storage_key(voice_id)
+    if storage.exists(key):
+        return storage.local_path(key)
+    return None
 
 
 def ensure_voice_sample(voice_id: str, storage: Storage, tts: TTS) -> bytes:
@@ -24,10 +41,10 @@ def ensure_voice_sample(voice_id: str, storage: Storage, tts: TTS) -> bytes:
 
     Raises ``ValueError`` for an unknown catalog id (same as `stock_voice`).
     """
-    key = sample_storage_key(voice_id)
-    if storage.exists(key):
-        return storage.get_bytes(key)
+    existing = resolve_sample_path(voice_id, storage)
+    if existing is not None:
+        return existing.read_bytes()
     wav = tts.synthesize(SAMPLE_LINE, stock_voice(voice_id))
-    storage.put_bytes(key, wav)
+    storage.put_bytes(sample_storage_key(voice_id), wav)
     tts.release()
     return wav

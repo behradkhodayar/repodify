@@ -1,5 +1,6 @@
 from podcast_compactor.ports.tts import FakeTTS
 from podcast_compactor.storage.filesystem import FilesystemStorage
+from podcast_compactor.synth.stock_voices import bundled_sample_path
 from podcast_compactor.synth.voice_samples import (
     SAMPLE_LINE,
     ensure_voice_sample,
@@ -7,15 +8,32 @@ from podcast_compactor.synth.voice_samples import (
 )
 
 
-def test_ensure_voice_sample_synthesizes_and_caches(tmp_path):
+class _BoomTTS:
+    def synthesize(self, text, voice):
+        raise AssertionError("bundled preview should not hit TTS")
+
+    def release(self):
+        pass
+
+
+def test_ensure_voice_sample_prefers_bundled_preview(tmp_path):
     storage = FilesystemStorage(tmp_path / "data")
-    tts = FakeTTS()
-    wav = ensure_voice_sample("af_heart", storage, tts)
+    wav = ensure_voice_sample("af_heart", storage, _BoomTTS())
+    assert wav[:4] == b"RIFF"
+    assert wav == bundled_sample_path("af_heart").read_bytes()
+    assert not storage.exists(sample_storage_key("af_heart"))
+
+
+def test_ensure_voice_sample_synthesizes_when_bundle_missing(tmp_path, monkeypatch):
+    from podcast_compactor.synth import voice_samples
+
+    missing = tmp_path / "missing.wav"
+    monkeypatch.setattr(voice_samples, "bundled_sample_path", lambda name: missing)
+    storage = FilesystemStorage(tmp_path / "data")
+    wav = ensure_voice_sample("af_heart", storage, FakeTTS())
     assert wav[:4] == b"RIFF"
     assert storage.exists(sample_storage_key("af_heart"))
-    # Second call hits the cache — FakeTTS has no call counter, so identity of
-    # the stored bytes is the contract.
-    assert ensure_voice_sample("af_heart", storage, tts) == wav
+    assert ensure_voice_sample("af_heart", storage, FakeTTS()) == wav
 
 
 def test_ensure_voice_sample_rejects_unknown_voice(tmp_path):
@@ -30,5 +48,5 @@ def test_ensure_voice_sample_rejects_unknown_voice(tmp_path):
 
 def test_sample_line_is_short_preview_copy():
     lowered = SAMPLE_LINE.lower()
-    assert "hi" in lowered
+    assert "hello" in lowered
     assert "preview" in lowered

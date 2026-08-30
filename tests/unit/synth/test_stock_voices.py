@@ -2,8 +2,10 @@ import pytest
 
 from podcast_compactor.synth.stock_voices import (
     DEFAULT_STOCK_VOICE,
+    SAMPLE_LINE,
     STOCK_VOICE_STYLES,
     STOCK_VOICES,
+    bundled_sample_path,
     effective_stock_catalog,
     interleave_by_register,
     list_stock_voices,
@@ -25,7 +27,26 @@ def test_stock_voice_resolves_to_kokoro_voice():
     v = stock_voice(DEFAULT_STOCK_VOICE)
     assert v.kokoro_voice == DEFAULT_STOCK_VOICE
     assert v.name == DEFAULT_STOCK_VOICE
-    assert v.ref_audio_path is None  # catalog voice needs no reference clip
+    sample = bundled_sample_path(DEFAULT_STOCK_VOICE)
+    assert v.ref_audio_path == sample
+    assert v.ref_text == SAMPLE_LINE
+    assert sample.is_file(), "bundled catalog previews must ship with the app"
+
+
+def test_every_catalog_voice_ships_a_preview_clip():
+    import wave
+
+    for name in STOCK_VOICES:
+        path = bundled_sample_path(name)
+        assert path.is_file(), f"missing preview for {name}"
+        v = stock_voice(name)
+        assert v.ref_audio_path == path
+        assert v.ref_text == SAMPLE_LINE
+        with wave.open(str(path), "rb") as w:
+            duration = w.getnframes() / float(w.getframerate())
+            assert w.getnchannels() == 1
+            assert w.getframerate() == 24000
+            assert 3.0 <= duration <= 8.0, f"{name} preview is {duration:.2f}s"
 
 
 def test_unknown_stock_voice_raises():

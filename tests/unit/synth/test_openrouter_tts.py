@@ -20,10 +20,25 @@ def _tiny_mp3() -> bytes:
     """A ~0.1s silent mp3, produced with ffmpeg from raw PCM."""
     pcm = struct.pack("<" + "h" * 2400, *([0] * 2400))  # 0.1s @ 24kHz mono s16le
     out = subprocess.run(
-        ["ffmpeg", "-hide_banner", "-loglevel", "error",
-         "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", "pipe:0",
-         "-f", "mp3", "pipe:1"],
-        input=pcm, capture_output=True,
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "s16le",
+            "-ar",
+            "24000",
+            "-ac",
+            "1",
+            "-i",
+            "pipe:0",
+            "-f",
+            "mp3",
+            "pipe:1",
+        ],
+        input=pcm,
+        capture_output=True,
     )
     assert out.returncode == 0, out.stderr.decode()
     return out.stdout
@@ -54,9 +69,7 @@ pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg n
 def test_synthesize_returns_24k_mono_wav():
     tts = OpenRouterTTS(api_key="sk-test", model="fish-audio/s2.1-pro")
     with respx.mock:
-        respx.post(SPEECH_URL).respond(
-            content=_tiny_mp3(), headers={"content-type": "audio/mpeg"}
-        )
+        respx.post(SPEECH_URL).respond(content=_tiny_mp3(), headers={"content-type": "audio/mpeg"})
         wav = tts.synthesize("Hello world.", Voice(name="narrator"))
     assert _wav_params(wav) == (1, 2, 24000)
 
@@ -101,8 +114,11 @@ def test_described_voice_seeds_once_then_clones_for_consistency():
     """
     bodies: list = []
     tts = OpenRouterTTS(api_key="sk-test")
-    voice = Voice(name="am_michael", kokoro_voice="am_michael",
-                  instructions="a deep, steady American male voice")
+    voice = Voice(
+        name="am_michael",
+        kokoro_voice="am_michael",
+        instructions="a deep, steady American male voice",
+    )
     with respx.mock:
         respx.post(SPEECH_URL).mock(side_effect=_record_bodies(bodies))
         tts.synthesize("First segment.", voice)
@@ -115,7 +131,7 @@ def test_described_voice_seeds_once_then_clones_for_consistency():
     assert seed["instructions"] == "a deep, steady American male voice"
     assert "input_references" not in seed
     for seg in bodies[1:]:
-        assert "instructions" not in seg          # identity comes from the seed clip
+        assert "instructions" not in seg  # identity comes from the seed clip
         assert any(_is_input_audio(p) for p in seg["input_references"])
     assert {b["input"] for b in bodies[1:]} == {"First segment.", "Second segment."}
 
@@ -143,6 +159,30 @@ def test_distinct_speakers_get_distinct_seeds():
     assert seeds == ["a deep male host", "a bright female host"]  # one seed each, distinct
 
 
+def test_stock_voice_with_bundled_sample_clones_without_seeding():
+    """Hosted TTS must clone the catalog preview, not guess gender from text.
+
+    Fish Audio's `instructions` nudge often still yields a male voice; the
+    bundled female/male clip is the actual identity.
+    """
+    from podcast_compactor.synth.stock_voices import stock_voice
+
+    voice = stock_voice("af_heart")
+    assert voice.ref_audio_path is not None
+
+    bodies: list = []
+    tts = OpenRouterTTS(api_key="sk-test")
+    with respx.mock:
+        respx.post(SPEECH_URL).mock(side_effect=_record_bodies(bodies))
+        tts.synthesize("Hello from Heart.", voice)
+        tts.synthesize("Second line.", voice)
+
+    assert len(bodies) == 2  # no extra seed call
+    for body in bodies:
+        assert "instructions" not in body
+        assert any(_is_input_audio(p) for p in body["input_references"])
+
+
 def test_reference_voice_ignores_instructions_and_clones(tmp_path: Path):
     """A reference clip wins over instructions: clone it, don't seed from a description."""
     ref = tmp_path / "ref.wav"
@@ -154,8 +194,9 @@ def test_reference_voice_ignores_instructions_and_clones(tmp_path: Path):
 
     bodies: list = []
     tts = OpenRouterTTS(api_key="sk-test")
-    voice = Voice(name="narrator", ref_audio_path=ref, ref_text="hi",
-                  instructions="a robotic voice")
+    voice = Voice(
+        name="narrator", ref_audio_path=ref, ref_text="hi", instructions="a robotic voice"
+    )
     with respx.mock:
         respx.post(SPEECH_URL).mock(side_effect=_record_bodies(bodies))
         tts.synthesize("Hi.", voice)
@@ -186,8 +227,8 @@ def test_release_clears_seed_cache():
     voice = Voice(name="host_a", instructions="a deep male host")
     with respx.mock:
         respx.post(SPEECH_URL).mock(side_effect=_record_bodies(bodies))
-        tts.synthesize("One.", voice)   # seeds
-        tts.release()                    # drops the seed
-        tts.synthesize("Two.", voice)   # must seed again
+        tts.synthesize("One.", voice)  # seeds
+        tts.release()  # drops the seed
+        tts.synthesize("Two.", voice)  # must seed again
     seed_calls = [b for b in bodies if "instructions" in b]
     assert len(seed_calls) == 2

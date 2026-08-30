@@ -30,6 +30,8 @@ outputs/
 *.mp3
 *.wav
 *.m4a
+# Bundled catalog previews are part of the app (Settings + hosted TTS refs).
+!assets/voice-samples/*.wav
 
 # Model caches (downloaded checkpoints live at the repo root)
 .cache/
