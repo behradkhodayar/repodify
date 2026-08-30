@@ -17,6 +17,13 @@ from podcast_compactor.ingest.download import DownloadError, audio_key, download
 from podcast_compactor.ingest.feed import parse_feed
 from podcast_compactor.models.domain import Transcript
 from podcast_compactor.models.enums import StageName, StageState
+from podcast_compactor.pipeline.progress import (
+    DetailThrottler,
+    format_bytes,
+    format_percent,
+    join_detail,
+    model_id,
+)
 from podcast_compactor.pipeline.state import Deps, PipelineState
 from podcast_compactor.script.writer import write_script
 from podcast_compactor.summarize.chains import summarize_episode, synthesize_arc
@@ -25,6 +32,7 @@ from podcast_compactor.synth.assemble import (
     build_show_notes,
     disclaimer_segment,
     synthesize_script,
+    wav_duration_seconds,
 )
 from podcast_compactor.synth.gender import estimate_cast_registers
 from podcast_compactor.synth.stock_voices import (
@@ -73,7 +81,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
 
     def resolve_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
-        repo.start_stage(job_id, StageName.RESOLVE)
+        repo.start_stage(job_id, StageName.RESOLVE, detail="fetching feed")
         try:
             feed_url = state["feed_url"]
             rss_url = deps.resolver_resolve(feed_url, deps.http)
@@ -100,31 +108,69 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         report = _report(state)
 
         # --- DOWNLOAD ---
-        repo.start_stage(job_id, StageName.DOWNLOAD)
+        n_selected = len(selected)
+        repo.start_stage(job_id, StageName.DOWNLOAD, detail=join_detail(f"0/{n_selected}"))
+        throttler = DetailThrottler(
+            lambda d: repo.update_stage_detail(job_id, StageName.DOWNLOAD, d)
+        )
         downloaded = []
-        for ep in selected:
+        total_bytes = 0
+        for i, ep in enumerate(selected, start=1):
+            last_done = 0
+
+            def _bytes(done: int, total: int | None, i=i, ep=ep) -> None:
+                nonlocal last_done
+                last_done = done
+                pct_s = format_percent(done, total) if total else None
+                pct_f = (100.0 * done / total) if total else None
+                size = (
+                    f"{format_bytes(done)} / {format_bytes(total)}"
+                    if total
+                    else format_bytes(done)
+                )
+                throttler.update(
+                    join_detail(ep.title, f"{i}/{n_selected}", pct_s, size),
+                    pct=pct_f,
+                )
+
             try:
-                download_episode(ep, deps.storage, deps.http, job_id)
+                download_episode(ep, deps.storage, deps.http, job_id, on_progress=_bytes)
+                total_bytes += last_done
                 repo.add_artifact(
                     job_id, "audio_download",
                     deps.storage.local_path(audio_key(job_id, ep)).as_uri(),
                     episode_guid=ep.guid,
                 )
                 downloaded.append(ep)
+                throttler.flush(join_detail(ep.title, f"{i}/{n_selected}"))
             except Exception as exc:  # noqa: BLE001 - record and skip
                 report["skipped"].append(f"download {ep.guid}: {exc}")
         if not downloaded:
             repo.finish_stage(job_id, StageName.DOWNLOAD, StageState.FAILED)
             repo.set_report(job_id, report)
             raise DownloadError("all selected episodes failed to download")
-        repo.finish_stage(job_id, StageName.DOWNLOAD, StageState.DONE,
-                          detail=f"{len(downloaded)}/{len(selected)} downloaded")
+        repo.finish_stage(
+            job_id, StageName.DOWNLOAD, StageState.DONE,
+            detail=join_detail(
+                f"{len(downloaded)}/{n_selected} downloaded",
+                format_bytes(total_bytes) if total_bytes else None,
+            ),
+        )
 
         # --- TRANSCRIBE ---
-        repo.start_stage(job_id, StageName.TRANSCRIBE)
+        whisper = model_id(deps.transcriber)
+        whisper_label = f"whisper {whisper}" if whisper else None
+        n_dl = len(downloaded)
+        repo.start_stage(
+            job_id, StageName.TRANSCRIBE, detail=join_detail(f"0/{n_dl}", whisper_label)
+        )
         transcripts: dict = {}
         try:
-            for ep in downloaded:
+            for i, ep in enumerate(downloaded, start=1):
+                repo.update_stage_detail(
+                    job_id, StageName.TRANSCRIBE,
+                    join_detail(ep.title, f"{i}/{n_dl}", whisper_label),
+                )
                 try:
                     path: Path = deps.storage.local_path(audio_key(job_id, ep))
                     transcript = deps.transcriber.transcribe(path)
@@ -137,8 +183,10 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 repo.finish_stage(job_id, StageName.TRANSCRIBE, StageState.FAILED)
                 repo.set_report(job_id, report)
                 raise RuntimeError("all episodes failed to transcribe")
-            repo.finish_stage(job_id, StageName.TRANSCRIBE, StageState.DONE,
-                              detail=f"{len(transcripts)} transcribed")
+            repo.finish_stage(
+                job_id, StageName.TRANSCRIBE, StageState.DONE,
+                detail=join_detail(f"{len(transcripts)} transcribed", whisper_label),
+            )
         finally:
             # Free whisper's VRAM before diarization and the LLM/TTS stages; it
             # reloads lazily if the clone path needs it again.
@@ -148,16 +196,20 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         # Label each transcript segment with who spoke it, so later stages can
         # attribute content — and voices — to specific speakers. Only run when a
         # voice feature needs it; otherwise the stage is skipped (no GPU cost).
-        repo.start_stage(job_id, StageName.DIARIZE)
+        dia = model_id(deps.diarizer)
+        repo.start_stage(job_id, StageName.DIARIZE, detail=join_detail(dia) or None)
         cast: list = []
         if _wants_speaker_id(options):
             try:
                 # Diarize each episode independently (pyannote's labels are only
                 # consistent within a file), keeping per-speaker embeddings.
                 results = {}
-                for ep in downloaded:
-                    if ep.guid not in transcripts:
-                        continue
+                to_diarize = [ep for ep in downloaded if ep.guid in transcripts]
+                for i, ep in enumerate(to_diarize, start=1):
+                    repo.update_stage_detail(
+                        job_id, StageName.DIARIZE,
+                        join_detail(ep.title, f"{i}/{len(to_diarize)}", dia),
+                    )
                     path = deps.storage.local_path(audio_key(job_id, ep))
                     results[ep.guid] = deps.diarizer.diarize(path)
 
@@ -179,8 +231,12 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 # recurring host quiet in any single episode still makes the cast.
                 cast = pooled_roster[:MAX_CAST]
                 speaker_ids = {s.id for t in transcripts.values() for s in t.speakers}
-                repo.finish_stage(job_id, StageName.DIARIZE, StageState.DONE,
-                                  detail=f"{len(cast)} cast / {len(speaker_ids)} global speakers")
+                repo.finish_stage(
+                    job_id, StageName.DIARIZE, StageState.DONE,
+                    detail=join_detail(
+                        f"{len(cast)} cast / {len(speaker_ids)} global speakers", dia
+                    ),
+                )
             except Exception as exc:
                 repo.finish_stage(job_id, StageName.DIARIZE, StageState.FAILED,
                                   detail=str(exc))
@@ -197,21 +253,31 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
 
     def summarize_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
-        repo.start_stage(job_id, StageName.SUMMARIZE)
+        llm = model_id(deps.llm_map)
+        transcripts = state["transcripts"]
+        # Summarize in chronological order, only episodes we transcribed.
+        ordered = [e for e in state["selected"] if e.guid in transcripts]
+        repo.start_stage(
+            job_id, StageName.SUMMARIZE, detail=join_detail(f"0/{len(ordered)}", llm)
+        )
         try:
-            transcripts = state["transcripts"]
-            # Summarize in chronological order, only episodes we transcribed.
-            ordered = [e for e in state["selected"] if e.guid in transcripts]
-            summaries = [
-                summarize_episode(
-                    transcripts[e.guid], e.title, e.order_index, deps.llm_map,
-                    whole_prompt=state["options"].custom_prompt,
-                    episode_prompt=state["options"].episode_prompts.get(e.guid),
+            summaries = []
+            for i, e in enumerate(ordered, start=1):
+                repo.update_stage_detail(
+                    job_id, StageName.SUMMARIZE,
+                    join_detail(e.title, f"{i}/{len(ordered)}", llm),
                 )
-                for e in ordered
-            ]
-            repo.finish_stage(job_id, StageName.SUMMARIZE, StageState.DONE,
-                              detail=f"{len(summaries)} summaries")
+                summaries.append(
+                    summarize_episode(
+                        transcripts[e.guid], e.title, e.order_index, deps.llm_map,
+                        whole_prompt=state["options"].custom_prompt,
+                        episode_prompt=state["options"].episode_prompts.get(e.guid),
+                    )
+                )
+            repo.finish_stage(
+                job_id, StageName.SUMMARIZE, StageState.DONE,
+                detail=join_detail(f"{len(summaries)} summaries", llm),
+            )
             return {"summaries": summaries}
         except Exception as exc:
             repo.finish_stage(job_id, StageName.SUMMARIZE, StageState.FAILED, detail=str(exc))
@@ -219,13 +285,19 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
 
     def arc_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
-        repo.start_stage(job_id, StageName.ARC)
+        llm = model_id(deps.llm_reduce)
+        repo.start_stage(
+            job_id, StageName.ARC, detail=join_detail("synthesizing through-line", llm)
+        )
         try:
             arc = synthesize_arc(
                 state["summaries"], deps.llm_reduce,
                 whole_prompt=state["options"].custom_prompt,
             )
-            repo.finish_stage(job_id, StageName.ARC, StageState.DONE)
+            repo.finish_stage(
+                job_id, StageName.ARC, StageState.DONE,
+                detail=join_detail(f"{len(arc.beats)} beats", llm),
+            )
             return {"arc": arc}
         except Exception as exc:
             repo.finish_stage(job_id, StageName.ARC, StageState.FAILED, detail=str(exc))
@@ -234,7 +306,11 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
     def script_node(state: PipelineState) -> dict:
         job_id = state["job_id"]
         options = state["options"]
-        repo.start_stage(job_id, StageName.SCRIPT)
+        llm = model_id(deps.llm_reduce)
+        repo.start_stage(
+            job_id, StageName.SCRIPT,
+            detail=join_detail(f"writing {options.target_minutes} min script", llm),
+        )
         try:
             # Cast is computed in the DIARIZE stage (and persisted across an
             # interactive review); the digest is speaker-preserving when it is set.
@@ -250,8 +326,11 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 cast=cast if options.preserve_speakers else None,
                 whole_prompt=options.custom_prompt,
             )
-            repo.finish_stage(job_id, StageName.SCRIPT, StageState.DONE,
-                              detail=f"{script.word_count} words")
+            est = script.estimated_minutes(deps.settings.wpm)
+            repo.finish_stage(
+                job_id, StageName.SCRIPT, StageState.DONE,
+                detail=join_detail(f"{script.word_count} words", f"~{est:.0f} min", llm),
+            )
             return {"script": script, "cast": cast}
         except Exception as exc:
             repo.finish_stage(job_id, StageName.SCRIPT, StageState.FAILED, detail=str(exc))
@@ -292,7 +371,8 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         cloned_output = False  # drives the disclaimer / watermark / synthetic guardrails
 
         # --- TTS ---
-        repo.start_stage(job_id, StageName.TTS)
+        tts_label = model_id(deps.tts)
+        repo.start_stage(job_id, StageName.TTS, detail=join_detail(tts_label) or None)
         try:
             if options.preserve_speakers:
                 # Speaker-preserving digest: each cast speaker in their assigned
@@ -370,9 +450,19 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             else:
                 voices = deps.voices
 
-            segments = synthesize_script(script, deps.tts, voices)
-            repo.finish_stage(job_id, StageName.TTS, StageState.DONE,
-                              detail=f"{len(segments)} segments")
+            def _tts_progress(i: int, n: int) -> None:
+                repo.update_stage_detail(
+                    job_id, StageName.TTS,
+                    join_detail(f"segment {i}/{n}", tts_label),
+                )
+
+            segments = synthesize_script(
+                script, deps.tts, voices, on_progress=_tts_progress
+            )
+            repo.finish_stage(
+                job_id, StageName.TTS, StageState.DONE,
+                detail=join_detail(f"{len(segments)} segments", tts_label),
+            )
         except Exception as exc:
             repo.finish_stage(job_id, StageName.TTS, StageState.FAILED, detail=str(exc))
             raise
@@ -381,13 +471,14 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             deps.tts.release()
 
         # --- ASSEMBLE ---
-        repo.start_stage(job_id, StageName.ASSEMBLE)
+        repo.start_stage(job_id, StageName.ASSEMBLE, detail="stitching WAV")
         try:
             wav = assemble_wav(segments)
             if cloned_output:
                 wav = deps.watermarker.embed(wav)
             output_uri = deps.storage.put_bytes(f"{job_id}/output/digest.wav", wav)
             mp3_path = deps.storage.local_path(f"{job_id}/output/digest.mp3")
+            repo.update_stage_detail(job_id, StageName.ASSEMBLE, "transcoding mp3")
             deps.transcoder.to_mp3(
                 deps.storage.local_path(f"{job_id}/output/digest.wav"), mp3_path
             )
@@ -414,7 +505,14 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 job_id, "script",
                 deps.storage.local_path(f"{job_id}/output/script.json").as_uri(),
             )
-            repo.finish_stage(job_id, StageName.ASSEMBLE, StageState.DONE)
+            duration_s = wav_duration_seconds(wav)
+            repo.finish_stage(
+                job_id, StageName.ASSEMBLE, StageState.DONE,
+                detail=join_detail(
+                    "digest ready",
+                    f"{duration_s:.0f}s" if duration_s else None,
+                ),
+            )
         except Exception as exc:
             repo.finish_stage(job_id, StageName.ASSEMBLE, StageState.FAILED, detail=str(exc))
             raise

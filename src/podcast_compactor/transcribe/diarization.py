@@ -26,6 +26,7 @@ class PyannoteDiarizer:
         hf_token: str | None,
         model: str = "pyannote/speaker-diarization-community-1",
     ) -> None:
+        self.model_id = model
         self._hf_token = hf_token
         self._model = model
         self._pipeline = None

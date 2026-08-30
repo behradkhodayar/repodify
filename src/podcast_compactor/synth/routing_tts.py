@@ -19,6 +19,7 @@ class RoutingTTS:
     """Dispatches `synthesize` per voice; `release()` frees both backends."""
 
     def __init__(self, f5: TTS, kokoro: TTS, sample_rate: int = SAMPLE_RATE) -> None:
+        self.model_id = "f5+kokoro"
         self._f5 = f5
         self._kokoro = kokoro
         self._sample_rate = sample_rate

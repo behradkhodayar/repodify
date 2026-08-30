@@ -75,7 +75,7 @@ class JobRepository:
             job.options_json = options.model_dump_json()
             s.commit()
 
-    def start_stage(self, job_id: str, stage: StageName) -> None:
+    def start_stage(self, job_id: str, stage: StageName, detail: str | None = None) -> None:
         with self._sf() as s:
             job = s.get(Job, job_id)
             if job is None:
@@ -87,9 +87,17 @@ class JobRepository:
                     job_id=job_id,
                     stage=stage.value,
                     state=StageState.RUNNING.value,
+                    detail=detail,
                     started_at=_now(),
                 )
             )
+            s.commit()
+
+    def update_stage_detail(self, job_id: str, stage: StageName, detail: str) -> None:
+        """Rewrite the live `detail` on the latest running row for `stage`."""
+        with self._sf() as s:
+            row = self._running_stage(s, job_id, stage)
+            row.detail = detail
             s.commit()
 
     def finish_stage(
@@ -100,21 +108,25 @@ class JobRepository:
         detail: str | None = None,
     ) -> None:
         with self._sf() as s:
-            row = s.scalars(
-                select(StageStatus)
-                .where(
-                    StageStatus.job_id == job_id,
-                    StageStatus.stage == stage.value,
-                    StageStatus.state == StageState.RUNNING.value,
-                )
-                .order_by(StageStatus.started_at.desc())
-            ).first()
-            if row is None:
-                raise KeyError(f"no running stage {stage.value} for job {job_id}")
+            row = self._running_stage(s, job_id, stage)
             row.state = state.value
             row.detail = detail
             row.finished_at = _now()
             s.commit()
+
+    def _running_stage(self, s: Session, job_id: str, stage: StageName) -> StageStatus:
+        row = s.scalars(
+            select(StageStatus)
+            .where(
+                StageStatus.job_id == job_id,
+                StageStatus.stage == stage.value,
+                StageStatus.state == StageState.RUNNING.value,
+            )
+            .order_by(StageStatus.started_at.desc())
+        ).first()
+        if row is None:
+            raise KeyError(f"no running stage {stage.value} for job {job_id}")
+        return row
 
     def add_artifact(
         self,

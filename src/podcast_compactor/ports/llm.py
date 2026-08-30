@@ -65,6 +65,7 @@ class AnthropicStructuredLLM:
     """Real backend: Claude via langchain-anthropic structured output."""
 
     def __init__(self, model: str, api_key: str) -> None:
+        self.model_id = model
         self._model = model
         self._api_key = api_key
 
@@ -81,6 +82,7 @@ class OllamaStructuredLLM:
     """Real backend: a local Ollama model via langchain-ollama structured output."""
 
     def __init__(self, model: str, base_url: str) -> None:
+        self.model_id = model
         self._model = model
         self._base_url = base_url
 
@@ -105,6 +107,7 @@ class OpenRouterStructuredLLM:
     """
 
     def __init__(self, model: str, api_key: str, base_url: str) -> None:
+        self.model_id = model
         self._model = model
         self._api_key = api_key
         self._base_url = base_url
@@ -120,6 +123,8 @@ class OpenRouterStructuredLLM:
 
 class FakeStructuredLLM:
     """Test backend: returns queued responses FIFO and records calls."""
+
+    model_id: str | None = None
 
     def __init__(self, responses: list[BaseModel]) -> None:
         self._responses = list(responses)
@@ -140,6 +145,8 @@ class LocalStubLLM:
     an arbitrary number of episodes. Output is placeholder text, not a real
     summary.
     """
+
+    model_id: str | None = None
 
     def generate(self, system: str, user: str, schema: type[T]) -> T:
         from podcast_compactor.models.domain import (

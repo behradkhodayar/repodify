@@ -51,6 +51,7 @@ class FasterWhisperTranscriber:
         device: str = "cuda",
         compute_type: str = "float16",
     ) -> None:
+        self.model_id = model_size
         self._model_size = model_size
         self._device = device
         self._compute_type = compute_type

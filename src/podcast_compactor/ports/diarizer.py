@@ -70,6 +70,8 @@ class FakeDiarizer:
     testable too.
     """
 
+    model_id: str | None = None
+
     def __init__(self, canned: list[SpeakerTurn] | None = None) -> None:
         self._canned = canned if canned is not None else _default_turns()
         self.calls: list[Path] = []

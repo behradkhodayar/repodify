@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import httpx
 
 from podcast_compactor.models.domain import Episode
 from podcast_compactor.storage.base import Storage
+
+ProgressFn = Callable[[int, int | None], None]
 
 
 class DownloadError(Exception):
@@ -22,10 +26,13 @@ def download_episode(
     storage: Storage,
     http: httpx.Client,
     job_id: str,
+    on_progress: ProgressFn | None = None,
 ) -> str:
     """Stream `episode.audio_url` into `storage`; return the storage URI.
 
-    Raises `DownloadError` on any non-200 response.
+    Raises `DownloadError` on any non-200 response. `on_progress`, when set, is
+    called after each chunk with `(bytes_done, bytes_total)`; `bytes_total` is
+    the Content-Length when present and parseable, otherwise `None`.
     """
     key = audio_key(job_id, episode)
     buffer = bytearray()
@@ -34,6 +41,15 @@ def download_episode(
             raise DownloadError(
                 f"GET {episode.audio_url} returned {resp.status_code}"
             )
+        raw = resp.headers.get("Content-Length")
+        try:
+            total: int | None = int(raw) if raw else None
+        except ValueError:
+            total = None
+        done = 0
         for chunk in resp.iter_bytes():
             buffer.extend(chunk)
+            done += len(chunk)
+            if on_progress is not None:
+                on_progress(done, total)
     return storage.put_bytes(key, bytes(buffer))
