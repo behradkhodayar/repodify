@@ -165,4 +165,18 @@ describe('EpisodePicker filter and sort', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.getByText('Showing 0 of 2 episodes')).toBeInTheDocument()
   })
+
+  it('keeps a selection after the query hides then reveals the episode', async () => {
+    const user = userEvent.setup()
+    render(<ListHarness episodes={[OLD, NEW]} />)
+    await user.click(screen.getByRole('checkbox', { name: 'Alpha Episode' }))
+    expect(screen.getByRole('checkbox', { name: 'Alpha Episode' })).toBeChecked()
+
+    await user.type(screen.getByLabelText(/filter episodes/i), 'beta')
+    expect(screen.queryByRole('checkbox', { name: 'Alpha Episode' })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Beta Latest' })).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText(/filter episodes/i))
+    expect(screen.getByRole('checkbox', { name: 'Alpha Episode' })).toBeChecked()
+  })
 })

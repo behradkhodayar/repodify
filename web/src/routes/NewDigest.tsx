@@ -127,6 +127,7 @@ export function NewDigest() {
           </CardHeader>
           <CardContent className="space-y-5">
             <EpisodePicker
+              key={resolve.data.rss_url}
               episodes={resolve.data.episodes}
               selected={selected}
               onToggle={toggle}
