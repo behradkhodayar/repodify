@@ -214,7 +214,8 @@ React 19 + Vite 8 + Tailwind + TanStack Query + React Router (`basename="/app"`)
 
 ## Git
 
-This is `github.com/behradkhodayar/repodify`. One PR per logical unit. Imperative
-commit messages (what + why), no emojis, PR title
-≤ 70 chars; details go in the body. Reference issues with `Closes #N` when
-applicable.
+This is `github.com/behradkhodayar/repodify`. One PR per logical unit. On the
+feature branch, land several small meaningful commits (one per logical step or
+TDD task) rather than a single mega-commit — PR #49 is the model, not PR #48.
+Imperative commit messages (what + why), no emojis, PR title ≤ 70 chars; details
+go in the body. Reference issues with `Closes #N` when applicable.
