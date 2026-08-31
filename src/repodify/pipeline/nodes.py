@@ -13,8 +13,10 @@ from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 
+from repodify.ingest.cache import JsonCache
 from repodify.ingest.download import DownloadError, audio_key, download_episode
 from repodify.ingest.feed import parse_feed
+from repodify.ingest.fetch import fetch_feed
 from repodify.models.domain import Transcript
 from repodify.models.enums import StageName, StageState
 from repodify.pipeline.progress import (
@@ -85,9 +87,10 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         try:
             feed_url = state["feed_url"]
             rss_url = deps.resolver_resolve(feed_url, deps.http)
-            resp = deps.http.get(rss_url, follow_redirects=True)
-            resp.raise_for_status()
-            feed = parse_feed(feed_url, rss_url, resp.content)
+            fetched = fetch_feed(
+                rss_url, deps.http, cache=JsonCache(deps.settings.data_dir / "cache")
+            )
+            feed = parse_feed(feed_url, fetched.url, fetched.body)
 
             wanted = set(state["options"].episode_ids)
             selected = [e for e in feed.episodes if e.guid in wanted]

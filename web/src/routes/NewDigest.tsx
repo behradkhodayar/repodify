@@ -1,9 +1,12 @@
-import { AlertCircle, Loader2, Rss, Search, Sparkles } from 'lucide-react'
+import { AlertCircle, Loader2, Rss, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import { useCreateJob, useResolveFeed } from '../api/queries'
+import type { CandidateOut } from '../api/types'
 import { EpisodePicker } from '../components/EpisodePicker'
 import { PageHeader } from '../components/PageHeader'
+import { PodcastSearch } from '../components/PodcastSearch'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Checkbox } from '../components/ui/checkbox'
@@ -12,8 +15,22 @@ import { Select } from '../components/ui/select'
 import { Separator } from '../components/ui/separator'
 import { Textarea } from '../components/ui/textarea'
 
+function resolveErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    try {
+      const parsed = JSON.parse(err.message) as { detail?: unknown }
+      if (typeof parsed.detail === 'string') return parsed.detail
+    } catch {
+      /* body was not JSON */
+    }
+    if (/private feed/i.test(err.message)) return 'Private feed unsupported.'
+  }
+  return "Couldn't reach that feed. Check the URL and try again."
+}
+
 export function NewDigest() {
-  const [url, setUrl] = useState('')
+  const [query, setQuery] = useState('')
+  const [rssUrl, setRssUrl] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [targetMinutes, setTargetMinutes] = useState(30)
   const [hostCount, setHostCount] = useState(1)
@@ -33,14 +50,24 @@ export function NewDigest() {
     })
   }
 
+  function onSelectShow(candidate: CandidateOut) {
+    setSelected(new Set())
+    setEpisodePrompts({})
+    setRssUrl(candidate.feed_url)
+    resolve.mutate(candidate.feed_url, {
+      onSuccess: (data) => setRssUrl(data.rss_url),
+    })
+  }
+
   async function onCreate() {
+    const feed_url = resolve.data?.rss_url || rssUrl
     const episode_prompts: Record<string, string> = {}
     for (const guid of selected) {
       const note = episodePrompts[guid]?.trim()
       if (note) episode_prompts[guid] = note
     }
     const { job_id } = await create.mutateAsync({
-      feed_url: url,
+      feed_url,
       episode_ids: [...selected],
       host_count: hostCount,
       target_minutes: targetMinutes,
@@ -55,51 +82,36 @@ export function NewDigest() {
     <div className="space-y-6">
       <PageHeader
         title="New digest"
-        description="Point repodify at a podcast feed, choose the episodes, and generate a short digest."
+        description="Search for a show, choose the episodes, and generate a short digest."
       />
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Rss className="size-[18px] text-primary" /> Source feed
+            <Rss className="size-[18px] text-primary" /> Source show
           </CardTitle>
-          <CardDescription>Paste an RSS feed URL to load its episodes.</CardDescription>
+          <CardDescription>
+            Type a podcast name. Pasting an RSS or Apple Podcasts URL still works.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              aria-label="Feed URL"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com/feed.xml"
-              className="sm:flex-1"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && url) resolve.mutate(url)
-              }}
-            />
-            <Button onClick={() => resolve.mutate(url)} disabled={!url || resolve.isPending}>
-              {resolve.isPending ? (
-                <>
-                  <Loader2 className="animate-spin" /> Resolving
-                </>
-              ) : (
-                <>
-                  <Search /> Resolve
-                </>
-              )}
-            </Button>
-          </div>
+          <PodcastSearch value={query} onChange={setQuery} onSelect={onSelectShow} />
+          {resolve.isPending && (
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading episodes…
+            </p>
+          )}
           {resolve.isError && (
             <p className="flex items-center gap-1.5 text-sm text-status-failed">
-              <AlertCircle className="size-4" /> Couldn&apos;t reach that feed. Check the URL and try
-              again.
+              <AlertCircle className="size-4" /> {resolveErrorMessage(resolve.error)}
             </p>
           )}
           {resolve.data && (
             <p className="text-sm text-muted-foreground">
               Loaded <span className="font-medium text-foreground">{resolve.data.feed_title}</span> ·{' '}
               {resolve.data.episodes.length} episode
-              {resolve.data.episodes.length === 1 ? '' : 's'}.
+              {resolve.data.episodes.length === 1 ? '' : 's'}
+              {resolve.data.cached ? ' · cached' : ''}.
             </p>
           )}
         </CardContent>

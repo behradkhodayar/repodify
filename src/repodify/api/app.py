@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from repodify.api.audio import audio_response
 from repodify.api.auth import make_require_token
 from repodify.api.schemas import (
+    CandidateOut,
     CreateJobRequest,
     CreateJobResponse,
     EpisodeOut,
@@ -30,6 +31,7 @@ from repodify.api.schemas import (
     ResolveRequest,
     ResolveResponse,
     ResultResponse,
+    SearchResponse,
     SpeakerOut,
     SpeakersResponse,
     StageOut,
@@ -40,8 +42,14 @@ from repodify.api.schemas import (
     VoicesResponse,
 )
 from repodify.config import Settings, get_settings
+from repodify.ingest.cache import JsonCache
 from repodify.ingest.feed import parse_feed
+from repodify.ingest.fetch import FeedFetchError, PrivateFeedError, SsrfBlocked, fetch_feed
+from repodify.ingest.identity import USER_AGENT
+from repodify.ingest.normalize import identity_keys
+from repodify.ingest.podcastindex import add_by_feed_url
 from repodify.ingest.resolvers import resolve
+from repodify.ingest.search import search_podcasts
 from repodify.models.domain import JobOptions
 from repodify.models.enums import JobStatus
 from repodify.persistence.engine import init_db, make_engine, session_factory
@@ -89,19 +97,65 @@ def create_app(
     else:
         sample_tts = tts
 
+    cache = JsonCache(settings.data_dir / "cache")
+
+    @router.get("/feeds/search", response_model=SearchResponse)
+    def search_feeds(q: str) -> SearchResponse:
+        result = search_podcasts(q, http, settings=settings, cache=cache)
+        return SearchResponse(
+            query=result.query,
+            kind=result.kind,
+            candidates=[
+                CandidateOut(
+                    title=c.title,
+                    author=c.author,
+                    feed_url=c.feed_url,
+                    artwork=c.artwork,
+                    itunes_id=c.itunes_id,
+                    pi_feed_id=c.pi_feed_id,
+                    newest_item=c.newest_item,
+                    episode_count=c.episode_count,
+                    language=c.language,
+                    sources=c.sources,
+                    identity=identity_keys(c)[0],
+                    cached=c.cached,
+                    dead=c.dead,
+                )
+                for c in result.candidates
+            ],
+            degraded=result.degraded,
+            cached=result.cached,
+            warning=result.warning,
+        )
+
     @router.post("/feeds/resolve", response_model=ResolveResponse)
     def resolve_feed(req: ResolveRequest) -> ResolveResponse:
         try:
             rss_url = resolve_fn(req.url, http)
-            resp = http.get(rss_url, follow_redirects=True)
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
+            fetched = fetch_feed(rss_url, http, cache=cache)
+        except SsrfBlocked as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except PrivateFeedError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (FeedFetchError, httpx.HTTPError) as exc:
             raise HTTPException(status_code=502, detail=f"feed fetch failed: {exc}") from exc
-        feed = parse_feed(req.url, rss_url, resp.content)
+        if (
+            settings.podcastindex_write_key
+            and settings.podcastindex_api_key
+            and settings.podcastindex_api_secret
+        ):
+            add_by_feed_url(
+                fetched.url,
+                http,
+                key=settings.podcastindex_api_key,
+                secret=settings.podcastindex_api_secret,
+            )
+        feed = parse_feed(req.url, fetched.url, fetched.body)
         return ResolveResponse(
             feed_title=feed.title,
             rss_url=feed.rss_url,
             episodes=[EpisodeOut(**e.model_dump()) for e in feed.episodes],
+            cached=fetched.from_cache,
         )
 
     @router.post("/jobs", response_model=CreateJobResponse)
@@ -380,7 +434,7 @@ def build_default_app() -> FastAPI:
     sf = session_factory(engine)
     repo = JobRepository(sf)
     settings_repo = SettingsRepository(sf)
-    http = httpx.Client(timeout=60.0)
+    http = httpx.Client(timeout=60.0, headers={"User-Agent": USER_AGENT})
     storage = FilesystemStorage(settings.data_dir)
     static_dir = Path("web/dist")
     if settings.use_fakes:

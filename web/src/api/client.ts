@@ -6,6 +6,7 @@ import type {
   LlmSettingsUpdate,
   ResolveResponse,
   ResultResponse,
+  SearchResponse,
   SpeakersResponse,
   SubmitVoicesRequest,
   VoiceSettingsResponse,
@@ -44,6 +45,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  searchFeeds: (q: string, signal?: AbortSignal) =>
+    apiFetch<SearchResponse>(`/feeds/search?q=${encodeURIComponent(q)}`, { signal }),
   resolveFeed: (url: string) =>
     apiFetch<ResolveResponse>('/feeds/resolve', {
       method: 'POST',

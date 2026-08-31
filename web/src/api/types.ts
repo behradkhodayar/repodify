@@ -11,6 +11,32 @@ export interface ResolveResponse {
   feed_title: string
   rss_url: string
   episodes: EpisodeOut[]
+  cached?: boolean
+}
+
+export interface CandidateOut {
+  title: string
+  author: string
+  feed_url: string
+  artwork: string | null
+  itunes_id: number | null
+  pi_feed_id: number | null
+  newest_item: number | null
+  episode_count: number | null
+  language: string | null
+  sources: string[]
+  identity: string
+  cached: boolean
+  dead: boolean
+}
+
+export interface SearchResponse {
+  query: string
+  kind: string
+  candidates: CandidateOut[]
+  degraded: boolean
+  cached: boolean
+  warning: string | null
 }
 
 export interface VoiceAssignment {

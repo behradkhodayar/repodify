@@ -38,6 +38,27 @@ class Feed(BaseModel):
     episodes: list[Episode] = Field(default_factory=list)
 
 
+class Candidate(BaseModel):
+    """A directory hit for the name-search dropdown.
+
+    `feed_url` is the hand-off to the RSS fetcher. Directory-specific ids stay
+    here so the episode picker never sees iTunes / Podcast Index types.
+    """
+
+    title: str
+    author: str = ""
+    feed_url: str
+    artwork: str | None = None
+    itunes_id: int | None = None
+    pi_feed_id: int | None = None
+    newest_item: int | None = None
+    episode_count: int | None = None
+    language: str | None = None
+    sources: list[str] = Field(default_factory=list)
+    dead: bool = False
+    cached: bool = False
+
+
 class TranscriptSegment(BaseModel):
     """A time-stamped span of transcribed speech.
 
@@ -235,8 +256,6 @@ class JobOptions(BaseModel):
             if not text:
                 continue
             if len(text) > MAX_PROMPT_CHARS:
-                raise ValueError(
-                    f"episode prompt for {guid} exceeds {MAX_PROMPT_CHARS} chars"
-                )
+                raise ValueError(f"episode prompt for {guid} exceeds {MAX_PROMPT_CHARS} chars")
             cleaned[guid] = text
         return cleaned

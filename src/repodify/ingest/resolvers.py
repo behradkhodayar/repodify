@@ -64,6 +64,17 @@ class ApplePodcastsResolver:
         raise UnresolvableFeedError(f"Apple lookup returned no feedUrl for id {podcast_id}")
 
 
+class GenericHttpResolver:
+    """Passthrough for any remaining http(s) URL, including scheme-less FeedBurner."""
+
+    def matches(self, url: str) -> bool:
+        low = url.lower()
+        return low.startswith("http://") or low.startswith("https://")
+
+    def resolve(self, url: str, http: httpx.Client) -> str:
+        return url
+
+
 class CastboxResolver:
     """Resolves castbox.fm channel pages by scraping the embedded RSS link."""
 
@@ -92,6 +103,7 @@ DEFAULT_RESOLVERS: tuple[Resolver, ...] = (
     ApplePodcastsResolver(),
     CastboxResolver(),
     RawRssResolver(),
+    GenericHttpResolver(),
 )
 
 

@@ -80,22 +80,25 @@ When `API_TOKEN` is set, send `-H "Authorization: Bearer $API_TOKEN"` on every
 request except `GET /health`. Then:
 
 ```bash
-# 1. Resolve a feed and list episodes
+# 1. Search shows by name (no API key). Paste an RSS / Apple URL in `q` too.
+curl -s "localhost:8000/feeds/search?q=Linear%20Digressions"
+
+# 2. Resolve the chosen feed_url and list episodes (live RSS, full archive)
 curl -s -X POST localhost:8000/feeds/resolve \
   -H 'content-type: application/json' \
   -d '{"url": "https://example.com/feed.xml"}'
 
-# 2. Create a job for the episodes you want (oldest-first)
+# 3. Create a job for the episodes you want (oldest-first)
 #    host_count: 1 = single narrator (default), 2 = two-host dialogue
 curl -s -X POST localhost:8000/jobs \
   -H 'content-type: application/json' \
   -d '{"feed_url": "https://example.com/feed.xml", "episode_ids": ["ep-1","ep-2"], "host_count": 2, "target_minutes": 30}'
 
-# 3. Track progress, then fetch the result (audio URLs + summary + chapters)
+# 4. Track progress, then fetch the result (audio URLs + summary + chapters)
 curl -s localhost:8000/jobs/<job_id>
 curl -s localhost:8000/jobs/<job_id>/result
 
-# 4. Stream/download the finished digest (mp3 or wav; supports HTTP Range)
+# 5. Stream/download the finished digest (mp3 or wav; supports HTTP Range)
 curl -s -o digest.mp3 "localhost:8000/jobs/<job_id>/audio?format=mp3"
 
 # List recent jobs; liveness probe

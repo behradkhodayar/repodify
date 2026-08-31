@@ -15,7 +15,7 @@ def _resolve_fn(url, http):
 
 def _app(repo, http, tmp_path, enqueue=lambda jid: None, token=None):
     storage = FilesystemStorage(tmp_path / "data")
-    settings = Settings(_env_file=None, api_token=token)
+    settings = Settings(_env_file=None, api_token=token, data_dir=tmp_path / "appdata")
     return create_app(repo, _resolve_fn, http, enqueue, storage, settings)
 
 
@@ -148,9 +148,13 @@ def test_submit_voices_rejects_unknown_speaker(repo, tmp_path):
     resumed: list[str] = []
     with httpx.Client() as http:
         app = create_app(
-            repo, _resolve_fn, http, lambda j: None,
+            repo,
+            _resolve_fn,
+            http,
+            lambda j: None,
             FilesystemStorage(tmp_path / "data"),
-            Settings(_env_file=None), enqueue_resume=resumed.append,
+            Settings(_env_file=None),
+            enqueue_resume=resumed.append,
         )
         client = TestClient(app)
         resp = client.post(
