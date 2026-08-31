@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from podcast_compactor.models.domain import Transcript, TranscriptSegment
-from podcast_compactor.ports.transcriber import FakeTranscriber, Transcriber
+from repodify.models.domain import Transcript, TranscriptSegment
+from repodify.ports.transcriber import FakeTranscriber, Transcriber
 
 
 def _transcript() -> Transcript:

@@ -1,4 +1,4 @@
-from podcast_compactor.gpu import empty_cuda_cache
+from repodify.gpu import empty_cuda_cache
 
 
 def test_empty_cuda_cache_is_safe_and_idempotent():

@@ -21,8 +21,8 @@
 ## Task 1: Domain + config additions
 
 **Files:**
-- Modify: `src/podcast_compactor/models/domain.py` (`ShowNotes` gains `synthetic: bool = False`, `disclaimer: str | None = None`)
-- Modify: `src/podcast_compactor/config.py` (add `clone_disclaimer: str = <default>`, `hf_token: str | None = None`)
+- Modify: `src/repodify/models/domain.py` (`ShowNotes` gains `synthetic: bool = False`, `disclaimer: str | None = None`)
+- Modify: `src/repodify/config.py` (add `clone_disclaimer: str = <default>`, `hf_token: str | None = None`)
 - Modify: `.env.example`
 - Modify: `tests/unit/models/test_domain.py`
 
@@ -35,8 +35,8 @@
 ## Task 2: VoiceCloner port + fake + pyannote backend
 
 **Files:**
-- Create: `src/podcast_compactor/ports/voice_cloner.py` (`VoiceCloner` protocol + `FakeVoiceCloner`)
-- Create: `src/podcast_compactor/synth/cloning.py` (`PyannoteVoiceCloner`, lazy)
+- Create: `src/repodify/ports/voice_cloner.py` (`VoiceCloner` protocol + `FakeVoiceCloner`)
+- Create: `src/repodify/synth/cloning.py` (`PyannoteVoiceCloner`, lazy)
 - Create: `tests/unit/ports/test_voice_cloner_fake.py`
 
 **Interfaces:**
@@ -52,8 +52,8 @@
 ## Task 3: Watermarker port + fake + audioseal backend
 
 **Files:**
-- Create: `src/podcast_compactor/ports/watermarker.py` (`Watermarker` protocol + `FakeWatermarker`)
-- Create: `src/podcast_compactor/synth/watermark.py` (`AudioSealWatermarker`, lazy)
+- Create: `src/repodify/ports/watermarker.py` (`Watermarker` protocol + `FakeWatermarker`)
+- Create: `src/repodify/synth/watermark.py` (`AudioSealWatermarker`, lazy)
 - Create: `tests/unit/ports/test_watermarker_fake.py`
 
 **Interfaces:**
@@ -69,7 +69,7 @@
 ## Task 4: Assembly guardrails (disclaimer + synthetic show notes)
 
 **Files:**
-- Modify: `src/podcast_compactor/synth/assemble.py`
+- Modify: `src/repodify/synth/assemble.py`
 - Modify: `tests/unit/synth/test_assemble.py`
 
 **Interfaces:**
@@ -84,9 +84,9 @@
 ## Task 5: Wire cloning into the pipeline + composition root
 
 **Files:**
-- Modify: `src/podcast_compactor/pipeline/state.py` (`Deps` gains `voice_cloner: VoiceCloner`, `watermarker: Watermarker`)
-- Modify: `src/podcast_compactor/pipeline/nodes.py` (`synth_node` cloning branch)
-- Modify: `src/podcast_compactor/worker/main.py` (`build_deps` provides cloner + watermarker)
+- Modify: `src/repodify/pipeline/state.py` (`Deps` gains `voice_cloner: VoiceCloner`, `watermarker: Watermarker`)
+- Modify: `src/repodify/pipeline/nodes.py` (`synth_node` cloning branch)
+- Modify: `src/repodify/worker/main.py` (`build_deps` provides cloner + watermarker)
 - Modify: `tests/unit/worker/test_compose.py`
 
 **Interfaces / behavior:**
@@ -120,7 +120,7 @@
 ## Task 7: Castbox scraper fallback
 
 **Files:**
-- Modify: `src/podcast_compactor/ingest/resolvers.py` (extend `CastboxResolver` to fall back to Castbox's embedded episode JSON when no RSS link is present — return a sentinel/raise a typed `NeedsScrapeError` carrying episodes) OR add a `CastboxScraper` that yields episodes directly.
+- Modify: `src/repodify/ingest/resolvers.py` (extend `CastboxResolver` to fall back to Castbox's embedded episode JSON when no RSS link is present — return a sentinel/raise a typed `NeedsScrapeError` carrying episodes) OR add a `CastboxScraper` that yields episodes directly.
 - Modify: `tests/unit/ingest/test_resolvers.py`
 
 **Design:** keep it minimal and behind the existing resolver seam. `CastboxResolver.resolve` first tries the RSS `<link>`; if absent, it parses the embedded `window.__INITIAL_STATE__`/JSON blob for a feed URL. If a feed URL still can't be found, raise `UnresolvableFeedError` (full page→episode scraping without a live fixture is out of scope; this task wires the fallback path and tests the JSON-blob extraction).

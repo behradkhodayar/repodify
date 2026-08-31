@@ -5,8 +5,8 @@ import sys
 import types
 from pathlib import Path
 
-from podcast_compactor.ports.tts import Voice
-from podcast_compactor.synth.f5_tts import F5TTS
+from repodify.ports.tts import Voice
+from repodify.synth.f5_tts import F5TTS
 
 
 def _install_fake_f5(monkeypatch, loads):

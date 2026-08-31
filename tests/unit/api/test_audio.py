@@ -1,11 +1,11 @@
 import httpx
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.app import create_app
-from podcast_compactor.config import Settings
-from podcast_compactor.models.domain import JobOptions
-from podcast_compactor.models.enums import JobStatus
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.api.app import create_app
+from repodify.config import Settings
+from repodify.models.domain import JobOptions
+from repodify.models.enums import JobStatus
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def _resolve_fn(url, http):

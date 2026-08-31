@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Package path is `src/podcast_compactor/` (the repo/dir is `cutcast`; the Python package is still `podcast_compactor`).
+- Package path is `src/repodify/` (the repo/dir is `repodify`; the Python package is still `repodify`).
 - New `JobOptions` / `CreateJobRequest` fields MUST be optional with defaults — existing persisted `options_json` blobs and API clients keep working.
 - The no-prompt path MUST be unchanged: same summarizer transcript text and same LLM prompts as today.
 - Prompt length cap: `MAX_PROMPT_CHARS = 4000`, applied to both `custom_prompt` and each `episode_prompts` value.
@@ -23,7 +23,7 @@
 ### Task 1: Timestamped transcript renderer
 
 **Files:**
-- Modify: `src/podcast_compactor/models/domain.py` (add a method to `Transcript`, ~after line 85)
+- Modify: `src/repodify/models/domain.py` (add a method to `Transcript`, ~after line 85)
 - Test: `tests/unit/models/test_domain.py`
 
 **Interfaces:**
@@ -75,7 +75,7 @@ Expected: FAIL with `AttributeError: 'Transcript' object has no attribute 'speak
 
 - [ ] **Step 3: Implement the renderer**
 
-In `src/podcast_compactor/models/domain.py`, add a module-level helper near the top (after the imports, before the classes):
+In `src/repodify/models/domain.py`, add a module-level helper near the top (after the imports, before the classes):
 
 ```python
 def _fmt_mmss(seconds: float) -> str:
@@ -123,7 +123,7 @@ Expected: PASS (3 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/models/domain.py tests/unit/models/test_domain.py
+git add src/repodify/models/domain.py tests/unit/models/test_domain.py
 git commit -m "Add timestamped transcript rendering for the summarizer"
 ```
 
@@ -132,7 +132,7 @@ git commit -m "Add timestamped transcript rendering for the summarizer"
 ### Task 2: JobOptions custom-prompt fields
 
 **Files:**
-- Modify: `src/podcast_compactor/models/domain.py` (`JobOptions`, ~lines 172-186; imports at line 8)
+- Modify: `src/repodify/models/domain.py` (`JobOptions`, ~lines 172-186; imports at line 8)
 - Test: `tests/unit/models/test_domain.py`
 
 **Interfaces:**
@@ -144,7 +144,7 @@ git commit -m "Add timestamped transcript rendering for the summarizer"
 Add to `tests/unit/models/test_domain.py` (add `JobOptions` to the existing domain import at the top of the file, and `import pytest` is already present):
 
 ```python
-from podcast_compactor.models.domain import JobOptions, MAX_PROMPT_CHARS
+from repodify.models.domain import JobOptions, MAX_PROMPT_CHARS
 
 
 def test_job_options_defaults_have_no_prompts():
@@ -178,7 +178,7 @@ Expected: FAIL with `ImportError: cannot import name 'MAX_PROMPT_CHARS'`
 
 - [ ] **Step 3: Implement the fields and validator**
 
-In `src/podcast_compactor/models/domain.py`, update the pydantic import (line 8):
+In `src/repodify/models/domain.py`, update the pydantic import (line 8):
 
 ```python
 from pydantic import BaseModel, Field, field_validator
@@ -224,7 +224,7 @@ Expected: PASS (4 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/models/domain.py tests/unit/models/test_domain.py
+git add src/repodify/models/domain.py tests/unit/models/test_domain.py
 git commit -m "Add custom_prompt and episode_prompts to JobOptions"
 ```
 
@@ -233,7 +233,7 @@ git commit -m "Add custom_prompt and episode_prompts to JobOptions"
 ### Task 3: Prompt composition helpers
 
 **Files:**
-- Modify: `src/podcast_compactor/summarize/prompts.py`
+- Modify: `src/repodify/summarize/prompts.py`
 - Test: `tests/unit/summarize/test_prompt_guidance.py` (create)
 
 **Interfaces:**
@@ -247,7 +247,7 @@ git commit -m "Add custom_prompt and episode_prompts to JobOptions"
 Create `tests/unit/summarize/test_prompt_guidance.py`:
 
 ```python
-from podcast_compactor.summarize.prompts import clean_prompt, with_guidance
+from repodify.summarize.prompts import clean_prompt, with_guidance
 
 
 def test_clean_prompt_strips_and_nullifies_empty():
@@ -288,7 +288,7 @@ Expected: FAIL with `ImportError: cannot import name 'clean_prompt'`
 
 - [ ] **Step 3: Implement the helpers**
 
-Append to `src/podcast_compactor/summarize/prompts.py`:
+Append to `src/repodify/summarize/prompts.py`:
 
 ```python
 def clean_prompt(s: str | None) -> str | None:
@@ -334,7 +334,7 @@ Expected: PASS (5 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/summarize/prompts.py tests/unit/summarize/test_prompt_guidance.py
+git add src/repodify/summarize/prompts.py tests/unit/summarize/test_prompt_guidance.py
 git commit -m "Add clean_prompt and with_guidance prompt helpers"
 ```
 
@@ -343,7 +343,7 @@ git commit -m "Add clean_prompt and with_guidance prompt helpers"
 ### Task 4: Guidance in the summarize chains
 
 **Files:**
-- Modify: `src/podcast_compactor/summarize/chains.py`
+- Modify: `src/repodify/summarize/chains.py`
 - Test: `tests/unit/summarize/test_summarize_episode.py`, `tests/unit/summarize/test_synthesize_arc.py`
 
 **Interfaces:**
@@ -357,7 +357,7 @@ git commit -m "Add clean_prompt and with_guidance prompt helpers"
 Add to `tests/unit/summarize/test_summarize_episode.py`:
 
 ```python
-from podcast_compactor.summarize import prompts
+from repodify.summarize import prompts
 
 
 def test_summarize_episode_no_prompts_matches_builtin_exactly():
@@ -417,7 +417,7 @@ Expected: FAIL — `test_summarize_episode_with_prompts_adds_guidance_and_timest
 
 - [ ] **Step 3: Implement guidance threading**
 
-Replace `summarize_episode` and `synthesize_arc` in `src/podcast_compactor/summarize/chains.py`:
+Replace `summarize_episode` and `synthesize_arc` in `src/repodify/summarize/chains.py`:
 
 ```python
 def summarize_episode(
@@ -476,7 +476,7 @@ Expected: PASS (all, including the existing chain tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/summarize/chains.py tests/unit/summarize/
+git add src/repodify/summarize/chains.py tests/unit/summarize/
 git commit -m "Thread custom guidance through summarize and arc chains"
 ```
 
@@ -485,7 +485,7 @@ git commit -m "Thread custom guidance through summarize and arc chains"
 ### Task 5: Guidance in the script writer
 
 **Files:**
-- Modify: `src/podcast_compactor/script/writer.py`
+- Modify: `src/repodify/script/writer.py`
 - Test: `tests/unit/script/test_writer.py`
 
 **Interfaces:**
@@ -521,7 +521,7 @@ Expected: FAIL with `TypeError: write_script() got an unexpected keyword argumen
 
 - [ ] **Step 3: Implement guidance in the writer**
 
-In `src/podcast_compactor/script/writer.py`, update the `write_script` signature (line 74-81) to add the keyword-only param:
+In `src/repodify/script/writer.py`, update the `write_script` signature (line 74-81) to add the keyword-only param:
 
 ```python
 def write_script(
@@ -552,7 +552,7 @@ Expected: PASS (all, including existing writer tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/script/writer.py tests/unit/script/test_writer.py
+git add src/repodify/script/writer.py tests/unit/script/test_writer.py
 git commit -m "Thread whole-digest guidance through the script writer"
 ```
 
@@ -561,7 +561,7 @@ git commit -m "Thread whole-digest guidance through the script writer"
 ### Task 6: Wire prompts through the pipeline nodes
 
 **Files:**
-- Modify: `src/podcast_compactor/pipeline/nodes.py` (`summarize_node` ~lines 198-214, `arc_node` ~lines 216-225, `script_node` ~lines 227-250)
+- Modify: `src/repodify/pipeline/nodes.py` (`summarize_node` ~lines 198-214, `arc_node` ~lines 216-225, `script_node` ~lines 227-250)
 - Test: `tests/integration/test_custom_prompt_pipeline.py` (create)
 
 **Interfaces:**
@@ -576,8 +576,8 @@ Create `tests/integration/test_custom_prompt_pipeline.py` (mirrors `test_pipelin
 import httpx
 import respx
 
-from podcast_compactor.config import Settings
-from podcast_compactor.models.domain import (
+from repodify.config import Settings
+from repodify.models.domain import (
     ArcBeat,
     ArcOutline,
     EpisodeSummary,
@@ -587,16 +587,16 @@ from podcast_compactor.models.domain import (
     Transcript,
     TranscriptSegment,
 )
-from podcast_compactor.pipeline.graph import build_graph
-from podcast_compactor.pipeline.state import Deps
-from podcast_compactor.ports.diarizer import FakeDiarizer
-from podcast_compactor.ports.llm import FakeStructuredLLM
-from podcast_compactor.ports.transcoder import FakeTranscoder
-from podcast_compactor.ports.transcriber import FakeTranscriber
-from podcast_compactor.ports.tts import FakeTTS, Voice
-from podcast_compactor.ports.voice_cloner import FakeVoiceCloner
-from podcast_compactor.ports.watermarker import FakeWatermarker
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.pipeline.graph import build_graph
+from repodify.pipeline.state import Deps
+from repodify.ports.diarizer import FakeDiarizer
+from repodify.ports.llm import FakeStructuredLLM
+from repodify.ports.transcoder import FakeTranscoder
+from repodify.ports.transcriber import FakeTranscriber
+from repodify.ports.tts import FakeTTS, Voice
+from repodify.ports.voice_cloner import FakeVoiceCloner
+from repodify.ports.watermarker import FakeWatermarker
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def test_pipeline_forwards_custom_prompts_to_llms(tmp_path, sample_feed_xml, repo):
@@ -685,7 +685,7 @@ Expected: FAIL — the guidance strings are absent from the captured prompts (no
 
 - [ ] **Step 3: Wire the nodes**
 
-In `src/podcast_compactor/pipeline/nodes.py`, in `summarize_node`, replace the summaries list comprehension (lines 205-208):
+In `src/repodify/pipeline/nodes.py`, in `summarize_node`, replace the summaries list comprehension (lines 205-208):
 
 ```python
             summaries = [
@@ -731,7 +731,7 @@ Expected: PASS (both — the new wiring test and the unchanged end-to-end test)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/pipeline/nodes.py tests/integration/test_custom_prompt_pipeline.py
+git add src/repodify/pipeline/nodes.py tests/integration/test_custom_prompt_pipeline.py
 git commit -m "Forward custom prompts from pipeline nodes to the LLM chains"
 ```
 
@@ -740,7 +740,7 @@ git commit -m "Forward custom prompts from pipeline nodes to the LLM chains"
 ### Task 7: Accept prompts in the API
 
 **Files:**
-- Modify: `src/podcast_compactor/api/schemas.py` (`CreateJobRequest`, ~lines 31-39), `src/podcast_compactor/api/app.py` (`create_job`, ~lines 89-102)
+- Modify: `src/repodify/api/schemas.py` (`CreateJobRequest`, ~lines 31-39), `src/repodify/api/app.py` (`create_job`, ~lines 89-102)
 - Test: `tests/unit/api/test_api.py`
 
 **Interfaces:**
@@ -777,14 +777,14 @@ Expected: FAIL — `options.custom_prompt` is `None` (request fields are ignored
 
 - [ ] **Step 3: Implement the schema + passthrough**
 
-In `src/podcast_compactor/api/schemas.py`, add two fields to `CreateJobRequest` (after `review_voices` at line 39):
+In `src/repodify/api/schemas.py`, add two fields to `CreateJobRequest` (after `review_voices` at line 39):
 
 ```python
     custom_prompt: str | None = None
     episode_prompts: dict[str, str] = {}
 ```
 
-In `src/podcast_compactor/api/app.py`, extend the `JobOptions(...)` construction in `create_job` (lines 91-99):
+In `src/repodify/api/app.py`, extend the `JobOptions(...)` construction in `create_job` (lines 91-99):
 
 ```python
         options = JobOptions(
@@ -808,7 +808,7 @@ Expected: PASS (all, including the new test)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/api/schemas.py src/podcast_compactor/api/app.py tests/unit/api/test_api.py
+git add src/repodify/api/schemas.py src/repodify/api/app.py tests/unit/api/test_api.py
 git commit -m "Accept custom_prompt and episode_prompts in the create-job API"
 ```
 

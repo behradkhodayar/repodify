@@ -6,8 +6,8 @@ import sys
 import types
 import wave
 
-from podcast_compactor.ports.tts import SAMPLE_RATE, Voice
-from podcast_compactor.synth.kokoro import KokoroTTS
+from repodify.ports.tts import SAMPLE_RATE, Voice
+from repodify.synth.kokoro import KokoroTTS
 
 
 class _Chunk:

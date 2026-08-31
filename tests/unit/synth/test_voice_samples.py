@@ -1,7 +1,7 @@
-from podcast_compactor.ports.tts import FakeTTS
-from podcast_compactor.storage.filesystem import FilesystemStorage
-from podcast_compactor.synth.stock_voices import bundled_sample_path
-from podcast_compactor.synth.voice_samples import (
+from repodify.ports.tts import FakeTTS
+from repodify.storage.filesystem import FilesystemStorage
+from repodify.synth.stock_voices import bundled_sample_path
+from repodify.synth.voice_samples import (
     SAMPLE_LINE,
     ensure_voice_sample,
     sample_storage_key,
@@ -25,7 +25,7 @@ def test_ensure_voice_sample_prefers_bundled_preview(tmp_path):
 
 
 def test_ensure_voice_sample_synthesizes_when_bundle_missing(tmp_path, monkeypatch):
-    from podcast_compactor.synth import voice_samples
+    from repodify.synth import voice_samples
 
     missing = tmp_path / "missing.wav"
     monkeypatch.setattr(voice_samples, "bundled_sample_path", lambda name: missing)

@@ -1,7 +1,7 @@
 """The clip-selection logic in the voice cloner (pure; ffmpeg is not exercised)."""
 
-from podcast_compactor.models.domain import TranscriptSegment
-from podcast_compactor.synth.cloning import best_window
+from repodify.models.domain import TranscriptSegment
+from repodify.synth.cloning import best_window
 
 
 def _seg(start, end, speaker, text="x"):

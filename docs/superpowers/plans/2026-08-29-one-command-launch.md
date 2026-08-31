@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A single command (`./launch`) that sets up and runs the entire cutcast stack — Redis, API, worker, and the web PWA — with GPU-aware mode selection, an interactive BYOK wizard when there's no GPU, and automatic port-conflict handling.
+**Goal:** A single command (`./launch`) that sets up and runs the entire repodify stack — Redis, API, worker, and the web PWA — with GPU-aware mode selection, an interactive BYOK wizard when there's no GPU, and automatic port-conflict handling.
 
 **Architecture:** A single bash orchestrator at the repo root. Pure helpers (free-port selection, `.env` upsert, mode resolution, stale-check) are exposed as hidden `__subcommands` so they're unit-testable via `uv run pytest` shelling out to the script; the side-effecting orchestration phases (deps, infra, running the three processes) are composed from those helpers and verified with explicit manual smoke steps. A thin `Makefile` wraps the script.
 
@@ -16,7 +16,7 @@
 - **`launch` must be `shellcheck`-clean** and start with `#!/usr/bin/env bash` + `set -euo pipefail`.
 - **`.env` is sacred:** never overwrite an existing `.env`; only surgical key upserts. Ephemeral ports/URLs are **exported into the environment**, never written to `.env`.
 - **`.env` keys** touched are uppercase identifiers (`[A-Z0-9_]+`), safe to match as regex anchors.
-- **Testability seam:** GPU detection honors `CUTCAST_GPU_OVERRIDE` (`1`/`0`) when set, so tests force either branch without hardware.
+- **Testability seam:** GPU detection honors `REPODIFY_GPU_OVERRIDE` (`1`/`0`) when set, so tests force either branch without hardware.
 
 ---
 
@@ -50,7 +50,7 @@ Create `launch`:
 #!/usr/bin/env bash
 set -euo pipefail
 
-# cutcast one-command launcher. Runs from the repo root regardless of CWD.
+# repodify one-command launcher. Runs from the repo root regardless of CWD.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
@@ -59,7 +59,7 @@ WITH_POSTGRES=0
 
 usage() {
   cat <<'EOF'
-cutcast launcher — set up and run the whole stack with one command.
+repodify launcher — set up and run the whole stack with one command.
 
 Usage: ./launch [options]
 
@@ -344,7 +344,7 @@ git commit -m "Add .env upsert/get helpers for surgical config writes"
 
 **Interfaces:**
 - Consumes: `MODE_FLAG` global.
-- Produces: `gpu_available` returns 0/1 (honors `CUTCAST_GPU_OVERRIDE` when set, else `nvidia-smi -L`); `resolve_mode` prints exactly one of `fake` | `real-gpu` | `real-byok`. Exposed as `./launch __resolve-mode` (respects `--fake`/`--real` args and `CUTCAST_GPU_OVERRIDE`).
+- Produces: `gpu_available` returns 0/1 (honors `REPODIFY_GPU_OVERRIDE` when set, else `nvidia-smi -L`); `resolve_mode` prints exactly one of `fake` | `real-gpu` | `real-byok`. Exposed as `./launch __resolve-mode` (respects `--fake`/`--real` args and `REPODIFY_GPU_OVERRIDE`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -366,22 +366,22 @@ def run_env(*args: str, env_extra: dict[str, str]):
 
 
 def test_resolve_mode_fake_flag_wins() -> None:
-    out = run_env("__resolve-mode", "--fake", env_extra={"CUTCAST_GPU_OVERRIDE": "1"})
+    out = run_env("__resolve-mode", "--fake", env_extra={"REPODIFY_GPU_OVERRIDE": "1"})
     assert out.stdout.strip() == "fake"
 
 
 def test_resolve_mode_gpu_present_is_real_gpu() -> None:
-    out = run_env("__resolve-mode", env_extra={"CUTCAST_GPU_OVERRIDE": "1"})
+    out = run_env("__resolve-mode", env_extra={"REPODIFY_GPU_OVERRIDE": "1"})
     assert out.stdout.strip() == "real-gpu"
 
 
 def test_resolve_mode_no_gpu_is_real_byok() -> None:
-    out = run_env("__resolve-mode", env_extra={"CUTCAST_GPU_OVERRIDE": "0"})
+    out = run_env("__resolve-mode", env_extra={"REPODIFY_GPU_OVERRIDE": "0"})
     assert out.stdout.strip() == "real-byok"
 
 
 def test_resolve_mode_real_flag_without_gpu_is_real_byok() -> None:
-    out = run_env("__resolve-mode", "--real", env_extra={"CUTCAST_GPU_OVERRIDE": "0"})
+    out = run_env("__resolve-mode", "--real", env_extra={"REPODIFY_GPU_OVERRIDE": "0"})
     assert out.stdout.strip() == "real-byok"
 ```
 
@@ -395,11 +395,11 @@ Expected: FAIL.
 Add to `launch` before `main`:
 
 ```bash
-# 0 (true) if a CUDA GPU is available. CUTCAST_GPU_OVERRIDE forces the answer
+# 0 (true) if a CUDA GPU is available. REPODIFY_GPU_OVERRIDE forces the answer
 # for tests: "1" => available, "0" => not.
 gpu_available() {
-  if [[ -n "${CUTCAST_GPU_OVERRIDE:-}" ]]; then
-    [[ "$CUTCAST_GPU_OVERRIDE" == "1" ]]
+  if [[ -n "${REPODIFY_GPU_OVERRIDE:-}" ]]; then
+    [[ "$REPODIFY_GPU_OVERRIDE" == "1" ]]
     return
   fi
   command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
@@ -932,7 +932,7 @@ scan_ports() {
   export API_PORT VITE_PORT REDIS_HOST_PORT API_PROXY_TARGET REDIS_URL
   if [[ "${WITH_POSTGRES:-0}" == "1" ]]; then
     POSTGRES_HOST_PORT="$(free_port "$want_pg")"; _note_port Postgres "$want_pg" "$POSTGRES_HOST_PORT"
-    DATABASE_URL="postgresql+psycopg://podcast:podcast@localhost:${POSTGRES_HOST_PORT}/podcast_compactor"
+    DATABASE_URL="postgresql+psycopg://repodify:repodify@localhost:${POSTGRES_HOST_PORT}/repodify"
     export POSTGRES_HOST_PORT DATABASE_URL
   fi
 }
@@ -941,7 +941,7 @@ print_summary() {
   local mode="$1"
   cat >&2 <<EOF
 
-  cutcast is up — mode: ${mode}
+  repodify is up — mode: ${mode}
   ------------------------------------------------------------
   API           http://localhost:${API_PORT}
   Built app     http://localhost:${API_PORT}/app/
@@ -1031,11 +1031,11 @@ run_processes() {
   # shellcheck disable=SC2064
   trap 'echo; echo "launch: stopping…" >&2; kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null; exit 0' INT TERM
 
-  ( uv run uvicorn --factory podcast_compactor.api.app:build_default_app \
+  ( uv run uvicorn --factory repodify.api.app:build_default_app \
       --port "$API_PORT" 2>&1 | _prefix api $'\033[36m' ) &
   pids+=($!)
 
-  ( uv run arq podcast_compactor.worker.main.WorkerSettings 2>&1 | _prefix worker $'\033[35m' ) &
+  ( uv run arq repodify.worker.main.WorkerSettings 2>&1 | _prefix worker $'\033[35m' ) &
   pids+=($!)
 
   ( npm --prefix web run dev -- --port "$VITE_PORT" --strictPort 2>&1 | _prefix web $'\033[32m' ) &

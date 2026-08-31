@@ -5,7 +5,7 @@ import sys
 import types
 from pathlib import Path
 
-from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
+from repodify.transcribe.faster_whisper import FasterWhisperTranscriber
 
 
 def _install_fake_whisper(monkeypatch, loads):

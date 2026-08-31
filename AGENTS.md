@@ -1,13 +1,11 @@
-# Cutcast
+# Repodify
 
 Turn a podcast — or a chosen chronological stretch of it — into one ~30-minute
 digest episode. Backend service (FastAPI + arq worker + LangGraph pipeline) with
 a React PWA. Not a CLI.
 
-**Naming:** the product, GitHub repo, launcher, and PWA are **cutcast**. The
-Python package, `pyproject.toml` name, FastAPI title, and Postgres database are
-still **`podcast_compactor` / `podcast-compactor`**. Import as
-`from podcast_compactor...`. Do not rename the package as a drive-by.
+The product, GitHub repo, Python package, launcher, PWA, FastAPI title, and
+Postgres database are all **repodify**. Import as `from repodify...`.
 
 How to run it: [`README.md`](README.md). How it is built:
 [`docs/architecture.md`](docs/architecture.md). Per-feature designs and plans:
@@ -49,15 +47,15 @@ make stop                        # halt the compose containers
 
 | Path | Role |
 |---|---|
-| `src/podcast_compactor/api/` | FastAPI app, auth, request schemas, Range audio |
-| `src/podcast_compactor/worker/` | arq worker + `build_deps` composition root |
-| `src/podcast_compactor/pipeline/` | LangGraph graph, node closures, `Deps`, state |
-| `src/podcast_compactor/ports/` | Protocols **and** fakes (STT, LLM, TTS, diarizer, cloner, watermarker, transcoder) |
+| `src/repodify/api/` | FastAPI app, auth, request schemas, Range audio |
+| `src/repodify/worker/` | arq worker + `build_deps` composition root |
+| `src/repodify/pipeline/` | LangGraph graph, node closures, `Deps`, state |
+| `src/repodify/ports/` | Protocols **and** fakes (STT, LLM, TTS, diarizer, cloner, watermarker, transcoder) |
 | `ingest/` `transcribe/` `summarize/` `script/` `synth/` | Domain logic + **real** adapters |
-| `src/podcast_compactor/persistence/` | `JobRepository`, `SettingsRepository`, engine — the only DB access |
-| `src/podcast_compactor/models/` | pydantic domain (`domain.py`) vs SQLAlchemy (`db.py`) vs enums |
-| `src/podcast_compactor/storage/` | `Storage` port + filesystem impl |
-| `src/podcast_compactor/config.py` | pydantic-settings, project-root-anchored paths |
+| `src/repodify/persistence/` | `JobRepository`, `SettingsRepository`, engine — the only DB access |
+| `src/repodify/models/` | pydantic domain (`domain.py`) vs SQLAlchemy (`db.py`) vs enums |
+| `src/repodify/storage/` | `Storage` port + filesystem impl |
+| `src/repodify/config.py` | pydantic-settings, project-root-anchored paths |
 | `web/` | React + Vite PWA (`basename=/app`) |
 | `tests/unit/` | mirrors the package layout |
 | `tests/integration/` | full graph with fakes |
@@ -65,7 +63,7 @@ make stop                        # halt the compose containers
 | `assets/voice-samples/` | bundled Kokoro previews — the only wavs in git |
 | `data/` | runtime artifacts + SQLite — gitignored |
 
-Paths under `src/podcast_compactor/` in the table are abbreviated after the first
+Paths under `src/repodify/` in the table are abbreviated after the first
 few rows.
 
 ---
@@ -209,7 +207,7 @@ React 19 + Vite 8 + Tailwind + TanStack Query + React Router (`basename="/app"`)
 
 ## Git
 
-This is `github.com/behradkhodayar/cutcast`. One PR per logical unit. Imperative
+This is `github.com/behradkhodayar/repodify`. One PR per logical unit. Imperative
 commit messages (what + why), no emojis, no Claude co-author trailer. PR title
 ≤ 70 chars; details go in the body. Reference issues with `Closes #N` when
 applicable.

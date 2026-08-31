@@ -10,8 +10,8 @@ import httpx
 import pytest
 import respx
 
-from podcast_compactor.ports.tts import Voice
-from podcast_compactor.synth.openrouter_tts import _SEED_TEXT, OpenRouterTTS, OpenRouterTTSError
+from repodify.ports.tts import Voice
+from repodify.synth.openrouter_tts import _SEED_TEXT, OpenRouterTTS, OpenRouterTTSError
 
 SPEECH_URL = "https://openrouter.ai/api/v1/audio/speech"
 
@@ -165,7 +165,7 @@ def test_stock_voice_with_bundled_sample_clones_without_seeding():
     Fish Audio's `instructions` nudge often still yields a male voice; the
     bundled female/male clip is the actual identity.
     """
-    from podcast_compactor.synth.stock_voices import stock_voice
+    from repodify.synth.stock_voices import stock_voice
 
     voice = stock_voice("af_heart")
     assert voice.ref_audio_path is not None

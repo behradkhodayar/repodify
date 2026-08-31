@@ -14,7 +14,7 @@ function titleFor(pathname: string): string {
   if (/^\/jobs\/.+/.test(pathname)) return 'Job detail'
   if (pathname.startsWith('/jobs')) return 'History'
   if (pathname.startsWith('/settings')) return 'Settings'
-  return 'cutcast'
+  return 'repodify'
 }
 
 export function Topbar() {
@@ -44,7 +44,7 @@ export function Topbar() {
         </Sheet>
       </div>
 
-      <Link to="/" className="lg:hidden" aria-label="cutcast home">
+      <Link to="/" className="lg:hidden" aria-label="repodify home">
         <Logo animate={false} />
       </Link>
 

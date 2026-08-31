@@ -1,7 +1,7 @@
-from podcast_compactor.models.domain import EpisodeSummary, Transcript, TranscriptSegment
-from podcast_compactor.ports.llm import FakeStructuredLLM
-from podcast_compactor.summarize import prompts
-from podcast_compactor.summarize.chains import summarize_episode
+from repodify.models.domain import EpisodeSummary, Transcript, TranscriptSegment
+from repodify.ports.llm import FakeStructuredLLM
+from repodify.summarize import prompts
+from repodify.summarize.chains import summarize_episode
 
 
 def test_summarize_episode_forces_identity_and_passes_transcript():

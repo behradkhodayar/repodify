@@ -1,4 +1,4 @@
-from podcast_compactor.summarize.prompts import clean_prompt, with_guidance
+from repodify.summarize.prompts import clean_prompt, with_guidance
 
 
 def test_clean_prompt_strips_and_nullifies_empty():

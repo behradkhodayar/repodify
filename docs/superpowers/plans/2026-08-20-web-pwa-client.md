@@ -34,7 +34,7 @@
 - [ ] **Step 1: Scaffold and install**
 
 ```bash
-cd /home/behrad/Development/podcast-compactor
+cd /home/behrad/Development/repodify
 npm create vite@latest web -- --template react-ts
 cd web
 npm install
@@ -61,8 +61,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Podcast Compactor',
-        short_name: 'Compactor',
+        name: 'Repodify',
+        short_name: 'repodify',
         start_url: '/app/',
         scope: '/app/',
         display: 'standalone',
@@ -161,13 +161,13 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 function Hello() {
-  return <h1>Podcast Compactor</h1>
+  return <h1>Repodify</h1>
 }
 
 describe('smoke', () => {
   it('renders', () => {
     render(<Hello />)
-    expect(screen.getByText('Podcast Compactor')).toBeInTheDocument()
+    expect(screen.getByText('Repodify')).toBeInTheDocument()
   })
 })
 ```
@@ -182,7 +182,7 @@ Expected: builds to `web/dist/` with no type errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/behrad/Development/podcast-compactor
+cd /home/behrad/Development/repodify
 git add web
 git commit -m "Scaffold React PWA web client with Vite, Tailwind, and Vitest"
 ```
@@ -1222,7 +1222,7 @@ git commit -m "Add settings screen for the API token"
 Generate simple solid icons (ImageMagick if present, else any 192/512 PNGs):
 
 ```bash
-cd /home/behrad/Development/podcast-compactor/web/public
+cd /home/behrad/Development/repodify/web/public
 if command -v convert >/dev/null; then
   convert -size 192x192 xc:'#0f172a' -gravity center -pointsize 96 -fill white -annotate 0 'PC' pwa-192x192.png
   convert -size 512x512 xc:'#0f172a' -gravity center -pointsize 256 -fill white -annotate 0 'PC' pwa-512x512.png
@@ -1249,7 +1249,7 @@ git commit -m "Add PWA icons"
 ### Task 10: Backend static mount + README + final gate
 
 **Files:**
-- Modify: `src/podcast_compactor/api/app.py`
+- Modify: `src/repodify/api/app.py`
 - Test: `tests/unit/api/test_static_mount.py`
 - Modify: `README.md`
 
@@ -1264,9 +1264,9 @@ git commit -m "Add PWA icons"
 import httpx
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.app import create_app
-from podcast_compactor.config import Settings
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.api.app import create_app
+from repodify.config import Settings
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def _resolve_fn(url, http):
@@ -1313,7 +1313,7 @@ Expected: FAIL — `create_app()` has no `static_dir` parameter.
 
 - [ ] **Step 3: Implement the static mount**
 
-In `src/podcast_compactor/api/app.py`, add imports at the top:
+In `src/repodify/api/app.py`, add imports at the top:
 
 ```python
 from pathlib import Path
@@ -1387,8 +1387,8 @@ Run: `cd web && npm run test && npm run build && npm run lint`
 Expected: all green.
 
 ```bash
-cd /home/behrad/Development/podcast-compactor
-git add src/podcast_compactor/api/app.py tests/unit/api/test_static_mount.py README.md
+cd /home/behrad/Development/repodify
+git add src/repodify/api/app.py tests/unit/api/test_static_mount.py README.md
 git commit -m "Serve the built web client from FastAPI at /app"
 ```
 

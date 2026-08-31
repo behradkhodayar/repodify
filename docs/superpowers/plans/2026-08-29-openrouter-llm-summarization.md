@@ -25,7 +25,7 @@
 ### Task 1: Config — add the `openrouter` backend and model
 
 **Files:**
-- Modify: `src/podcast_compactor/config.py:60` (the `llm_backend` Literal) and add `openrouter_llm_model`
+- Modify: `src/repodify/config.py:60` (the `llm_backend` Literal) and add `openrouter_llm_model`
 - Modify: `.env.example`
 - Test: `tests/unit/test_config.py`
 
@@ -38,7 +38,7 @@ Append to `tests/unit/test_config.py`:
 
 ```python
 def test_openrouter_is_a_valid_llm_backend():
-    from podcast_compactor.config import Settings
+    from repodify.config import Settings
 
     s = Settings(_env_file=None, llm_backend="openrouter")
     assert s.llm_backend == "openrouter"
@@ -57,7 +57,7 @@ Expected: FAIL — `llm_backend="openrouter"` fails validation (not in Literal) 
 
 - [ ] **Step 3: Implement the config change**
 
-In `src/podcast_compactor/config.py`, change the `llm_backend` line (currently line ~60) and its comment, and add the model field right after the existing OpenRouter TTS block (keep it near the other `openrouter_*` settings):
+In `src/repodify/config.py`, change the `llm_backend` line (currently line ~60) and its comment, and add the model field right after the existing OpenRouter TTS block (keep it near the other `openrouter_*` settings):
 
 ```python
     # LLM backend selection. "anthropic" (default) uses the Claude API and needs
@@ -109,7 +109,7 @@ In the existing OpenRouter section (near `OPENROUTER_TTS_MODEL`), add:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/podcast_compactor/config.py .env.example tests/unit/test_config.py
+git add src/repodify/config.py .env.example tests/unit/test_config.py
 git commit -m "Add openrouter as an llm_backend option and OPENROUTER_LLM_MODEL setting"
 ```
 
@@ -119,7 +119,7 @@ git commit -m "Add openrouter as an llm_backend option and OPENROUTER_LLM_MODEL 
 
 **Files:**
 - Modify: `pyproject.toml` (dependencies) + `uv.lock`
-- Modify: `src/podcast_compactor/ports/llm.py`
+- Modify: `src/repodify/ports/llm.py`
 - Test: `tests/unit/ports/test_llm_openrouter.py` (create)
 
 **Interfaces:**
@@ -135,7 +135,7 @@ Expected: `pyproject.toml` gains `langchain-openai>=0.2` under `dependencies` an
 Create `tests/unit/ports/test_llm_openrouter.py`:
 
 ```python
-from podcast_compactor.ports.llm import OpenRouterStructuredLLM, StructuredLLM
+from repodify.ports.llm import OpenRouterStructuredLLM, StructuredLLM
 
 
 def test_openrouter_llm_stores_config_and_satisfies_the_port():
@@ -157,7 +157,7 @@ Expected: FAIL — `ImportError: cannot import name 'OpenRouterStructuredLLM'`.
 
 - [ ] **Step 4: Implement the class**
 
-In `src/podcast_compactor/ports/llm.py`, add after `OllamaStructuredLLM`:
+In `src/repodify/ports/llm.py`, add after `OllamaStructuredLLM`:
 
 ```python
 class OpenRouterStructuredLLM:
@@ -192,7 +192,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add pyproject.toml uv.lock src/podcast_compactor/ports/llm.py tests/unit/ports/test_llm_openrouter.py
+git add pyproject.toml uv.lock src/repodify/ports/llm.py tests/unit/ports/test_llm_openrouter.py
 git commit -m "Add OpenRouterStructuredLLM port backend (langchain-openai)"
 ```
 
@@ -201,7 +201,7 @@ git commit -m "Add OpenRouterStructuredLLM port backend (langchain-openai)"
 ### Task 3: Override model + `effective_llm` resolver
 
 **Files:**
-- Modify: `src/podcast_compactor/ports/llm.py`
+- Modify: `src/repodify/ports/llm.py`
 - Test: `tests/unit/ports/test_effective_llm.py` (create)
 
 **Interfaces:**
@@ -217,8 +217,8 @@ git commit -m "Add OpenRouterStructuredLLM port backend (langchain-openai)"
 Create `tests/unit/ports/test_effective_llm.py`:
 
 ```python
-from podcast_compactor.config import Settings
-from podcast_compactor.ports.llm import LLM_BACKENDS, EffectiveLlm, LlmOverrides, effective_llm
+from repodify.config import Settings
+from repodify.ports.llm import LLM_BACKENDS, EffectiveLlm, LlmOverrides, effective_llm
 
 
 def _settings() -> Settings:
@@ -264,7 +264,7 @@ Expected: FAIL — cannot import `LLM_BACKENDS` / `LlmOverrides` / `EffectiveLlm
 
 - [ ] **Step 3: Implement the resolver**
 
-In `src/podcast_compactor/ports/llm.py`, add near the top (after the existing imports add `from podcast_compactor.config import Settings`; `BaseModel` is already imported):
+In `src/repodify/ports/llm.py`, add near the top (after the existing imports add `from repodify.config import Settings`; `BaseModel` is already imported):
 
 ```python
 LLM_BACKENDS: tuple[str, ...] = ("anthropic", "ollama", "openrouter")
@@ -309,7 +309,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/ports/llm.py tests/unit/ports/test_effective_llm.py
+git add src/repodify/ports/llm.py tests/unit/ports/test_effective_llm.py
 git commit -m "Add LlmOverrides and effective_llm resolver (DB overrides beat .env)"
 ```
 
@@ -318,8 +318,8 @@ git commit -m "Add LlmOverrides and effective_llm resolver (DB overrides beat .e
 ### Task 4: `app_settings` table + `SettingsRepository`
 
 **Files:**
-- Modify: `src/podcast_compactor/models/db.py` (add `AppSetting`)
-- Create: `src/podcast_compactor/persistence/settings_repo.py`
+- Modify: `src/repodify/models/db.py` (add `AppSetting`)
+- Create: `src/repodify/persistence/settings_repo.py`
 - Test: `tests/unit/persistence/test_settings_repo.py` (create)
 
 **Interfaces:**
@@ -335,10 +335,10 @@ Create `tests/unit/persistence/test_settings_repo.py`:
 ```python
 import pytest
 
-from podcast_compactor.models.db import AppSetting  # noqa: F401  (ensure the table exists)
-from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
-from podcast_compactor.persistence.settings_repo import SettingsRepository
-from podcast_compactor.ports.llm import LlmOverrides
+from repodify.models.db import AppSetting  # noqa: F401  (ensure the table exists)
+from repodify.persistence.engine import init_db, make_engine, session_factory
+from repodify.persistence.settings_repo import SettingsRepository
+from repodify.ports.llm import LlmOverrides
 
 
 @pytest.fixture
@@ -380,7 +380,7 @@ Expected: FAIL — cannot import `AppSetting` / `SettingsRepository`.
 
 - [ ] **Step 3: Add the ORM model**
 
-In `src/podcast_compactor/models/db.py`, add after the `Artifact` class:
+In `src/repodify/models/db.py`, add after the `Artifact` class:
 
 ```python
 class AppSetting(Base):
@@ -398,7 +398,7 @@ class AppSetting(Base):
 
 - [ ] **Step 4: Implement the repository**
 
-Create `src/podcast_compactor/persistence/settings_repo.py`:
+Create `src/repodify/persistence/settings_repo.py`:
 
 ```python
 """SettingsRepository: persisted app settings (currently the LLM overrides)."""
@@ -408,8 +408,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from podcast_compactor.models.db import AppSetting
-from podcast_compactor.ports.llm import LlmOverrides
+from repodify.models.db import AppSetting
+from repodify.ports.llm import LlmOverrides
 
 _LLM_KEYS = ("llm_backend", "openrouter_llm_model", "ollama_model")
 
@@ -456,7 +456,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/podcast_compactor/models/db.py src/podcast_compactor/persistence/settings_repo.py tests/unit/persistence/test_settings_repo.py
+git add src/repodify/models/db.py src/repodify/persistence/settings_repo.py tests/unit/persistence/test_settings_repo.py
 git commit -m "Persist LLM overrides in an app_settings table via SettingsRepository"
 ```
 
@@ -465,7 +465,7 @@ git commit -m "Persist LLM overrides in an app_settings table via SettingsReposi
 ### Task 5: Worker builds the OpenRouter LLM from the effective config
 
 **Files:**
-- Modify: `src/podcast_compactor/worker/main.py` (`_build_real_llms`, `build_deps`)
+- Modify: `src/repodify/worker/main.py` (`_build_real_llms`, `build_deps`)
 - Test: `tests/unit/worker/test_build_real_llms.py` (extend)
 
 **Interfaces:**
@@ -477,7 +477,7 @@ git commit -m "Persist LLM overrides in an app_settings table via SettingsReposi
 Append to `tests/unit/worker/test_build_real_llms.py`:
 
 ```python
-from podcast_compactor.ports.llm import LlmOverrides, OpenRouterStructuredLLM
+from repodify.ports.llm import LlmOverrides, OpenRouterStructuredLLM
 
 
 def test_openrouter_backend_from_env_builds_one_model_for_both_stages():
@@ -524,7 +524,7 @@ Expected: FAIL — `_build_real_llms` has no `openrouter` branch / no `overrides
 
 - [ ] **Step 3: Rewrite `_build_real_llms`**
 
-Replace the body of `_build_real_llms` in `src/podcast_compactor/worker/main.py` with:
+Replace the body of `_build_real_llms` in `src/repodify/worker/main.py` with:
 
 ```python
 def _build_real_llms(
@@ -535,18 +535,18 @@ def _build_real_llms(
     `overrides` (persisted, from the Settings page) beats `settings` (.env) per
     field; the default means "use .env".
     """
-    from podcast_compactor.ports.llm import LlmOverrides, effective_llm
+    from repodify.ports.llm import LlmOverrides, effective_llm
 
     effective = effective_llm(settings, overrides or LlmOverrides())
 
     if effective.backend == "ollama":
-        from podcast_compactor.ports.llm import OllamaStructuredLLM
+        from repodify.ports.llm import OllamaStructuredLLM
 
         llm = OllamaStructuredLLM(effective.ollama_model, settings.ollama_base_url)
         return llm, llm  # one local model serves both map and reduce
 
     if effective.backend == "openrouter":
-        from podcast_compactor.ports.llm import OpenRouterStructuredLLM
+        from repodify.ports.llm import OpenRouterStructuredLLM
 
         if not settings.openrouter_api_key:
             raise RuntimeError("OPENROUTER_API_KEY is required when LLM_BACKEND=openrouter")
@@ -557,7 +557,7 @@ def _build_real_llms(
         )
         return llm, llm  # one hosted model serves both map and reduce
 
-    from podcast_compactor.ports.llm import AnthropicStructuredLLM
+    from repodify.ports.llm import AnthropicStructuredLLM
 
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is required when LLM_BACKEND=anthropic")
@@ -570,7 +570,7 @@ def _build_real_llms(
 Add the top-level import used by the annotation — at the top of `worker/main.py`, extend the existing llm import:
 
 ```python
-from podcast_compactor.ports.llm import LlmOverrides, StructuredLLM
+from repodify.ports.llm import LlmOverrides, StructuredLLM
 ```
 
 - [ ] **Step 4: Wire `build_deps` to load overrides**
@@ -586,7 +586,7 @@ In `build_deps`, change the engine/repo setup so the session factory is shared, 
 with:
 
 ```python
-    from podcast_compactor.persistence.settings_repo import SettingsRepository
+    from repodify.persistence.settings_repo import SettingsRepository
 
     engine = make_engine(settings.database_url)
     init_db(engine)
@@ -615,7 +615,7 @@ Expected: PASS — the three new tests plus the existing anthropic/ollama tests.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/podcast_compactor/worker/main.py tests/unit/worker/test_build_real_llms.py
+git add src/repodify/worker/main.py tests/unit/worker/test_build_real_llms.py
 git commit -m "Build the summarization LLM from persisted overrides layered over .env"
 ```
 
@@ -624,8 +624,8 @@ git commit -m "Build the summarization LLM from persisted overrides layered over
 ### Task 6: API — `GET`/`PUT /settings/llm`
 
 **Files:**
-- Modify: `src/podcast_compactor/api/schemas.py` (two models)
-- Modify: `src/podcast_compactor/api/app.py` (`create_app` gains `settings_repo`; two routes; `build_default_app` wiring)
+- Modify: `src/repodify/api/schemas.py` (two models)
+- Modify: `src/repodify/api/app.py` (`create_app` gains `settings_repo`; two routes; `build_default_app` wiring)
 - Test: `tests/unit/api/test_settings_llm.py` (create)
 
 **Interfaces:**
@@ -643,11 +643,11 @@ Create `tests/unit/api/test_settings_llm.py`:
 import httpx
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.app import create_app
-from podcast_compactor.config import Settings
-from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
-from podcast_compactor.persistence.settings_repo import SettingsRepository
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.api.app import create_app
+from repodify.config import Settings
+from repodify.persistence.engine import init_db, make_engine, session_factory
+from repodify.persistence.settings_repo import SettingsRepository
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def _resolve_fn(url, http):
@@ -719,7 +719,7 @@ Expected: FAIL — `create_app()` has no `settings_repo` kwarg / no `/settings/l
 
 - [ ] **Step 3: Add the schemas**
 
-In `src/podcast_compactor/api/schemas.py`, append:
+In `src/repodify/api/schemas.py`, append:
 
 ```python
 class LlmSettingsResponse(BaseModel):
@@ -740,13 +740,13 @@ class LlmSettingsUpdate(BaseModel):
 
 - [ ] **Step 4: Add the routes and the collaborator**
 
-In `src/podcast_compactor/api/app.py`:
+In `src/repodify/api/app.py`:
 
 Extend the schema import list with `LlmSettingsResponse` and `LlmSettingsUpdate`, and add near the other imports:
 
 ```python
-from podcast_compactor.persistence.settings_repo import SettingsRepository
-from podcast_compactor.ports.llm import LLM_BACKENDS, LlmOverrides, effective_llm
+from repodify.persistence.settings_repo import SettingsRepository
+from repodify.ports.llm import LLM_BACKENDS, LlmOverrides, effective_llm
 ```
 
 Change the `create_app` signature to add the keyword-only optional param (keep the existing params/order; append at the end):
@@ -835,7 +835,7 @@ Expected: PASS — new settings tests plus the whole existing api suite (unchang
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/podcast_compactor/api/schemas.py src/podcast_compactor/api/app.py tests/unit/api/test_settings_llm.py
+git add src/repodify/api/schemas.py src/repodify/api/app.py tests/unit/api/test_settings_llm.py
 git commit -m "Expose GET/PUT /settings/llm for backend + model selection"
 ```
 
@@ -1073,7 +1073,7 @@ export function Settings() {
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <PageHeader title="Settings" description="Configure how the web client talks to the cutcast API." />
+      <PageHeader title="Settings" description="Configure how the web client talks to the repodify API." />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

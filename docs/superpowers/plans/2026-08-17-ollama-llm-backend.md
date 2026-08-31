@@ -23,7 +23,7 @@
 ### Task 1: Config settings for backend selection
 
 **Files:**
-- Modify: `src/podcast_compactor/config.py`
+- Modify: `src/repodify/config.py`
 - Test: `tests/unit/test_config.py`
 
 **Interfaces:**
@@ -59,7 +59,7 @@ Expected: FAIL — `AttributeError: 'Settings' object has no attribute 'llm_back
 
 - [ ] **Step 3: Add the settings**
 
-In `src/podcast_compactor/config.py`, add `from typing import Literal` to the imports, then add these fields to the `Settings` class right after the `use_fakes` field (the "Dependency selection" block):
+In `src/repodify/config.py`, add `from typing import Literal` to the imports, then add these fields to the `Settings` class right after the `use_fakes` field (the "Dependency selection" block):
 
 ```python
     # LLM backend selection. "anthropic" (default) uses the Claude API and needs
@@ -77,7 +77,7 @@ Expected: PASS (all config tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/config.py tests/unit/test_config.py
+git add src/repodify/config.py tests/unit/test_config.py
 git commit -m "Add LLM_BACKEND / Ollama config settings"
 ```
 
@@ -86,7 +86,7 @@ git commit -m "Add LLM_BACKEND / Ollama config settings"
 ### Task 2: OllamaStructuredLLM adapter
 
 **Files:**
-- Modify: `src/podcast_compactor/ports/llm.py`
+- Modify: `src/repodify/ports/llm.py`
 - Modify: `pyproject.toml` (add `langchain-ollama` to core deps, via `uv add`)
 - Test: `tests/unit/ports/test_llm_ollama.py` (create)
 
@@ -107,8 +107,8 @@ Create `tests/unit/ports/test_llm_ollama.py`:
 import sys
 import types
 
-from podcast_compactor.models.domain import EpisodeSummary
-from podcast_compactor.ports.llm import OllamaStructuredLLM, StructuredLLM
+from repodify.models.domain import EpisodeSummary
+from repodify.ports.llm import OllamaStructuredLLM, StructuredLLM
 
 
 def test_ollama_satisfies_protocol():
@@ -157,7 +157,7 @@ Expected: FAIL — `ImportError: cannot import name 'OllamaStructuredLLM'`.
 
 - [ ] **Step 4: Implement the adapter**
 
-In `src/podcast_compactor/ports/llm.py`, add this class immediately after `AnthropicStructuredLLM` (before `FakeStructuredLLM`):
+In `src/repodify/ports/llm.py`, add this class immediately after `AnthropicStructuredLLM` (before `FakeStructuredLLM`):
 
 ```python
 class OllamaStructuredLLM:
@@ -184,7 +184,7 @@ Expected: PASS (both tests).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add pyproject.toml uv.lock src/podcast_compactor/ports/llm.py tests/unit/ports/test_llm_ollama.py
+git add pyproject.toml uv.lock src/repodify/ports/llm.py tests/unit/ports/test_llm_ollama.py
 git commit -m "Add OllamaStructuredLLM adapter via langchain-ollama"
 ```
 
@@ -193,7 +193,7 @@ git commit -m "Add OllamaStructuredLLM adapter via langchain-ollama"
 ### Task 3: Backend selection in the worker composition root
 
 **Files:**
-- Modify: `src/podcast_compactor/worker/main.py`
+- Modify: `src/repodify/worker/main.py`
 - Test: `tests/unit/worker/test_build_real_llms.py` (create)
 
 **Interfaces:**
@@ -207,9 +207,9 @@ Create `tests/unit/worker/test_build_real_llms.py`:
 ```python
 import pytest
 
-from podcast_compactor.config import Settings
-from podcast_compactor.ports.llm import AnthropicStructuredLLM, OllamaStructuredLLM
-from podcast_compactor.worker.main import _build_real_llms
+from repodify.config import Settings
+from repodify.ports.llm import AnthropicStructuredLLM, OllamaStructuredLLM
+from repodify.worker.main import _build_real_llms
 
 
 def test_ollama_backend_needs_no_api_key():
@@ -259,10 +259,10 @@ Expected: FAIL — `ImportError: cannot import name '_build_real_llms'`.
 
 - [ ] **Step 3: Add the helper**
 
-In `src/podcast_compactor/worker/main.py`, add the `StructuredLLM` import near the other `ports` imports at the top of the file:
+In `src/repodify/worker/main.py`, add the `StructuredLLM` import near the other `ports` imports at the top of the file:
 
 ```python
-from podcast_compactor.ports.llm import StructuredLLM
+from repodify.ports.llm import StructuredLLM
 ```
 
 Then add this function above `build_deps`:
@@ -271,11 +271,11 @@ Then add this function above `build_deps`:
 def _build_real_llms(settings: Settings) -> tuple[StructuredLLM, StructuredLLM]:
     """Return (llm_map, llm_reduce) for the real path per settings.llm_backend."""
     if settings.llm_backend == "ollama":
-        from podcast_compactor.ports.llm import OllamaStructuredLLM
+        from repodify.ports.llm import OllamaStructuredLLM
 
         llm = OllamaStructuredLLM(settings.ollama_model, settings.ollama_base_url)
         return llm, llm  # one local model serves both map and reduce
-    from podcast_compactor.ports.llm import AnthropicStructuredLLM
+    from repodify.ports.llm import AnthropicStructuredLLM
 
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is required when LLM_BACKEND=anthropic")
@@ -290,11 +290,11 @@ def _build_real_llms(settings: Settings) -> tuple[StructuredLLM, StructuredLLM]:
 In the `else` (real) branch of `build_deps`, replace the Anthropic-specific import, the key check, and the two `AnthropicStructuredLLM(...)` assignments with a call to the helper. The block currently reads:
 
 ```python
-        from podcast_compactor.ports.llm import AnthropicStructuredLLM
-        from podcast_compactor.synth.cloning import PyannoteVoiceCloner
-        from podcast_compactor.synth.f5_tts import F5TTS
-        from podcast_compactor.synth.watermark import AudioSealWatermarker
-        from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
+        from repodify.ports.llm import AnthropicStructuredLLM
+        from repodify.synth.cloning import PyannoteVoiceCloner
+        from repodify.synth.f5_tts import F5TTS
+        from repodify.synth.watermark import AudioSealWatermarker
+        from repodify.transcribe.faster_whisper import FasterWhisperTranscriber
 
         if not settings.anthropic_api_key:
             raise RuntimeError("ANTHROPIC_API_KEY is required when USE_FAKES=false")
@@ -306,10 +306,10 @@ In the `else` (real) branch of `build_deps`, replace the Anthropic-specific impo
 Change it to (drop the `AnthropicStructuredLLM` import and inline key check; construct the LLMs via the helper):
 
 ```python
-        from podcast_compactor.synth.cloning import PyannoteVoiceCloner
-        from podcast_compactor.synth.f5_tts import F5TTS
-        from podcast_compactor.synth.watermark import AudioSealWatermarker
-        from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
+        from repodify.synth.cloning import PyannoteVoiceCloner
+        from repodify.synth.f5_tts import F5TTS
+        from repodify.synth.watermark import AudioSealWatermarker
+        from repodify.transcribe.faster_whisper import FasterWhisperTranscriber
 
         transcriber = FasterWhisperTranscriber(settings.whisper_model)
         llm_map, llm_reduce = _build_real_llms(settings)
@@ -329,13 +329,13 @@ Expected: PASS (fake-mode compose test and all others unchanged).
 
 - [ ] **Step 7: Lint**
 
-Run: `uv run ruff check src/podcast_compactor/worker/main.py src/podcast_compactor/ports/llm.py src/podcast_compactor/config.py`
+Run: `uv run ruff check src/repodify/worker/main.py src/repodify/ports/llm.py src/repodify/config.py`
 Expected: no errors (unused `AnthropicStructuredLLM` import removed from `build_deps`).
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/podcast_compactor/worker/main.py tests/unit/worker/test_build_real_llms.py
+git add src/repodify/worker/main.py tests/unit/worker/test_build_real_llms.py
 git commit -m "Select LLM backend via _build_real_llms in composition root"
 ```
 

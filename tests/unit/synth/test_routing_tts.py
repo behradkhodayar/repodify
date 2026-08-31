@@ -3,8 +3,8 @@ import wave
 
 import pytest
 
-from podcast_compactor.ports.tts import SAMPLE_RATE, TTS, Voice
-from podcast_compactor.synth.routing_tts import RoutingTTS
+from repodify.ports.tts import SAMPLE_RATE, TTS, Voice
+from repodify.synth.routing_tts import RoutingTTS
 
 
 def _wav(seconds=0.1, rate=SAMPLE_RATE, channels=1, width=2):

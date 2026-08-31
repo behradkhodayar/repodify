@@ -1,18 +1,18 @@
-from podcast_compactor.models.domain import Transcript
-from podcast_compactor.ports.diarizer import FakeDiarizer
-from podcast_compactor.ports.llm import (
+from repodify.models.domain import Transcript
+from repodify.ports.diarizer import FakeDiarizer
+from repodify.ports.llm import (
     AnthropicStructuredLLM,
     FakeStructuredLLM,
     LocalStubLLM,
     OllamaStructuredLLM,
     OpenRouterStructuredLLM,
 )
-from podcast_compactor.ports.transcriber import FakeTranscriber
-from podcast_compactor.ports.tts import FakeTTS
-from podcast_compactor.synth.openrouter_tts import OpenRouterTTS
-from podcast_compactor.synth.routing_tts import RoutingTTS
-from podcast_compactor.transcribe.diarization import PyannoteDiarizer
-from podcast_compactor.transcribe.faster_whisper import FasterWhisperTranscriber
+from repodify.ports.transcriber import FakeTranscriber
+from repodify.ports.tts import FakeTTS
+from repodify.synth.openrouter_tts import OpenRouterTTS
+from repodify.synth.routing_tts import RoutingTTS
+from repodify.transcribe.diarization import PyannoteDiarizer
+from repodify.transcribe.faster_whisper import FasterWhisperTranscriber
 
 
 def test_fakes_have_empty_model_id():

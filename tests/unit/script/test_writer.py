@@ -1,14 +1,14 @@
 import pytest
 
-from podcast_compactor.models.domain import (
+from repodify.models.domain import (
     ArcBeat,
     ArcOutline,
     Script,
     ScriptSegment,
     Speaker,
 )
-from podcast_compactor.ports.llm import FakeStructuredLLM
-from podcast_compactor.script.writer import write_script
+from repodify.ports.llm import FakeStructuredLLM
+from repodify.script.writer import write_script
 
 
 def _arc() -> ArcOutline:

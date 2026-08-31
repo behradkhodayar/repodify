@@ -7,7 +7,7 @@ from pathlib import Path
 
 DIARIZATION = (
     Path(__file__).resolve().parents[3]
-    / "src/podcast_compactor/transcribe/diarization.py"
+    / "src/repodify/transcribe/diarization.py"
 )
 
 

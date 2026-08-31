@@ -1,4 +1,4 @@
-from podcast_compactor.ingest.feed import parse_feed
+from repodify.ingest.feed import parse_feed
 
 
 def test_parses_episodes_oldest_first(sample_feed_xml):

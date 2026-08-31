@@ -1,5 +1,5 @@
-from podcast_compactor.models.domain import JobOptions, VoiceAssignment
-from podcast_compactor.synth.voice_assignment import resolve_voice_assignments
+from repodify.models.domain import JobOptions, VoiceAssignment
+from repodify.synth.voice_assignment import resolve_voice_assignments
 
 CATALOG = ["voice_a", "voice_b"]
 

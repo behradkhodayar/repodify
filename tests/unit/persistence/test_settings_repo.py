@@ -1,9 +1,9 @@
 import pytest
 
-from podcast_compactor.models.db import AppSetting  # noqa: F401  (ensure the table exists)
-from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
-from podcast_compactor.persistence.settings_repo import SettingsRepository
-from podcast_compactor.ports.llm import LlmOverrides
+from repodify.models.db import AppSetting  # noqa: F401  (ensure the table exists)
+from repodify.persistence.engine import init_db, make_engine, session_factory
+from repodify.persistence.settings_repo import SettingsRepository
+from repodify.ports.llm import LlmOverrides
 
 
 @pytest.fixture

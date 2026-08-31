@@ -1,6 +1,6 @@
-from podcast_compactor.models.domain import TranscriptSegment
-from podcast_compactor.ports.diarizer import SpeakerTurn
-from podcast_compactor.transcribe.diarization import assign_speakers, roster_from_turns
+from repodify.models.domain import TranscriptSegment
+from repodify.ports.diarizer import SpeakerTurn
+from repodify.transcribe.diarization import assign_speakers, roster_from_turns
 
 
 def _seg(start, end, text="x"):

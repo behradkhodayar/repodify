@@ -21,7 +21,7 @@ export function Settings() {
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <PageHeader title="Settings" description="Configure how the web client talks to the cutcast API." />
+      <PageHeader title="Settings" description="Configure how the web client talks to the repodify API." />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

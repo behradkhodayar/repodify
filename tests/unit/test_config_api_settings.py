@@ -1,4 +1,4 @@
-from podcast_compactor.config import Settings
+from repodify.config import Settings
 
 
 def test_api_settings_defaults():

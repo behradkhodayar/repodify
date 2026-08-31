@@ -62,7 +62,7 @@ two new optional fields deserialize cleanly on existing jobs.
 
 ## Changes
 
-### 1. Domain model — `src/podcast_compactor/models/domain.py`
+### 1. Domain model — `src/repodify/models/domain.py`
 
 Add a module-level constant and two optional fields to `JobOptions`:
 
@@ -86,7 +86,7 @@ A free function `clean_prompt(s: str | None) -> str | None` in
 **inside** `with_guidance` and the chain/writer functions, so callers (the
 pipeline nodes) pass raw option values without pre-checking them.
 
-### 2. Transcript rendering — `src/podcast_compactor/models/domain.py`
+### 2. Transcript rendering — `src/repodify/models/domain.py`
 
 `speaker_labeled_text` stays as-is (a property, one caller). Add a sibling method
 that renders the same speaker-grouped text with a leading timestamp per turn:
@@ -110,7 +110,7 @@ Rules:
 Factor the shared grouping so the two renderings don't duplicate logic: a private
 helper yields `(speaker, start, text)` turns; each public renderer formats them.
 
-### 3. Prompt composition — `src/podcast_compactor/summarize/prompts.py`
+### 3. Prompt composition — `src/repodify/summarize/prompts.py`
 
 Add a helper that appends guidance to a base user prompt:
 
@@ -138,7 +138,7 @@ keep this simple, the block always tells the model that transcript lines may be
 timestamped `[MM:SS]` and it may act on time references. (Cheap, harmless when no
 times are mentioned.)
 
-### 4. Summarization chain — `src/podcast_compactor/summarize/chains.py`
+### 4. Summarization chain — `src/repodify/summarize/chains.py`
 
 `summarize_episode` gains optional guidance params and picks the transcript
 rendering accordingly:
@@ -163,7 +163,7 @@ def synthesize_arc(summaries, llm, *, whole_prompt: str | None = None) -> ArcOut
 
 - Wrap `ARC_USER` with `with_guidance(whole=whole_prompt)` when present.
 
-### 5. Script writer — `src/podcast_compactor/script/writer.py`
+### 5. Script writer — `src/repodify/script/writer.py`
 
 `write_script` gains an optional `whole_prompt`:
 
@@ -176,7 +176,7 @@ Apply `with_guidance(base_user, whole=whole_prompt)` to `base_user` **before** t
 attempt loop, so guidance is present on the initial draft and every expansion
 retry. The `SCRIPT_EXPAND` suffix continues to be appended after the guidance.
 
-### 6. Pipeline nodes — `src/podcast_compactor/pipeline/nodes.py`
+### 6. Pipeline nodes — `src/repodify/pipeline/nodes.py`
 
 `options` is already on `PipelineState`, so each node reads the prompts from it:
 
@@ -190,7 +190,7 @@ Nodes pass raw option values; `clean_prompt` (called inside the chain/writer
 functions) treats empty/whitespace as no guidance, and the timestamp-vs-plain
 transcript choice keys off whether cleaned guidance survives.
 
-### 7. API — `src/podcast_compactor/api/schemas.py` and `api/app.py`
+### 7. API — `src/repodify/api/schemas.py` and `api/app.py`
 
 `CreateJobRequest` gains:
 

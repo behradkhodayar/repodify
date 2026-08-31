@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the Phase 1 vertical slice of Podcast Compactor: a backend service that takes a podcast link, lets a user select episodes, and produces a single ~30-minute single-narrator digest audio file plus show notes — end to end.
+**Goal:** Build the Phase 1 vertical slice of Repodify: a backend service that takes a podcast link, lets a user select episodes, and produces a single ~30-minute single-narrator digest audio file plus show notes — end to end.
 
 **Architecture:** A LangGraph `StateGraph` drives an 8-stage pipeline (resolve → list → download → transcribe → summarize → arc → script → tts+assemble). Each ML-heavy stage sits behind a small port (Protocol) with a real implementation and a test fake, so the whole pipeline runs on CPU in tests while the real faster-whisper / F5-TTS implementations are used on a GPU host. A FastAPI app enqueues jobs onto arq/Redis; a worker runs the graph and records per-stage progress in SQLite/Postgres.
 
@@ -28,7 +28,7 @@ pyproject.toml                       # project + deps + [gpu] extra + pytest/ruf
 .env.example                         # documented settings
 README.md                            # run instructions
 docker-compose.yml                   # postgres + redis for local prod-like run
-src/podcast_compactor/
+src/repodify/
   __init__.py
   config.py                          # pydantic-settings Settings
   models/
@@ -83,15 +83,15 @@ tests/
 ## Task 1: Project scaffold
 
 **Files:**
-- Create: `pyproject.toml`, `.env.example`, `README.md`, `src/podcast_compactor/__init__.py`, `src/podcast_compactor/config.py`, `tests/conftest.py`, `tests/unit/test_config.py`
+- Create: `pyproject.toml`, `.env.example`, `README.md`, `src/repodify/__init__.py`, `src/repodify/config.py`, `tests/conftest.py`, `tests/unit/test_config.py`
 
 **Interfaces:**
-- Produces: `podcast_compactor.config.Settings` (pydantic-settings) with fields `anthropic_api_key: str | None`, `database_url: str = "sqlite:///./data/app.db"`, `redis_url: str`, `data_dir: Path = Path("data")`, `use_fakes: bool = True`, `whisper_model: str = "large-v3"`, `wpm: int = 130`, `map_model: str = "claude-haiku-4-5-20251001"`, `reduce_model: str = "claude-opus-4-8"`; `get_settings()` cached accessor.
+- Produces: `repodify.config.Settings` (pydantic-settings) with fields `anthropic_api_key: str | None`, `database_url: str = "sqlite:///./data/app.db"`, `redis_url: str`, `data_dir: Path = Path("data")`, `use_fakes: bool = True`, `whisper_model: str = "large-v3"`, `wpm: int = 130`, `map_model: str = "claude-haiku-4-5-20251001"`, `reduce_model: str = "claude-opus-4-8"`; `get_settings()` cached accessor.
 
 - [ ] **Step 1: Write failing test** — `tests/unit/test_config.py`
 
 ```python
-from podcast_compactor.config import Settings
+from repodify.config import Settings
 
 def test_settings_defaults(monkeypatch):
     monkeypatch.delenv("USE_FAKES", raising=False)
@@ -114,7 +114,7 @@ def test_settings_defaults(monkeypatch):
 ## Task 2: Domain models & enums
 
 **Files:**
-- Create: `src/podcast_compactor/models/enums.py`, `src/podcast_compactor/models/domain.py`, `tests/unit/models/test_domain.py`
+- Create: `src/repodify/models/enums.py`, `src/repodify/models/domain.py`, `tests/unit/models/test_domain.py`
 
 **Interfaces:**
 - Produces (enums): `StageName{RESOLVE,LIST,DOWNLOAD,TRANSCRIBE,SUMMARIZE,ARC,SCRIPT,TTS,ASSEMBLE}`, `JobStatus{QUEUED,RUNNING,COMPLETED,FAILED}`, `StageState{PENDING,RUNNING,DONE,SKIPPED,FAILED}` (all `str, Enum`).
@@ -141,7 +141,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 3: Storage port + filesystem impl
 
-**Files:** Create `src/podcast_compactor/storage/base.py`, `storage/filesystem.py`, `tests/unit/storage/test_filesystem.py`
+**Files:** Create `src/repodify/storage/base.py`, `storage/filesystem.py`, `tests/unit/storage/test_filesystem.py`
 
 **Interfaces:**
 - `class Storage(Protocol)`: `put_bytes(key:str, data:bytes)->str`, `get_bytes(key:str)->bytes`, `put_file(key:str, src:Path)->str`, `local_path(key:str)->Path`, `exists(key:str)->bool`. Returned `str` is a storage URI (`file://` absolute).
@@ -154,7 +154,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 4: Ingest — resolvers (link → RSS URL)
 
-**Files:** Create `src/podcast_compactor/ingest/resolvers.py`, `tests/unit/ingest/test_resolvers.py`
+**Files:** Create `src/repodify/ingest/resolvers.py`, `tests/unit/ingest/test_resolvers.py`
 
 **Interfaces:**
 - `class Resolver(Protocol)`: `matches(url:str)->bool`, `resolve(url:str, http:httpx.Client)->str` (returns RSS feed URL).
@@ -170,7 +170,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 5: Ingest — feed parsing
 
-**Files:** Create `src/podcast_compactor/ingest/feed.py`, `tests/fixtures/sample_feed.xml`, `tests/unit/ingest/test_feed.py`
+**Files:** Create `src/repodify/ingest/feed.py`, `tests/fixtures/sample_feed.xml`, `tests/unit/ingest/test_feed.py`
 
 **Interfaces:**
 - `parse_feed(source_url:str, rss_url:str, data:bytes)->Feed`. Uses `feedparser`. Episodes sorted oldest-first, `order_index` assigned 0..n. `audio_url` from first `enclosure`. `is_short_or_trailer` heuristic: `duration_s < 120` OR title matches `(?i)\b(trailer|teaser|bonus|intro)\b`. Entries without audio enclosure are dropped.
@@ -183,7 +183,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 6: Ingest — download
 
-**Files:** Create `src/podcast_compactor/ingest/download.py`, `tests/unit/ingest/test_download.py`
+**Files:** Create `src/repodify/ingest/download.py`, `tests/unit/ingest/test_download.py`
 
 **Interfaces:**
 - `download_episode(episode:Episode, storage:Storage, http:httpx.Client, job_id:str)->str` — streams `episode.audio_url` to `storage` key `f"{job_id}/audio/{episode.order_index}.mp3"`, returns storage URI. Raises `DownloadError` on non-200.
@@ -195,7 +195,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 7: Transcriber port + fake + faster-whisper
 
-**Files:** Create `src/podcast_compactor/ports/transcriber.py`, `src/podcast_compactor/transcribe/faster_whisper.py`, `tests/unit/ports/test_transcriber_fake.py`
+**Files:** Create `src/repodify/ports/transcriber.py`, `src/repodify/transcribe/faster_whisper.py`, `tests/unit/ports/test_transcriber_fake.py`
 
 **Interfaces:**
 - `class Transcriber(Protocol)`: `transcribe(audio_path:Path, language:str="en")->Transcript`.
@@ -209,7 +209,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 8: LLM port + Anthropic impl + fake
 
-**Files:** Create `src/podcast_compactor/ports/llm.py`, `tests/unit/ports/test_llm_fake.py`
+**Files:** Create `src/repodify/ports/llm.py`, `tests/unit/ports/test_llm_fake.py`
 
 **Interfaces:**
 - `class StructuredLLM(Protocol)`: `generate(system:str, user:str, schema:type[T])->T` (T bound to `pydantic.BaseModel`).
@@ -223,7 +223,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 9: Summarize — map (per-episode)
 
-**Files:** Create `src/podcast_compactor/summarize/prompts.py`, `summarize/chains.py`, `tests/unit/summarize/test_summarize_episode.py`
+**Files:** Create `src/repodify/summarize/prompts.py`, `summarize/chains.py`, `tests/unit/summarize/test_summarize_episode.py`
 
 **Interfaces:**
 - `summarize_episode(transcript:Transcript, title:str, order_index:int, llm:StructuredLLM)->EpisodeSummary`. Builds system+user prompt from `prompts.EPISODE_SYSTEM`/`EPISODE_USER.format(...)`, calls `llm.generate(system, user, EpisodeSummary)`, forces `episode_guid/title/order_index` onto the result.
@@ -247,7 +247,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 11: Script writer
 
-**Files:** Create `src/podcast_compactor/script/writer.py`, `tests/unit/script/test_writer.py`
+**Files:** Create `src/repodify/script/writer.py`, `tests/unit/script/test_writer.py`
 
 **Interfaces:**
 - `write_script(arc:ArcOutline, llm:StructuredLLM, target_minutes:int, wpm:int, host_count:int=1)->Script`. Passes `word_budget = target_minutes*wpm` into the prompt. Phase 1: `host_count==1` → all segments `speaker="narrator"`. Validates result is non-empty; logs a warning if `abs(word_count - word_budget)/word_budget > 0.25`.
@@ -259,7 +259,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 12: TTS port + fake + F5-TTS
 
-**Files:** Create `src/podcast_compactor/ports/tts.py`, `src/podcast_compactor/synth/f5_tts.py`, `tests/unit/ports/test_tts_fake.py`
+**Files:** Create `src/repodify/ports/tts.py`, `src/repodify/synth/f5_tts.py`, `tests/unit/ports/test_tts_fake.py`
 
 **Interfaces:**
 - `class Voice(BaseModel)`: `name:str`, `ref_audio_path:Path|None=None`, `ref_text:str|None=None`.
@@ -274,7 +274,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 13: Assemble — synthesize script + stitch + show notes
 
-**Files:** Create `src/podcast_compactor/synth/assemble.py`, `tests/unit/synth/test_assemble.py`
+**Files:** Create `src/repodify/synth/assemble.py`, `tests/unit/synth/test_assemble.py`
 
 **Interfaces:**
 - `synthesize_script(script:Script, tts:TTS, voices:dict[str,Voice])->list[bytes]` — one WAV per segment using `voices[segment.speaker]`.
@@ -289,7 +289,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 14: Persistence — DB models + repository
 
-**Files:** Create `src/podcast_compactor/models/db.py`, `src/podcast_compactor/persistence/engine.py`, `persistence/repo.py`, `tests/unit/persistence/test_repo.py`
+**Files:** Create `src/repodify/models/db.py`, `src/repodify/persistence/engine.py`, `persistence/repo.py`, `tests/unit/persistence/test_repo.py`
 
 **Interfaces:**
 - ORM: `Job{id:str pk, feed_url:str, status:str, current_stage:str|None, options_json:str, report_json:str, created_at, finished_at|None}`, `StageStatus{id, job_id fk, stage:str, state:str, detail:str|None, started_at|None, finished_at|None}`, `Artifact{id, job_id fk, kind:str, episode_guid:str|None, uri:str, created_at}`.
@@ -303,7 +303,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 15: Pipeline — state, deps, nodes, graph
 
-**Files:** Create `src/podcast_compactor/pipeline/state.py`, `pipeline/nodes.py`, `pipeline/graph.py`, `tests/integration/test_pipeline_end_to_end.py`
+**Files:** Create `src/repodify/pipeline/state.py`, `pipeline/nodes.py`, `pipeline/graph.py`, `tests/integration/test_pipeline_end_to_end.py`
 
 **Interfaces:**
 - `PipelineState(TypedDict, total=False)`: `job_id, options(JobOptions), feed(Feed), selected(list[Episode]), transcripts(dict[str,Transcript]), summaries(list[EpisodeSummary]), arc(ArcOutline), script(Script), output_uri(str), report(dict)`.
@@ -318,7 +318,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 16: API — schemas, routers, app
 
-**Files:** Create `src/podcast_compactor/api/schemas.py`, `api/routers.py`, `api/app.py`, `tests/unit/api/test_api.py`
+**Files:** Create `src/repodify/api/schemas.py`, `api/routers.py`, `api/app.py`, `tests/unit/api/test_api.py`
 
 **Interfaces:**
 - Schemas: `ResolveRequest{url}`, `EpisodeOut{...}`, `ResolveResponse{feed_title, rss_url, episodes:list[EpisodeOut]}`, `CreateJobRequest{feed_url, episode_ids:list[str], host_count=1, clone=False, target_minutes=30}`, `JobStatusResponse{id,status,current_stage,stages:list,report}`, `ResultResponse{output_audio_uri, show_notes, chapters}`.
@@ -332,7 +332,7 @@ def test_settings_defaults(monkeypatch):
 
 ## Task 17: Worker + composition root + docs
 
-**Files:** Create `src/podcast_compactor/worker/main.py`; modify `README.md`; create `docker-compose.yml`, `tests/unit/worker/test_compose.py`
+**Files:** Create `src/repodify/worker/main.py`; modify `README.md`; create `docker-compose.yml`, `tests/unit/worker/test_compose.py`
 
 **Interfaces:**
 - `build_deps(settings:Settings)->Deps` — composition root: picks fakes when `settings.use_fakes`, else real (`FasterWhisperTranscriber`, `AnthropicStructuredLLM` x2, `F5TTS`), always `FilesystemStorage(settings.data_dir)` + `JobRepository`. Ships a default narrator `Voice` (bundled reference clip path from settings).

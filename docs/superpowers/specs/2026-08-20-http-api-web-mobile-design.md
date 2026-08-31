@@ -6,7 +6,7 @@ Status: approved (pending spec review)
 ## 1. Goal
 
 Extend the existing FastAPI service so that a **web UI** and a **mobile app** can
-fully drive the podcast-compactor pipeline: submit jobs, watch progress, and play
+fully drive the repodify pipeline: submit jobs, watch progress, and play
 or download the finished digest. This effort is **backend only** — the client apps
 are separate, later projects. The API is the shared foundation both need.
 

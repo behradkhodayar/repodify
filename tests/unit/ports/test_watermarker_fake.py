@@ -1,8 +1,8 @@
 import io
 import wave
 
-from podcast_compactor.ports.tts import FakeTTS, Voice
-from podcast_compactor.ports.watermarker import FakeWatermarker, Watermarker
+from repodify.ports.tts import FakeTTS, Voice
+from repodify.ports.watermarker import FakeWatermarker, Watermarker
 
 
 def test_fake_watermarker_returns_valid_wav_and_records_call():

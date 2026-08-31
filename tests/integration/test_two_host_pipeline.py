@@ -6,12 +6,12 @@ import wave
 
 import respx
 
-from podcast_compactor.config import Settings
-from podcast_compactor.models.domain import JobOptions
-from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
-from podcast_compactor.persistence.repo import JobRepository
-from podcast_compactor.storage.filesystem import FilesystemStorage
-from podcast_compactor.worker.main import run_pipeline
+from repodify.config import Settings
+from repodify.models.domain import JobOptions
+from repodify.persistence.engine import init_db, make_engine, session_factory
+from repodify.persistence.repo import JobRepository
+from repodify.storage.filesystem import FilesystemStorage
+from repodify.worker.main import run_pipeline
 
 CASTBOX_PAGE = (
     '<link type="application/rss+xml" href="https://feed.example.com/feed.xml">'

@@ -39,7 +39,7 @@ export function Overview() {
               Turn long feeds into tight listens.
             </h2>
             <p className="text-sm text-muted-foreground">
-              Point cutcast at a podcast feed, pick the episodes, and get a short digest voiced by
+              Point repodify at a podcast feed, pick the episodes, and get a short digest voiced by
               the real cast.
             </p>
             <Button asChild variant="wave">

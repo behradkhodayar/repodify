@@ -2,7 +2,7 @@ from pathlib import Path
 
 from sqlalchemy.engine import make_url
 
-from podcast_compactor.config import Settings
+from repodify.config import Settings
 
 # The repo root, derived from this test file (tests/unit/test_config.py -> repo).
 # Persistence must anchor here regardless of the process working directory.
