@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from podcast_compactor.pipeline.progress import (
+from repodify.pipeline.progress import (
     DetailThrottler,
     format_bytes,
     format_percent,
@@ -38,7 +38,7 @@ def test_model_id_reads_public_attr():
 def test_throttler_emits_first_call_then_respects_interval(monkeypatch):
     emitted: list[str] = []
     now = {"t": 0.0}
-    monkeypatch.setattr("podcast_compactor.pipeline.progress.time.monotonic", lambda: now["t"])
+    monkeypatch.setattr("repodify.pipeline.progress.time.monotonic", lambda: now["t"])
 
     t = DetailThrottler(emitted.append, min_interval_s=0.4, min_pct_delta=2.0)
     t.update("a", pct=1.0)
@@ -51,7 +51,7 @@ def test_throttler_emits_first_call_then_respects_interval(monkeypatch):
 def test_throttler_emits_on_pct_jump_even_inside_interval(monkeypatch):
     emitted: list[str] = []
     now = {"t": 0.0}
-    monkeypatch.setattr("podcast_compactor.pipeline.progress.time.monotonic", lambda: now["t"])
+    monkeypatch.setattr("repodify.pipeline.progress.time.monotonic", lambda: now["t"])
 
     t = DetailThrottler(emitted.append, min_interval_s=1.0, min_pct_delta=2.0)
     t.update("a", pct=10.0)
@@ -63,7 +63,7 @@ def test_throttler_emits_on_pct_jump_even_inside_interval(monkeypatch):
 def test_throttler_flush_always_emits(monkeypatch):
     emitted: list[str] = []
     now = {"t": 0.0}
-    monkeypatch.setattr("podcast_compactor.pipeline.progress.time.monotonic", lambda: now["t"])
+    monkeypatch.setattr("repodify.pipeline.progress.time.monotonic", lambda: now["t"])
 
     t = DetailThrottler(emitted.append, min_interval_s=10.0, min_pct_delta=50.0)
     t.update("a", pct=1.0)

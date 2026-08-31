@@ -13,13 +13,13 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.app import create_app
-from podcast_compactor.config import Settings
-from podcast_compactor.models.domain import JobOptions
-from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
-from podcast_compactor.persistence.repo import JobRepository
-from podcast_compactor.storage.filesystem import FilesystemStorage
-from podcast_compactor.worker.main import run_pipeline, run_review_digest
+from repodify.api.app import create_app
+from repodify.config import Settings
+from repodify.models.domain import JobOptions
+from repodify.persistence.engine import init_db, make_engine, session_factory
+from repodify.persistence.repo import JobRepository
+from repodify.storage.filesystem import FilesystemStorage
+from repodify.worker.main import run_pipeline, run_review_digest
 
 
 def _resolve_fn(url, http):

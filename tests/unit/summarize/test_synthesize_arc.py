@@ -1,6 +1,6 @@
-from podcast_compactor.models.domain import ArcBeat, ArcOutline, EpisodeSummary
-from podcast_compactor.ports.llm import FakeStructuredLLM
-from podcast_compactor.summarize.chains import synthesize_arc
+from repodify.models.domain import ArcBeat, ArcOutline, EpisodeSummary
+from repodify.ports.llm import FakeStructuredLLM
+from repodify.summarize.chains import synthesize_arc
 
 
 def test_synthesize_arc_orders_summaries_chronologically():

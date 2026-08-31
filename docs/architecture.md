@@ -1,6 +1,6 @@
-# Podcast Compactor — System Architecture Reference
+# Repodify — System Architecture Reference
 
-A detailed, whole-system reference for how Podcast Compactor is built: its
+A detailed, whole-system reference for how Repodify is built: its
 components, the job lifecycle, the processing pipeline, the ports/adapters seams,
 persistence, the HTTP API, configuration, execution model, and deployment.
 
@@ -12,7 +12,7 @@ and [`superpowers/plans/`](superpowers/plans/).
 
 ## 1. Purpose & scope
 
-Podcast Compactor turns a podcast — or a chosen chronological stretch of it — into
+Repodify turns a podcast — or a chosen chronological stretch of it — into
 a single digest episode. A user pastes a podcast link, picks which episodes to
 include (oldest-first), and the service:
 
@@ -370,9 +370,9 @@ Artifact `kind`s recorded in the DB: `audio_download`, `reference_clip`,
 
 ## 13. Execution & deployment topology
 
-- **Processes:** an API (`uvicorn --factory podcast_compactor.api.app:build_default_app`)
+- **Processes:** an API (`uvicorn --factory repodify.api.app:build_default_app`)
   and one or more arq workers
-  (`arq podcast_compactor.worker.main.WorkerSettings`), plus Redis and a SQL DB.
+  (`arq repodify.worker.main.WorkerSettings`), plus Redis and a SQL DB.
   `docker-compose.yml` provides Redis (+ optional Postgres) for local runs.
 - **Scaling:** the API is stateless and horizontally scalable; workers scale with
   GPU availability (the pipeline is the bottleneck). Job handoff is via Redis, so

@@ -55,7 +55,7 @@ export function NewDigest() {
     <div className="space-y-6">
       <PageHeader
         title="New digest"
-        description="Point cutcast at a podcast feed, choose the episodes, and generate a short digest."
+        description="Point repodify at a podcast feed, choose the episodes, and generate a short digest."
       />
 
       <Card>

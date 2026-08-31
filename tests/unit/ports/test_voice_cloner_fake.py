@@ -2,9 +2,9 @@ import io
 import wave
 from pathlib import Path
 
-from podcast_compactor.models.domain import Transcript
-from podcast_compactor.ports.voice_cloner import FakeVoiceCloner, VoiceCloner
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.models.domain import Transcript
+from repodify.ports.voice_cloner import FakeVoiceCloner, VoiceCloner
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def test_fake_cloner_builds_a_voice_per_speaker(tmp_path):

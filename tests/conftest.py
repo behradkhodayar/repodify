@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
-from podcast_compactor.persistence.repo import JobRepository
+from repodify.persistence.engine import init_db, make_engine, session_factory
+from repodify.persistence.repo import JobRepository
 
 
 @pytest.fixture

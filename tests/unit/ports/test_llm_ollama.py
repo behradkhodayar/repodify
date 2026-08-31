@@ -1,8 +1,8 @@
 import sys
 import types
 
-from podcast_compactor.models.domain import EpisodeSummary
-from podcast_compactor.ports.llm import OllamaStructuredLLM, StructuredLLM
+from repodify.models.domain import EpisodeSummary
+from repodify.ports.llm import OllamaStructuredLLM, StructuredLLM
 
 
 def test_ollama_satisfies_protocol():

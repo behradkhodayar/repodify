@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from podcast_compactor.storage.base import Storage
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.storage.base import Storage
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def test_put_and_get_bytes_roundtrip(tmp_path):

@@ -1,11 +1,11 @@
 import httpx
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.app import create_app
-from podcast_compactor.config import Settings
-from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
-from podcast_compactor.persistence.settings_repo import SettingsRepository
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.api.app import create_app
+from repodify.config import Settings
+from repodify.persistence.engine import init_db, make_engine, session_factory
+from repodify.persistence.settings_repo import SettingsRepository
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def _resolve_fn(url, http):
@@ -55,7 +55,7 @@ def test_put_voice_settings_rejects_unknown_ids(repo, tmp_path):
 
 
 def test_voice_sample_returns_wav(repo, tmp_path):
-    from podcast_compactor.ports.tts import FakeTTS
+    from repodify.ports.tts import FakeTTS
 
     client = _client(repo, tmp_path, tts=FakeTTS())
     r = client.get("/voices/af_heart/sample")

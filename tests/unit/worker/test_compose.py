@@ -1,11 +1,11 @@
-from podcast_compactor.config import Settings
-from podcast_compactor.ports.diarizer import FakeDiarizer
-from podcast_compactor.ports.llm import LocalStubLLM
-from podcast_compactor.ports.transcriber import FakeTranscriber
-from podcast_compactor.ports.tts import FakeTTS
-from podcast_compactor.ports.voice_cloner import FakeVoiceCloner
-from podcast_compactor.ports.watermarker import FakeWatermarker
-from podcast_compactor.worker.main import build_deps
+from repodify.config import Settings
+from repodify.ports.diarizer import FakeDiarizer
+from repodify.ports.llm import LocalStubLLM
+from repodify.ports.transcriber import FakeTranscriber
+from repodify.ports.tts import FakeTTS
+from repodify.ports.voice_cloner import FakeVoiceCloner
+from repodify.ports.watermarker import FakeWatermarker
+from repodify.worker.main import build_deps
 
 
 def test_build_deps_uses_fakes_in_fake_mode(tmp_path):

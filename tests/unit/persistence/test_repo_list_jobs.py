@@ -1,4 +1,4 @@
-from podcast_compactor.models.domain import JobOptions
+from repodify.models.domain import JobOptions
 
 
 def test_list_jobs_newest_first_with_total(repo):

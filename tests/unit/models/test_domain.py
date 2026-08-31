@@ -1,6 +1,6 @@
 import pytest
 
-from podcast_compactor.models.domain import (
+from repodify.models.domain import (
     JobOptions,
     MAX_PROMPT_CHARS,
     Script,
@@ -9,7 +9,7 @@ from podcast_compactor.models.domain import (
     Transcript,
     TranscriptSegment,
 )
-from podcast_compactor.models.enums import JobStatus, StageName, StageState
+from repodify.models.enums import JobStatus, StageName, StageState
 
 
 def test_transcript_text_joins_segments():

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from podcast_compactor.models.domain import Speaker, Transcript, TranscriptSegment
-from podcast_compactor.synth.gender import estimate_cast_registers
+from repodify.models.domain import Speaker, Transcript, TranscriptSegment
+from repodify.synth.gender import estimate_cast_registers
 
 pytestmark = pytest.mark.skipif(
     importlib.util.find_spec("librosa") is None, reason="librosa not installed"

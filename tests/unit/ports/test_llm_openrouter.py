@@ -1,4 +1,4 @@
-from podcast_compactor.ports.llm import OpenRouterStructuredLLM, StructuredLLM
+from repodify.ports.llm import OpenRouterStructuredLLM, StructuredLLM
 
 
 def test_openrouter_llm_stores_config_and_satisfies_the_port():

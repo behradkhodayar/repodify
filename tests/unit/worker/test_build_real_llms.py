@@ -1,13 +1,13 @@
 import pytest
 
-from podcast_compactor.config import Settings
-from podcast_compactor.ports.llm import (
+from repodify.config import Settings
+from repodify.ports.llm import (
     AnthropicStructuredLLM,
     LlmOverrides,
     OllamaStructuredLLM,
     OpenRouterStructuredLLM,
 )
-from podcast_compactor.worker.main import _build_real_llms
+from repodify.worker.main import _build_real_llms
 
 
 def test_ollama_backend_needs_no_api_key():

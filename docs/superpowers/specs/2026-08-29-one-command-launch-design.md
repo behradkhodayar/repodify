@@ -2,7 +2,7 @@
 
 ## Goal
 
-A single command that stands up the entire cutcast stack — infrastructure,
+A single command that stands up the entire repodify stack — infrastructure,
 Python API, worker, and the web PWA — on a developer or user machine, doing
 whatever first-time setup is required along the way. It must be robust to the
 common real-world snags: no GPU, missing API keys, and occupied ports.
@@ -152,8 +152,8 @@ compose health status until `healthy` (bounded timeout, clear error on failure).
 Start concurrently, each piped through a colored `[label]` prefixer so logs
 interleave readably:
 
-- `[api]` — `uv run uvicorn --factory podcast_compactor.api.app:build_default_app --port <api_port>`
-- `[worker]` — `uv run arq podcast_compactor.worker.main.WorkerSettings`
+- `[api]` — `uv run uvicorn --factory repodify.api.app:build_default_app --port <api_port>`
+- `[worker]` — `uv run arq repodify.worker.main.WorkerSettings`
 - `[web]` — `npm --prefix web run dev -- --port <vite_port> --strictPort`
 
 A `trap` on `INT`/`TERM`/`EXIT` tears down all three (kill the process group).

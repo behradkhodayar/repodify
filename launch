@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# cutcast one-command launcher. Runs from the repo root regardless of CWD.
+# repodify one-command launcher. Runs from the repo root regardless of CWD.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
@@ -10,7 +10,7 @@ WITH_POSTGRES=0
 
 usage() {
   cat <<'EOF'
-cutcast launcher — set up and run the whole stack with one command.
+repodify launcher — set up and run the whole stack with one command.
 
 Usage: ./launch [options]
 
@@ -79,11 +79,11 @@ parse_flags() {
   done
 }
 
-# 0 (true) if a CUDA GPU is available. CUTCAST_GPU_OVERRIDE forces the answer
+# 0 (true) if a CUDA GPU is available. REPODIFY_GPU_OVERRIDE forces the answer
 # for tests: "1" => available, "0" => not.
 gpu_available() {
-  if [[ -n "${CUTCAST_GPU_OVERRIDE:-}" ]]; then
-    [[ "$CUTCAST_GPU_OVERRIDE" == "1" ]]
+  if [[ -n "${REPODIFY_GPU_OVERRIDE:-}" ]]; then
+    [[ "$REPODIFY_GPU_OVERRIDE" == "1" ]]
     return
   fi
   command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
@@ -284,7 +284,7 @@ scan_ports() {
   if [[ "${WITH_POSTGRES:-0}" == "1" ]]; then
     POSTGRES_HOST_PORT="$(compose_published_port postgres 5432)"
     [[ -n "$POSTGRES_HOST_PORT" ]] || { POSTGRES_HOST_PORT="$(free_port "$want_pg")"; _note_port Postgres "$want_pg" "$POSTGRES_HOST_PORT"; }
-    DATABASE_URL="postgresql+psycopg://podcast:podcast@localhost:${POSTGRES_HOST_PORT}/podcast_compactor"
+    DATABASE_URL="postgresql+psycopg://repodify:repodify@localhost:${POSTGRES_HOST_PORT}/repodify"
     export POSTGRES_HOST_PORT DATABASE_URL
   fi
 }
@@ -293,7 +293,7 @@ print_summary() {
   local mode="$1"
   cat >&2 <<EOF
 
-  cutcast is up — mode: ${mode}
+  repodify is up — mode: ${mode}
   ------------------------------------------------------------
   API           http://localhost:${API_PORT}
   Built app     http://localhost:${API_PORT}/app/
@@ -337,9 +337,9 @@ run_processes() {
   # Reset the traps first so the group-wide signal doesn't re-enter this handler.
   trap 'trap - INT TERM; echo >&2; echo "launch: stopping…" >&2; kill 0' INT TERM
 
-  ( uv run uvicorn --factory podcast_compactor.api.app:build_default_app \
+  ( uv run uvicorn --factory repodify.api.app:build_default_app \
       --port "$API_PORT" 2>&1 | _prefix api $'\033[36m' ) &
-  ( uv run arq podcast_compactor.worker.main.WorkerSettings 2>&1 | _prefix worker $'\033[35m' ) &
+  ( uv run arq repodify.worker.main.WorkerSettings 2>&1 | _prefix worker $'\033[35m' ) &
   ( npm --prefix web run dev -- --port "$VITE_PORT" --strictPort 2>&1 | _prefix web $'\033[32m' ) &
 
   wait

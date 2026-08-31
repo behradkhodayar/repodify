@@ -3,14 +3,14 @@ import wave
 
 import pytest
 
-from podcast_compactor.models.domain import (
+from repodify.models.domain import (
     ArcBeat,
     ArcOutline,
     Script,
     ScriptSegment,
 )
-from podcast_compactor.ports.tts import FakeTTS, Voice
-from podcast_compactor.synth.assemble import (
+from repodify.ports.tts import FakeTTS, Voice
+from repodify.synth.assemble import (
     assemble_wav,
     build_show_notes,
     disclaimer_segment,

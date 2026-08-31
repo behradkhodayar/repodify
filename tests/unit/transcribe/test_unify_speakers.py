@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from podcast_compactor.ports.diarizer import DiarizationResult, SpeakerTurn
-from podcast_compactor.transcribe.diarization import unify_speakers_across_episodes
+from repodify.ports.diarizer import DiarizationResult, SpeakerTurn
+from repodify.transcribe.diarization import unify_speakers_across_episodes
 
 # Two well-separated voices; small jitter keeps same-person vectors close.
 A, A2 = [1.0, 0.0], [0.98, 0.05]

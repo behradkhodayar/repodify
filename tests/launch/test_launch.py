@@ -88,22 +88,22 @@ def run_env(*args: str, env_extra: dict[str, str]):
 
 
 def test_resolve_mode_fake_flag_wins() -> None:
-    out = run_env("__resolve-mode", "--fake", env_extra={"CUTCAST_GPU_OVERRIDE": "1"})
+    out = run_env("__resolve-mode", "--fake", env_extra={"REPODIFY_GPU_OVERRIDE": "1"})
     assert out.stdout.strip() == "fake"
 
 
 def test_resolve_mode_gpu_present_is_real_gpu() -> None:
-    out = run_env("__resolve-mode", env_extra={"CUTCAST_GPU_OVERRIDE": "1"})
+    out = run_env("__resolve-mode", env_extra={"REPODIFY_GPU_OVERRIDE": "1"})
     assert out.stdout.strip() == "real-gpu"
 
 
 def test_resolve_mode_no_gpu_is_real_byok() -> None:
-    out = run_env("__resolve-mode", env_extra={"CUTCAST_GPU_OVERRIDE": "0"})
+    out = run_env("__resolve-mode", env_extra={"REPODIFY_GPU_OVERRIDE": "0"})
     assert out.stdout.strip() == "real-byok"
 
 
 def test_resolve_mode_real_flag_without_gpu_is_real_byok() -> None:
-    out = run_env("__resolve-mode", "--real", env_extra={"CUTCAST_GPU_OVERRIDE": "0"})
+    out = run_env("__resolve-mode", "--real", env_extra={"REPODIFY_GPU_OVERRIDE": "0"})
     assert out.stdout.strip() == "real-byok"
 
 

@@ -33,7 +33,7 @@ schema-constrained decoding. This is the direct analog of the Anthropic adapter.
 
 ## Changes
 
-### 1. Config — `src/podcast_compactor/config.py`
+### 1. Config — `src/repodify/config.py`
 
 Add three settings (all env-overridable, `.env`-driven like the rest):
 
@@ -45,7 +45,7 @@ Add three settings (all env-overridable, `.env`-driven like the rest):
 
 `map_model` / `reduce_model` are ignored when `llm_backend == "ollama"`.
 
-### 2. Port — `src/podcast_compactor/ports/llm.py`
+### 2. Port — `src/repodify/ports/llm.py`
 
 Add `OllamaStructuredLLM` alongside `AnthropicStructuredLLM`, same shape:
 
@@ -68,7 +68,7 @@ class OllamaStructuredLLM:
 Lazy import keeps `ports/llm.py` importable without `langchain-ollama` present
 (consistent with the Anthropic adapter's lazy import).
 
-### 3. Wiring — `src/podcast_compactor/worker/main.py`
+### 3. Wiring — `src/repodify/worker/main.py`
 
 Extract LLM construction from `build_deps`' real branch into a small helper so
 backend selection is testable without triggering the GPU STT/TTS imports:
@@ -77,11 +77,11 @@ backend selection is testable without triggering the GPU STT/TTS imports:
 def _build_real_llms(settings: Settings) -> tuple[StructuredLLM, StructuredLLM]:
     """Return (map_llm, reduce_llm) for the real path, per settings.llm_backend."""
     if settings.llm_backend == "ollama":
-        from podcast_compactor.ports.llm import OllamaStructuredLLM
+        from repodify.ports.llm import OllamaStructuredLLM
         llm = OllamaStructuredLLM(settings.ollama_model, settings.ollama_base_url)
         return llm, llm  # one 7B model for both map and reduce
     # default: anthropic
-    from podcast_compactor.ports.llm import AnthropicStructuredLLM
+    from repodify.ports.llm import AnthropicStructuredLLM
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is required when LLM_BACKEND=anthropic")
     return (

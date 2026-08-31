@@ -11,8 +11,8 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
-          name: 'cutcast',
-          short_name: 'cutcast',
+          name: 'repodify',
+          short_name: 'repodify',
           start_url: '/app/',
           scope: '/app/',
           display: 'standalone',

@@ -2,9 +2,9 @@ import httpx
 import pytest
 import respx
 
-from podcast_compactor.ingest.download import DownloadError, download_episode
-from podcast_compactor.models.domain import Episode
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.ingest.download import DownloadError, download_episode
+from repodify.models.domain import Episode
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def _episode() -> Episode:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_compactor.synth.transcode import FfmpegTranscoder
+from repodify.synth.transcode import FfmpegTranscoder
 
 
 def _tiny_wav(path: Path) -> None:

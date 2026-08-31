@@ -21,8 +21,8 @@
 ## Task 1: Dialogue prompt + two-host script writer
 
 **Files:**
-- Modify: `src/podcast_compactor/summarize/prompts.py` (add `SCRIPT_DIALOGUE_SYSTEM`, `SCRIPT_DIALOGUE_USER`)
-- Modify: `src/podcast_compactor/script/writer.py`
+- Modify: `src/repodify/summarize/prompts.py` (add `SCRIPT_DIALOGUE_SYSTEM`, `SCRIPT_DIALOGUE_USER`)
+- Modify: `src/repodify/script/writer.py`
 - Modify: `tests/unit/script/test_writer.py`
 
 **Interfaces:**
@@ -72,9 +72,9 @@ def test_write_script_rejects_three_hosts():
 ## Task 2: Stock host voices in config + composition root
 
 **Files:**
-- Modify: `src/podcast_compactor/config.py` (add `host_a_ref_audio/text`, `host_b_ref_audio/text`)
-- Modify: `src/podcast_compactor/worker/main.py` (`build_deps` voices)
-- Modify: `src/podcast_compactor/ports/llm.py` (`LocalStubLLM` Script branch → alternating hosts)
+- Modify: `src/repodify/config.py` (add `host_a_ref_audio/text`, `host_b_ref_audio/text`)
+- Modify: `src/repodify/worker/main.py` (`build_deps` voices)
+- Modify: `src/repodify/ports/llm.py` (`LocalStubLLM` Script branch → alternating hosts)
 - Modify: `.env.example`
 - Modify: `tests/unit/worker/test_compose.py`
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from podcast_compactor.ports.transcoder import FakeTranscoder
+from repodify.ports.transcoder import FakeTranscoder
 
 
 def test_fake_transcoder_writes_a_nonempty_stub(tmp_path: Path):

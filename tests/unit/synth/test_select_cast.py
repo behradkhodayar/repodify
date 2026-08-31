@@ -1,5 +1,5 @@
-from podcast_compactor.models.domain import Speaker, Transcript
-from podcast_compactor.synth.voice_assignment import select_cast
+from repodify.models.domain import Speaker, Transcript
+from repodify.synth.voice_assignment import select_cast
 
 
 def _t(*ids):

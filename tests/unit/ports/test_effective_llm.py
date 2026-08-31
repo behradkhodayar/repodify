@@ -1,5 +1,5 @@
-from podcast_compactor.config import Settings
-from podcast_compactor.ports.llm import LLM_BACKENDS, EffectiveLlm, LlmOverrides, effective_llm
+from repodify.config import Settings
+from repodify.ports.llm import LLM_BACKENDS, EffectiveLlm, LlmOverrides, effective_llm
 
 
 def _settings() -> Settings:

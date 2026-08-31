@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "podcast-compactor"
+name = "repodify"
 version = "0.1.0"
 description = "Turn a podcast into a ~30-minute chronological digest episode."
 readme = "README.md"

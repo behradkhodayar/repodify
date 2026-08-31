@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.auth import make_require_token
+from repodify.api.auth import make_require_token
 
 
 def _client(token):

@@ -25,7 +25,7 @@
 ### Task 1: Transcoder port + FakeTranscoder
 
 **Files:**
-- Create: `src/podcast_compactor/ports/transcoder.py`
+- Create: `src/repodify/ports/transcoder.py`
 - Test: `tests/unit/ports/test_transcoder_fake.py`
 
 **Interfaces:**
@@ -37,7 +37,7 @@
 # tests/unit/ports/test_transcoder_fake.py
 from pathlib import Path
 
-from podcast_compactor.ports.transcoder import FakeTranscoder
+from repodify.ports.transcoder import FakeTranscoder
 
 
 def test_fake_transcoder_writes_a_nonempty_stub(tmp_path: Path):
@@ -54,12 +54,12 @@ def test_fake_transcoder_writes_a_nonempty_stub(tmp_path: Path):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/ports/test_transcoder_fake.py -v`
-Expected: FAIL — `ModuleNotFoundError: podcast_compactor.ports.transcoder`.
+Expected: FAIL — `ModuleNotFoundError: repodify.ports.transcoder`.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# src/podcast_compactor/ports/transcoder.py
+# src/repodify/ports/transcoder.py
 """The Transcoder port and a test fake."""
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/ports/transcoder.py tests/unit/ports/test_transcoder_fake.py
+git add src/repodify/ports/transcoder.py tests/unit/ports/test_transcoder_fake.py
 git commit -m "Add Transcoder port and fake"
 ```
 
@@ -100,7 +100,7 @@ git commit -m "Add Transcoder port and fake"
 ### Task 2: FfmpegTranscoder (real adapter)
 
 **Files:**
-- Create: `src/podcast_compactor/synth/transcode.py`
+- Create: `src/repodify/synth/transcode.py`
 - Test: `tests/unit/synth/test_transcode.py`
 
 **Interfaces:**
@@ -118,7 +118,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_compactor.synth.transcode import FfmpegTranscoder
+from repodify.synth.transcode import FfmpegTranscoder
 
 
 def _tiny_wav(path: Path) -> None:
@@ -144,12 +144,12 @@ def test_ffmpeg_transcoder_produces_a_nonempty_mp3(tmp_path: Path):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/synth/test_transcode.py -v`
-Expected: FAIL — `ModuleNotFoundError: podcast_compactor.synth.transcode`.
+Expected: FAIL — `ModuleNotFoundError: repodify.synth.transcode`.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# src/podcast_compactor/synth/transcode.py
+# src/repodify/synth/transcode.py
 """ffmpeg-backed Transcoder (real adapter; requires the `ffmpeg` binary)."""
 
 from __future__ import annotations
@@ -186,7 +186,7 @@ Expected: PASS (a real mp3 is produced).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/synth/transcode.py tests/unit/synth/test_transcode.py
+git add src/repodify/synth/transcode.py tests/unit/synth/test_transcode.py
 git commit -m "Add ffmpeg Transcoder adapter"
 ```
 
@@ -195,9 +195,9 @@ git commit -m "Add ffmpeg Transcoder adapter"
 ### Task 3: Produce mp3 in the assemble stage
 
 **Files:**
-- Modify: `src/podcast_compactor/pipeline/state.py` (add `transcoder` to `Deps`)
-- Modify: `src/podcast_compactor/pipeline/nodes.py:214-243` (assemble section)
-- Modify: `src/podcast_compactor/worker/main.py` (wire transcoder in `build_deps`)
+- Modify: `src/repodify/pipeline/state.py` (add `transcoder` to `Deps`)
+- Modify: `src/repodify/pipeline/nodes.py:214-243` (assemble section)
+- Modify: `src/repodify/worker/main.py` (wire transcoder in `build_deps`)
 - Modify: `tests/integration/test_pipeline_end_to_end.py` (pass `transcoder`, assert mp3)
 - Modify: `tests/integration/test_pipeline_releases_gpu.py` (pass `transcoder`)
 
@@ -210,7 +210,7 @@ git commit -m "Add ffmpeg Transcoder adapter"
 In `tests/integration/test_pipeline_end_to_end.py`, add the import:
 
 ```python
-from podcast_compactor.ports.transcoder import FakeTranscoder
+from repodify.ports.transcoder import FakeTranscoder
 ```
 
 Add `transcoder=FakeTranscoder(),` to the `Deps(...)` construction (alongside the other deps), then add these assertions after the existing `kinds` block:
@@ -227,10 +227,10 @@ Expected: FAIL — `TypeError: Deps.__init__() missing ... 'transcoder'` (after 
 
 - [ ] **Step 3: Add the `transcoder` field to `Deps`**
 
-In `src/podcast_compactor/pipeline/state.py`, add the import and the field. Place `transcoder` **before** `intro_outro` (a dataclass can't have a non-default field after a default one):
+In `src/repodify/pipeline/state.py`, add the import and the field. Place `transcoder` **before** `intro_outro` (a dataclass can't have a non-default field after a default one):
 
 ```python
-from podcast_compactor.ports.transcoder import Transcoder
+from repodify.ports.transcoder import Transcoder
 ```
 
 ```python
@@ -242,7 +242,7 @@ from podcast_compactor.ports.transcoder import Transcoder
 
 - [ ] **Step 4: Call the transcoder in the assemble node**
 
-In `src/podcast_compactor/pipeline/nodes.py`, in `synth_node`'s ASSEMBLE block, immediately after
+In `src/repodify/pipeline/nodes.py`, in `synth_node`'s ASSEMBLE block, immediately after
 `output_uri = deps.storage.put_bytes(f"{job_id}/output/digest.wav", wav)` (line 220), insert:
 
 ```python
@@ -260,14 +260,14 @@ And after `repo.add_artifact(job_id, "output_audio", output_uri)` (line 234), in
 
 - [ ] **Step 5: Wire the transcoder in `build_deps`**
 
-In `src/podcast_compactor/worker/main.py`: in the `use_fakes` branch add
-`from podcast_compactor.ports.transcoder import FakeTranscoder` and `transcoder = FakeTranscoder()`;
-in the real branch add `from podcast_compactor.synth.transcode import FfmpegTranscoder` and
+In `src/repodify/worker/main.py`: in the `use_fakes` branch add
+`from repodify.ports.transcoder import FakeTranscoder` and `transcoder = FakeTranscoder()`;
+in the real branch add `from repodify.synth.transcode import FfmpegTranscoder` and
 `transcoder = FfmpegTranscoder()`. Then add `transcoder=transcoder,` to the `return Deps(...)` call.
 
 - [ ] **Step 6: Fix the other integration Deps construction**
 
-In `tests/integration/test_pipeline_releases_gpu.py`, add `from podcast_compactor.ports.transcoder import FakeTranscoder` and `transcoder=FakeTranscoder(),` to its `Deps(...)` construction.
+In `tests/integration/test_pipeline_releases_gpu.py`, add `from repodify.ports.transcoder import FakeTranscoder` and `transcoder=FakeTranscoder(),` to its `Deps(...)` construction.
 
 - [ ] **Step 7: Run the tests**
 
@@ -277,8 +277,8 @@ Expected: PASS (both integration tests green; mp3 artifact asserted).
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/podcast_compactor/pipeline/state.py src/podcast_compactor/pipeline/nodes.py \
-        src/podcast_compactor/worker/main.py tests/integration/test_pipeline_end_to_end.py \
+git add src/repodify/pipeline/state.py src/repodify/pipeline/nodes.py \
+        src/repodify/worker/main.py tests/integration/test_pipeline_end_to_end.py \
         tests/integration/test_pipeline_releases_gpu.py
 git commit -m "Transcode the digest to mp3 in the assemble stage"
 ```
@@ -288,7 +288,7 @@ git commit -m "Transcode the digest to mp3 in the assemble stage"
 ### Task 4: API settings (token + CORS origins)
 
 **Files:**
-- Modify: `src/podcast_compactor/config.py`
+- Modify: `src/repodify/config.py`
 - Test: `tests/unit/test_config_api_settings.py`
 
 **Interfaces:**
@@ -298,7 +298,7 @@ git commit -m "Transcode the digest to mp3 in the assemble stage"
 
 ```python
 # tests/unit/test_config_api_settings.py
-from podcast_compactor.config import Settings
+from repodify.config import Settings
 
 
 def test_api_settings_defaults():
@@ -319,7 +319,7 @@ Expected: FAIL — `AttributeError: 'Settings' object has no attribute 'api_toke
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `src/podcast_compactor/config.py`, add after the `hf_token` field:
+In `src/repodify/config.py`, add after the `hf_token` field:
 
 ```python
     # HTTP API
@@ -335,7 +335,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/config.py tests/unit/test_config_api_settings.py
+git add src/repodify/config.py tests/unit/test_config_api_settings.py
 git commit -m "Add api_token and cors_allow_origins settings"
 ```
 
@@ -344,7 +344,7 @@ git commit -m "Add api_token and cors_allow_origins settings"
 ### Task 5: Bearer-token auth dependency
 
 **Files:**
-- Create: `src/podcast_compactor/api/auth.py`
+- Create: `src/repodify/api/auth.py`
 - Test: `tests/unit/api/test_auth.py`
 
 **Interfaces:**
@@ -357,7 +357,7 @@ git commit -m "Add api_token and cors_allow_origins settings"
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.auth import make_require_token
+from repodify.api.auth import make_require_token
 
 
 def _client(token):
@@ -391,12 +391,12 @@ def test_disabled_when_token_is_none():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/api/test_auth.py -v`
-Expected: FAIL — `ModuleNotFoundError: podcast_compactor.api.auth`.
+Expected: FAIL — `ModuleNotFoundError: repodify.api.auth`.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# src/podcast_compactor/api/auth.py
+# src/repodify/api/auth.py
 """Bearer-token auth dependency for the single-user API."""
 
 from __future__ import annotations
@@ -433,7 +433,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/api/auth.py tests/unit/api/test_auth.py
+git add src/repodify/api/auth.py tests/unit/api/test_auth.py
 git commit -m "Add bearer-token auth dependency"
 ```
 
@@ -442,7 +442,7 @@ git commit -m "Add bearer-token auth dependency"
 ### Task 6: `JobRepository.list_jobs`
 
 **Files:**
-- Modify: `src/podcast_compactor/persistence/repo.py`
+- Modify: `src/repodify/persistence/repo.py`
 - Test: `tests/unit/persistence/test_repo_list_jobs.py`
 
 **Interfaces:**
@@ -452,7 +452,7 @@ git commit -m "Add bearer-token auth dependency"
 
 ```python
 # tests/unit/persistence/test_repo_list_jobs.py
-from podcast_compactor.models.domain import JobOptions
+from repodify.models.domain import JobOptions
 
 
 def test_list_jobs_newest_first_with_total(repo):
@@ -482,7 +482,7 @@ Note: `Job.created_at` defaults to `datetime.now(UTC)`; the three jobs are creat
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `src/podcast_compactor/persistence/repo.py`, change the import line
+In `src/repodify/persistence/repo.py`, change the import line
 `from sqlalchemy import select` to `from sqlalchemy import func, select`, then add this method:
 
 ```python
@@ -511,7 +511,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/persistence/repo.py tests/unit/persistence/test_repo_list_jobs.py
+git add src/repodify/persistence/repo.py tests/unit/persistence/test_repo_list_jobs.py
 git commit -m "Add JobRepository.list_jobs with total count"
 ```
 
@@ -520,7 +520,7 @@ git commit -m "Add JobRepository.list_jobs with total count"
 ### Task 7: Rewire `create_app` — storage/settings args, auth, CORS, /health, resolve 502
 
 **Files:**
-- Modify: `src/podcast_compactor/api/app.py`
+- Modify: `src/repodify/api/app.py`
 - Modify: `tests/unit/api/test_api.py` (update `create_app` calls; add /health + auth tests)
 
 **Interfaces:**
@@ -531,8 +531,8 @@ git commit -m "Add JobRepository.list_jobs with total count"
 
 ```python
 from fastapi import FastAPI
-from podcast_compactor.config import Settings
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.config import Settings
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def _app(repo, http, tmp_path, enqueue=lambda jid: None, token=None):
@@ -565,7 +565,7 @@ Expected: FAIL — `create_app()` got unexpected/again missing args, and `/healt
 
 - [ ] **Step 3: Rewrite `create_app` and `build_default_app`**
 
-Replace `src/podcast_compactor/api/app.py` with:
+Replace `src/repodify/api/app.py` with:
 
 ```python
 """FastAPI application factory.
@@ -583,9 +583,9 @@ import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from podcast_compactor.api.audio import audio_response
-from podcast_compactor.api.auth import make_require_token
-from podcast_compactor.api.schemas import (
+from repodify.api.audio import audio_response
+from repodify.api.auth import make_require_token
+from repodify.api.schemas import (
     CreateJobRequest,
     CreateJobResponse,
     EpisodeOut,
@@ -597,15 +597,15 @@ from podcast_compactor.api.schemas import (
     ResultResponse,
     StageOut,
 )
-from podcast_compactor.config import Settings, get_settings
-from podcast_compactor.ingest.feed import parse_feed
-from podcast_compactor.ingest.resolvers import resolve
-from podcast_compactor.models.domain import JobOptions
-from podcast_compactor.models.enums import JobStatus
-from podcast_compactor.persistence.engine import init_db, make_engine, session_factory
-from podcast_compactor.persistence.repo import JobRepository
-from podcast_compactor.storage.base import Storage
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.config import Settings, get_settings
+from repodify.ingest.feed import parse_feed
+from repodify.ingest.resolvers import resolve
+from repodify.models.domain import JobOptions
+from repodify.models.enums import JobStatus
+from repodify.persistence.engine import init_db, make_engine, session_factory
+from repodify.persistence.repo import JobRepository
+from repodify.storage.base import Storage
+from repodify.storage.filesystem import FilesystemStorage
 
 ResolveFn = Callable[[str, httpx.Client], str]
 EnqueueFn = Callable[[str], None]
@@ -619,7 +619,7 @@ def create_app(
     storage: Storage,
     settings: Settings,
 ) -> FastAPI:
-    app = FastAPI(title="Podcast Compactor")
+    app = FastAPI(title="Repodify")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allow_origins,
@@ -777,7 +777,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit** (commit together with Tasks 8-10 if running inline to keep the module importable)
 
 ```bash
-git add src/podcast_compactor/api/app.py tests/unit/api/test_api.py
+git add src/repodify/api/app.py tests/unit/api/test_api.py
 git commit -m "Add auth, CORS, health, and job-list wiring to the API"
 ```
 
@@ -786,14 +786,14 @@ git commit -m "Add auth, CORS, health, and job-list wiring to the API"
 ### Task 8: Job-list & result schemas
 
 **Files:**
-- Modify: `src/podcast_compactor/api/schemas.py`
+- Modify: `src/repodify/api/schemas.py`
 
 **Interfaces:**
 - Produces: `JobSummaryOut`, `JobListResponse`, and the revised `ResultResponse` (fields `audio_mp3_url`, `audio_wav_url`, `summary`, `chapters`).
 
 - [ ] **Step 1: Add the schemas** (exercised by Tasks 7/9/10 endpoint tests — no standalone test).
 
-In `src/podcast_compactor/api/schemas.py`, replace the `ResultResponse` class and append the two list schemas:
+In `src/repodify/api/schemas.py`, replace the `ResultResponse` class and append the two list schemas:
 
 ```python
 class ResultResponse(BaseModel):
@@ -818,13 +818,13 @@ class JobListResponse(BaseModel):
 
 - [ ] **Step 2: Verify import**
 
-Run: `uv run python -c "from podcast_compactor.api import schemas; print(schemas.JobListResponse, schemas.ResultResponse)"`
+Run: `uv run python -c "from repodify.api import schemas; print(schemas.JobListResponse, schemas.ResultResponse)"`
 Expected: prints both classes, no error.
 
 - [ ] **Step 3: Commit** (with Task 7 if inline)
 
 ```bash
-git add src/podcast_compactor/api/schemas.py
+git add src/repodify/api/schemas.py
 git commit -m "Add job-list schemas and client audio URLs to result"
 ```
 
@@ -833,7 +833,7 @@ git commit -m "Add job-list schemas and client audio URLs to result"
 ### Task 9: Audio streaming endpoint
 
 **Files:**
-- Create: `src/podcast_compactor/api/audio.py`
+- Create: `src/repodify/api/audio.py`
 - Test: `tests/unit/api/test_audio.py`
 
 **Interfaces:**
@@ -847,11 +847,11 @@ git commit -m "Add job-list schemas and client audio URLs to result"
 import httpx
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.app import create_app
-from podcast_compactor.config import Settings
-from podcast_compactor.models.domain import JobOptions
-from podcast_compactor.models.enums import JobStatus
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.api.app import create_app
+from repodify.config import Settings
+from repodify.models.domain import JobOptions
+from repodify.models.enums import JobStatus
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def _resolve_fn(url, http):
@@ -914,12 +914,12 @@ def test_audio_not_complete_is_409(repo, tmp_path):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/api/test_audio.py -v`
-Expected: FAIL — `ModuleNotFoundError: podcast_compactor.api.audio` (and thus `create_app` import fails).
+Expected: FAIL — `ModuleNotFoundError: repodify.api.audio` (and thus `create_app` import fails).
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# src/podcast_compactor/api/audio.py
+# src/repodify/api/audio.py
 """Serve a job's rendered audio, with HTTP Range support via FileResponse."""
 
 from __future__ import annotations
@@ -927,7 +927,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
-from podcast_compactor.storage.base import Storage
+from repodify.storage.base import Storage
 
 _MEDIA_TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}
 
@@ -954,7 +954,7 @@ If `test_audio_range_request_returns_206` fails because the installed Starlette 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/podcast_compactor/api/audio.py tests/unit/api/test_audio.py
+git add src/repodify/api/audio.py tests/unit/api/test_audio.py
 git commit -m "Serve job audio with HTTP range support"
 ```
 
@@ -1035,4 +1035,4 @@ git commit -m "Return client audio URLs and 409-not-ready from the API"
 
 **Type consistency:** `to_mp3(src_wav, dst_mp3)` identical across Tasks 1/2/3. `audio_response(storage, job_id, fmt)` matches its Task-7 call site. `list_jobs(limit, offset) -> tuple[list[Job], int]` matches the Task-7 usage. `make_require_token(expected)` matches Tasks 5/7. `ResultResponse` fields match between Tasks 8 and 10.
 
-**Ordering caveat (called out in Task 7):** the new `app.py` imports `audio_response` and the new schemas, so Tasks 7–10 must all land before `podcast_compactor.api.app` imports cleanly. Under subagent-driven execution, run Tasks 1–6 with green gates, then treat 7–10 as one reviewable batch whose gate is the Task 10 full-suite run.
+**Ordering caveat (called out in Task 7):** the new `app.py` imports `audio_response` and the new schemas, so Tasks 7–10 must all land before `repodify.api.app` imports cleanly. Under subagent-driven execution, run Tasks 1–6 with green gates, then treat 7–10 as one reviewable batch whose gate is the Task 10 full-suite run.

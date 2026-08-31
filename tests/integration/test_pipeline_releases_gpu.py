@@ -8,8 +8,8 @@ These spies record `release()` calls; the real orchestration lives in
 import httpx
 import respx
 
-from podcast_compactor.config import Settings
-from podcast_compactor.models.domain import (
+from repodify.config import Settings
+from repodify.models.domain import (
     ArcBeat,
     ArcOutline,
     EpisodeSummary,
@@ -19,15 +19,15 @@ from podcast_compactor.models.domain import (
     Transcript,
     TranscriptSegment,
 )
-from podcast_compactor.pipeline.graph import build_graph
-from podcast_compactor.pipeline.state import Deps
-from podcast_compactor.ports.diarizer import FakeDiarizer
-from podcast_compactor.ports.llm import FakeStructuredLLM
-from podcast_compactor.ports.transcoder import FakeTranscoder
-from podcast_compactor.ports.transcriber import FakeTranscriber
-from podcast_compactor.ports.tts import FakeTTS, Voice
-from podcast_compactor.ports.voice_cloner import FakeVoiceCloner
-from podcast_compactor.ports.watermarker import FakeWatermarker
+from repodify.pipeline.graph import build_graph
+from repodify.pipeline.state import Deps
+from repodify.ports.diarizer import FakeDiarizer
+from repodify.ports.llm import FakeStructuredLLM
+from repodify.ports.transcoder import FakeTranscoder
+from repodify.ports.transcriber import FakeTranscriber
+from repodify.ports.tts import FakeTTS, Voice
+from repodify.ports.voice_cloner import FakeVoiceCloner
+from repodify.ports.watermarker import FakeWatermarker
 
 
 class SpyTranscriber(FakeTranscriber):
@@ -49,7 +49,7 @@ class SpyTTS(FakeTTS):
 
 
 def test_pipeline_releases_transcriber_and_tts(tmp_path, sample_feed_xml, repo):
-    from podcast_compactor.storage.filesystem import FilesystemStorage
+    from repodify.storage.filesystem import FilesystemStorage
 
     storage = FilesystemStorage(tmp_path / "data")
     transcriber = SpyTranscriber(

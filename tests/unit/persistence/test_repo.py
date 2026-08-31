@@ -1,5 +1,5 @@
-from podcast_compactor.models.domain import JobOptions
-from podcast_compactor.models.enums import JobStatus, StageName, StageState
+from repodify.models.domain import JobOptions
+from repodify.models.enums import JobStatus, StageName, StageState
 
 
 def test_create_and_get_job(repo):

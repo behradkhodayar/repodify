@@ -2,7 +2,7 @@ import httpx
 import pytest
 import respx
 
-from podcast_compactor.ingest.resolvers import (
+from repodify.ingest.resolvers import (
     UnresolvableFeedError,
     resolve,
 )

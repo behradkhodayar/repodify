@@ -2,11 +2,11 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from podcast_compactor.api.app import create_app
-from podcast_compactor.config import Settings
-from podcast_compactor.models.domain import MAX_PROMPT_CHARS, JobOptions
-from podcast_compactor.models.enums import JobStatus
-from podcast_compactor.storage.filesystem import FilesystemStorage
+from repodify.api.app import create_app
+from repodify.config import Settings
+from repodify.models.domain import MAX_PROMPT_CHARS, JobOptions
+from repodify.models.enums import JobStatus
+from repodify.storage.filesystem import FilesystemStorage
 
 
 def _resolve_fn(url, http):
@@ -96,7 +96,7 @@ def test_jobs_list_returns_created_jobs(repo, tmp_path):
 
 
 def test_voices_lists_stock_catalog(repo, tmp_path):
-    from podcast_compactor.synth.stock_voices import (
+    from repodify.synth.stock_voices import (
         list_stock_voices,
         stock_voice_display_name,
         stock_voice_gender,
@@ -118,7 +118,7 @@ def test_voices_lists_stock_catalog(repo, tmp_path):
 def test_speakers_endpoint_reports_status_and_detected_cast(repo, tmp_path):
     job_id = repo.create_job("https://feed", JobOptions(episode_ids=["ep-1"], review_voices=True))
     repo.set_report(job_id, {"speakers": [{"speaker_id": "SPEAKER_00", "speaking_seconds": 12.0}]})
-    from podcast_compactor.models.enums import JobStatus as _JS
+    from repodify.models.enums import JobStatus as _JS
 
     repo.set_status(job_id, _JS.AWAITING_REVIEW)
     with httpx.Client() as http:
@@ -140,7 +140,7 @@ def test_submit_voices_rejects_when_not_awaiting_review(repo, tmp_path):
 
 
 def test_submit_voices_rejects_unknown_speaker(repo, tmp_path):
-    from podcast_compactor.models.enums import JobStatus as _JS
+    from repodify.models.enums import JobStatus as _JS
 
     job_id = repo.create_job("https://feed", JobOptions(episode_ids=["ep-1"], review_voices=True))
     repo.set_report(job_id, {"speakers": [{"speaker_id": "SPEAKER_00"}]})

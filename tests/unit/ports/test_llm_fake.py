@@ -1,7 +1,7 @@
 import pytest
 
-from podcast_compactor.models.domain import EpisodeSummary
-from podcast_compactor.ports.llm import FakeStructuredLLM, StructuredLLM
+from repodify.models.domain import EpisodeSummary
+from repodify.ports.llm import FakeStructuredLLM, StructuredLLM
 
 
 def test_fake_returns_queued_response_and_records_call():

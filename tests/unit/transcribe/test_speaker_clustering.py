@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from podcast_compactor.transcribe.speaker_clustering import LocalSpeaker, cluster_speakers
+from repodify.transcribe.speaker_clustering import LocalSpeaker, cluster_speakers
 
 # Two well-separated voice "directions" in embedding space. Small per-episode
 # jitter keeps same-person vectors close (cosine distance well under threshold)

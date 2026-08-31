@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_compactor.synth.pitch import estimate_register
+from repodify.synth.pitch import estimate_register
 
 pytestmark = pytest.mark.skipif(
     importlib.util.find_spec("librosa") is None, reason="librosa not installed"

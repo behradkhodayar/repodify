@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from podcast_compactor.ports.diarizer import Diarizer, FakeDiarizer, SpeakerTurn
+from repodify.ports.diarizer import Diarizer, FakeDiarizer, SpeakerTurn
 
 
 def test_fake_diarizer_returns_multi_speaker_turns():

@@ -1,4 +1,4 @@
-from podcast_compactor.transcribe.faster_whisper import _preload_cuda12_libs
+from repodify.transcribe.faster_whisper import _preload_cuda12_libs
 
 
 def test_preload_cuda12_libs_is_safe_and_idempotent():

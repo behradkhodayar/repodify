@@ -1,4 +1,4 @@
-# Podcast Compactor
+# Repodify
 
 Turn a podcast — or a chosen chronological stretch of it — into a single
 ~30-minute digest episode. Paste a podcast link, pick which episodes to include,
@@ -72,8 +72,8 @@ The default test suite runs entirely on CPU with no network — STT/LLM/TTS are 
 
 ```bash
 docker compose up -d                                                   # Redis (+ Postgres)
-uv run uvicorn --factory podcast_compactor.api.app:build_default_app   # API
-uv run arq podcast_compactor.worker.main.WorkerSettings                # worker
+uv run uvicorn --factory repodify.api.app:build_default_app   # API
+uv run arq repodify.worker.main.WorkerSettings                # worker
 ```
 
 When `API_TOKEN` is set, send `-H "Authorization: Bearer $API_TOKEN"` on every

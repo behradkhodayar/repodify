@@ -1,6 +1,6 @@
 import pytest
 
-from podcast_compactor.synth.stock_voices import (
+from repodify.synth.stock_voices import (
     DEFAULT_STOCK_VOICE,
     SAMPLE_LINE,
     STOCK_VOICE_STYLES,
