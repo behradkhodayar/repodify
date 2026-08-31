@@ -43,6 +43,23 @@ describe('StageProgress', () => {
     expect(screen.getByRole('progressbar')).toBeInTheDocument()
   })
 
+  it('shows this stage elapsed without the local timezone offset on naive UTC', () => {
+    const started = new Date(Date.now() - 12_000).toISOString().replace(/Z$/, '')
+    render(
+      <StageProgress
+        stages={[
+          stage({
+            stage: 'resolve',
+            state: 'running',
+            started_at: started,
+          }),
+        ]}
+      />,
+    )
+    expect(screen.getByText(/12s|13s|11s/)).toBeInTheDocument()
+    expect(screen.queryByText(/210m/)).not.toBeInTheDocument()
+  })
+
   it('shows a done stage detail without a spinner progress bar', () => {
     render(
       <StageProgress
