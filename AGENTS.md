@@ -1,15 +1,22 @@
 # Repodify
 
-Turn a podcast — or a chosen chronological stretch of it — into one ~30-minute
-digest episode. Backend service (FastAPI + arq worker + LangGraph pipeline) with
-a React PWA. Not a CLI.
+Turn a list of episodes of podcast to a single tailored one, accoording to what
+the user desires (e.g. summarizing multiple episodes into one, translate it to
+their language of choice, augment the contents of original podcast, etc), on
+their local machine/infra or by using their own keys (BYOK). This originally
+started to address the following need:
+Suppose u're new to ML in 2026 &  want to learn about the history or flow of how
+the ML/DL space has evolved since beginning using the available podcasts on the
+internet.
+As using someone’s voice may have legal implications, this feature is intended
+to be used only on the user’s local machine and for educational purposes.
 
-The product, GitHub repo, Python package, launcher, PWA, FastAPI title, and
-Postgres database are all **repodify**. Import as `from repodify...`.
+Backend service (FastAPI + arq worker + LangGraph pipeline) with a React PWA.
+Not a CLI.
 
-How to run it: [`README.md`](README.md). How it is built:
-[`docs/architecture.md`](docs/architecture.md). Per-feature designs and plans:
-[`docs/superpowers/`](docs/superpowers/).
+How to run it: [`README.md`](README.md).
+How it is built: [`docs/architecture.md`](docs/architecture.md).
+Per-feature designs and plans: [`docs/superpowers/`](docs/superpowers/).
 
 ---
 
@@ -208,6 +215,6 @@ React 19 + Vite 8 + Tailwind + TanStack Query + React Router (`basename="/app"`)
 ## Git
 
 This is `github.com/behradkhodayar/repodify`. One PR per logical unit. Imperative
-commit messages (what + why), no emojis, no Claude co-author trailer. PR title
+commit messages (what + why), no emojis, PR title
 ≤ 70 chars; details go in the body. Reference issues with `Closes #N` when
 applicable.
