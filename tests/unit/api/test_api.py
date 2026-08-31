@@ -95,6 +95,24 @@ def test_jobs_list_returns_created_jobs(repo, tmp_path):
     assert body["jobs"][0]["target_minutes"] == 10
 
 
+def test_jobs_list_created_at_has_utc_offset(repo, tmp_path):
+    """SQLite strips tzinfo; JSON must still mark created_at as UTC."""
+    from datetime import datetime
+
+    from repodify.models.enums import StageName
+
+    job_id = repo.create_job("https://feed", JobOptions(episode_ids=["ep-1"]))
+    repo.start_stage(job_id, StageName.RESOLVE)
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        listed = client.get("/jobs").json()["jobs"][0]["created_at"]
+        started = client.get(f"/jobs/{job_id}").json()["stages"][0]["started_at"]
+    for stamp in (listed, started):
+        parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        assert parsed.tzinfo is not None
+        assert stamp.endswith("Z") or stamp.endswith("+00:00")
+
+
 def test_voices_lists_stock_catalog(repo, tmp_path):
     from repodify.synth.stock_voices import (
         list_stock_voices,

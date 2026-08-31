@@ -16,11 +16,11 @@ export function latestLabel(unix: number | null | undefined, now = Date.now()): 
 }
 
 /** Compact relative time, e.g. "just now", "5m ago", "3d ago". */
-export function relativeTime(iso: string | null | undefined): string {
+export function relativeTime(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return '—'
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return '—'
-  const secs = Math.round((Date.now() - then) / 1000)
+  const then = parseInstant(iso)
+  if (then == null) return '—'
+  const secs = Math.round((now - then) / 1000)
   if (secs < 45) return 'just now'
   const mins = Math.round(secs / 60)
   if (mins < 60) return `${mins}m ago`

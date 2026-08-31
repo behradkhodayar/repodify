@@ -6,6 +6,7 @@ import {
   parsePercent,
   PIPELINE_STAGES,
   pipelineElapsed,
+  relativeTime,
   stockVoiceLabel,
 } from './format'
 
@@ -19,6 +20,15 @@ describe('latestLabel', () => {
   it('returns null when unknown', () => {
     expect(latestLabel(null)).toBeNull()
     expect(latestLabel(0)).toBeNull()
+  })
+})
+
+describe('relativeTime', () => {
+  const now = Date.parse('2026-01-01T00:05:00Z')
+
+  it('treats naive created_at as UTC so the local offset is not added', () => {
+    expect(relativeTime('2026-01-01T00:00:00', now)).toBe('5m ago')
+    expect(relativeTime('2026-01-01T00:00:00Z', now)).toBe('5m ago')
   })
 })
 
