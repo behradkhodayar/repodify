@@ -1,4 +1,4 @@
-import { Loader2, Rss, Search } from 'lucide-react'
+import { Podcast, Rss, Search } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { api } from '../api/client'
 import type { CandidateOut, SearchResponse } from '../api/types'
@@ -8,6 +8,33 @@ import { Input } from './ui/input'
 
 const MIN_CHARS = 3
 const DEBOUNCE_MS = 300
+
+function isAbortError(err: unknown): boolean {
+  return (
+    (typeof DOMException !== 'undefined' && err instanceof DOMException && err.name === 'AbortError') ||
+    (err instanceof Error && err.name === 'AbortError')
+  )
+}
+
+/** In-house equalizer pulse — CSS only, Lucide mic, no extra licensed assets. */
+function SearchingIndicator({ labelled = false }: { labelled?: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5"
+      role={labelled ? 'status' : undefined}
+      aria-label={labelled ? 'Searching' : undefined}
+      aria-hidden={labelled ? undefined : true}
+    >
+      <Podcast className="size-3.5 text-primary" aria-hidden />
+      <span className="flex h-3.5 items-end gap-px" aria-hidden>
+        <span className="eq-bar h-3.5 w-0.5 rounded-full bg-primary" />
+        <span className="eq-bar h-3.5 w-0.5 rounded-full bg-primary [animation-delay:-0.28s]" />
+        <span className="eq-bar h-3.5 w-0.5 rounded-full bg-wave [animation-delay:-0.14s]" />
+        <span className="eq-bar h-3.5 w-0.5 rounded-full bg-primary [animation-delay:-0.42s]" />
+      </span>
+    </span>
+  )
+}
 
 export function PodcastSearch({
   value,
@@ -41,24 +68,28 @@ export function PodcastSearch({
       return
     }
     const ac = new AbortController()
+    let cancelled = false
     const timer = window.setTimeout(async () => {
       setLoading(true)
       setError(null)
       try {
         const next = await api.searchFeeds(q, ac.signal)
+        if (cancelled) return
+        setError(null)
         setResult(next)
         setOpen(true)
         setHighlight(null)
       } catch (err) {
-        if (ac.signal.aborted) return
+        if (cancelled || ac.signal.aborted || isAbortError(err)) return
         setError("Couldn't search right now.")
         setResult(null)
         setOpen(true)
       } finally {
-        if (!ac.signal.aborted) setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }, debounceMs)
     return () => {
+      cancelled = true
       ac.abort()
       window.clearTimeout(timer)
     }
@@ -93,8 +124,10 @@ export function PodcastSearch({
     }
   }
 
-  const showList = open && value.trim().length >= minChars
-  const empty = showList && !loading && !error && result != null && candidates.length === 0
+  const hasQuery = open && value.trim().length >= minChars
+  const empty = hasQuery && !loading && !error && result != null && candidates.length === 0
+  const showError = hasQuery && !!error && candidates.length === 0
+  const showList = hasQuery && (loading || showError || empty || candidates.length > 0)
 
   return (
     <div className="relative space-y-2">
@@ -107,6 +140,7 @@ export function PodcastSearch({
           aria-expanded={showList}
           aria-controls={listId}
           aria-autocomplete="list"
+          aria-busy={loading}
           aria-activedescendant={
             highlight != null ? `${listId}-opt-${highlight}` : undefined
           }
@@ -120,13 +154,12 @@ export function PodcastSearch({
             if (candidates.length || empty || error) setOpen(true)
           }}
           placeholder={pasteHint ? 'https://example.com/feed.xml' : 'Podcast name or RSS URL'}
-          className="pl-9 pr-9"
+          className="pl-9 pr-10"
         />
         {loading && (
-          <Loader2
-            className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
-            aria-label="Searching"
-          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+            <SearchingIndicator labelled />
+          </span>
         )}
       </div>
 
@@ -137,8 +170,27 @@ export function PodcastSearch({
           aria-label="Matching podcasts"
           className="absolute z-20 max-h-80 w-full overflow-auto rounded-lg border border-border bg-popover p-1 shadow-soft"
         >
-          {error && (
-            <li className="px-3 py-3 text-sm text-muted-foreground">{error} Paste an RSS URL instead.</li>
+          {loading && candidates.length === 0 && (
+            <li className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
+              <SearchingIndicator />
+              Searching shows…
+            </li>
+          )}
+          {showError && (
+            <li className="px-3 py-3 text-sm text-muted-foreground">
+              {error}{' '}
+              <button
+                type="button"
+                className="text-primary underline-offset-4 hover:underline"
+                onClick={() => {
+                  setPasteHint(true)
+                  setOpen(false)
+                  inputRef.current?.focus()
+                }}
+              >
+                Paste an RSS URL instead.
+              </button>
+            </li>
           )}
           {empty && (
             <li className="px-3 py-3 text-sm text-muted-foreground">

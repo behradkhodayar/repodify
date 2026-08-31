@@ -126,6 +126,27 @@
     );
   }
 
+  /* Equalizer bars for in-flight podcast search (no extra assets). */
+  @keyframes eq-bar {
+    0%,
+    100% {
+      transform: scaleY(0.3);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+  .eq-bar {
+    transform-origin: bottom;
+    animation: eq-bar 0.85s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .eq-bar {
+      animation: none;
+      transform: scaleY(0.7);
+    }
+  }
+
   .ring-focus {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }

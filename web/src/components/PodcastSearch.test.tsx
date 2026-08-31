@@ -52,6 +52,66 @@ describe('PodcastSearch', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
+  it('does not keep an error banner after a later search succeeds', async () => {
+    server.use(
+      http.get('/feeds/search', async ({ request }) => {
+        const q = new URL(request.url).searchParams.get('q') ?? ''
+        if (q !== 'Linear') {
+          await new Promise((r) => setTimeout(r, 80))
+          return HttpResponse.json({
+            query: q,
+            kind: 'name',
+            candidates: [],
+            degraded: false,
+            cached: false,
+            warning: null,
+          })
+        }
+        return HttpResponse.json({
+          query: q,
+          kind: 'name',
+          candidates: [HIT],
+          degraded: false,
+          cached: false,
+          warning: null,
+        })
+      }),
+    )
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.type(screen.getByLabelText(/podcast name or rss url/i), 'Linear')
+    await waitFor(() => expect(screen.getByText('Linear Digressions')).toBeInTheDocument())
+    expect(screen.queryByText(/couldn't search right now/i)).not.toBeInTheDocument()
+  })
+
+  it('shows a searching status while a request is in flight', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.get('/feeds/search', async () => {
+        await gate
+        return HttpResponse.json({
+          query: 'Lin',
+          kind: 'name',
+          candidates: [HIT],
+          degraded: false,
+          cached: false,
+          warning: null,
+        })
+      }),
+    )
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.type(screen.getByLabelText(/podcast name or rss url/i), 'Lin')
+    expect(await screen.findByRole('status', { name: /searching/i })).toBeInTheDocument()
+    expect(screen.getByText(/searching shows/i)).toBeInTheDocument()
+    release()
+    await waitFor(() => expect(screen.getByText('Linear Digressions')).toBeInTheDocument())
+    expect(screen.queryByRole('status', { name: /searching/i })).not.toBeInTheDocument()
+  })
+
   it('lists matches and selects on click without auto-picking a single hit', async () => {
     const onSelect = vi.fn()
     server.use(
