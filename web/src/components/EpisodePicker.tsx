@@ -88,18 +88,19 @@ export function EpisodePicker({
           onChange={(e) => setQuery(e.target.value)}
           className="sm:flex-1"
         />
-        <Select
-          aria-label="Sort episodes"
-          value={sort}
-          onChange={(e) => setSort(parseSort(e.target.value))}
-          className="sm:w-44"
-        >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-        </Select>
+        <div className="w-full sm:w-44 sm:shrink-0">
+          <Select
+            aria-label="Sort episodes"
+            value={sort}
+            onChange={(e) => setSort(parseSort(e.target.value))}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </Select>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground">{countLabel}</p>
-      {visible.length === 0 ? (
+      {trimmed !== '' && visible.length === 0 ? (
         <p className="px-1 py-6 text-sm text-muted-foreground">
           No episodes match “{trimmed}”.
         </p>

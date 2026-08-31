@@ -166,6 +166,13 @@ describe('EpisodePicker filter and sort', () => {
     expect(screen.getByText('Showing 0 of 2 episodes')).toBeInTheDocument()
   })
 
+  it('does not show the no-match copy for an empty unfiltered catalog', () => {
+    render(<ListHarness episodes={[]} />)
+    expect(screen.queryByText(/no episodes match/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Showing 0 episodes')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
   it('keeps a selection after the query hides then reveals the episode', async () => {
     const user = userEvent.setup()
     render(<ListHarness episodes={[OLD, NEW]} />)
