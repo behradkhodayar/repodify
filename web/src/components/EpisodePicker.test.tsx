@@ -80,3 +80,64 @@ describe('EpisodePicker per-episode notes', () => {
     expect(screen.getByLabelText(/note for ep one/i)).toHaveValue('hello')
   })
 })
+
+function ep(
+  partial: Partial<EpisodeOut> & Pick<EpisodeOut, 'guid' | 'title' | 'order_index'>,
+): EpisodeOut {
+  return {
+    published_at: null,
+    duration_s: 60,
+    is_short_or_trailer: false,
+    ...partial,
+  }
+}
+
+function ListHarness({
+  episodes,
+  initialSelected = new Set<string>(),
+}: {
+  episodes: EpisodeOut[]
+  initialSelected?: Set<string>
+}) {
+  const [selected, setSelected] = useState(new Set(initialSelected))
+  const [prompts, setPrompts] = useState<Record<string, string>>({})
+  return (
+    <EpisodePicker
+      episodes={episodes}
+      selected={selected}
+      onToggle={(guid) =>
+        setSelected((prev) => {
+          const next = new Set(prev)
+          if (next.has(guid)) next.delete(guid)
+          else next.add(guid)
+          return next
+        })
+      }
+      prompts={prompts}
+      onPromptChange={(guid, value) => setPrompts((p) => ({ ...p, [guid]: value }))}
+    />
+  )
+}
+
+function checkboxNames(): string[] {
+  return screen.getAllByRole('checkbox').map((el) => el.getAttribute('aria-label') ?? '')
+}
+
+const OLD = ep({ guid: 'old', title: 'Alpha Episode', order_index: 0 })
+const NEW = ep({ guid: 'new', title: 'Beta Latest', order_index: 1 })
+
+describe('EpisodePicker filter and sort', () => {
+  it('lists newest first by default', () => {
+    render(<ListHarness episodes={[OLD, NEW]} />)
+    expect(checkboxNames()).toEqual(['Beta Latest', 'Alpha Episode'])
+    expect(screen.getByLabelText(/sort episodes/i)).toHaveValue('newest')
+    expect(screen.getByText('Showing 2 episodes')).toBeInTheDocument()
+  })
+
+  it('lists oldest first when that sort is chosen', async () => {
+    const user = userEvent.setup()
+    render(<ListHarness episodes={[OLD, NEW]} />)
+    await user.selectOptions(screen.getByLabelText(/sort episodes/i), 'oldest')
+    expect(checkboxNames()).toEqual(['Alpha Episode', 'Beta Latest'])
+  })
+})
