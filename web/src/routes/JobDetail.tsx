@@ -9,13 +9,16 @@ import { VoiceReview } from '../components/VoiceReview'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Progress } from '../components/ui/progress'
 import { Skeleton } from '../components/ui/skeleton'
-import { PIPELINE_STAGES, shortId, statusLabel } from '../lib/format'
+import { PIPELINE_STAGES, pipelineElapsed, shortId, statusLabel } from '../lib/format'
+import { useNow } from '../lib/useNow'
 
 export function JobDetail() {
   const { id = '' } = useParams()
   const job = useJob(id)
   const completed = job.data?.status === 'completed'
   const result = useResult(id, completed)
+  const ticking = job.data?.status === 'running' || job.data?.status === 'awaiting_review'
+  const now = useNow(!!ticking)
 
   if (job.isLoading) {
     return (
@@ -52,6 +55,7 @@ export function JobDetail() {
     : 'Queued'
   const runningDetail =
     current?.detail ?? 'This page updates live as each stage progresses.'
+  const elapsed = pipelineElapsed(stages, now)
 
   return (
     <div className="space-y-6">
@@ -78,6 +82,7 @@ export function JobDetail() {
               <Progress value={pct} />
               <p className="text-xs text-muted-foreground">
                 {doneCount}/{PIPELINE_STAGES.length} stages · {pct}%
+                {elapsed ? ` · ${elapsed}` : ''}
               </p>
             </div>
           </CardHeader>

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Loader2, Minus, X } from 'lucide-react'
 import type { StageOut } from '../api/types'
 import { elapsedLabel, parsePercent, PIPELINE_STAGES } from '../lib/format'
+import { useNow } from '../lib/useNow'
 import { cn } from '../lib/utils'
 import { Progress } from './ui/progress'
 
@@ -39,16 +39,6 @@ function mergeStages(stages: StageOut[]): StageOut[] {
         finished_at: null,
       },
   )
-}
-
-function useNow(enabled: boolean) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!enabled) return
-    const id = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(id)
-  }, [enabled])
-  return now
 }
 
 export function StageProgress({ stages }: { stages: StageOut[] }) {

@@ -70,6 +70,32 @@ describe('JobDetail', () => {
     expect(screen.getByText('Download')).toBeInTheDocument()
   })
 
+  it('shows this job elapsed from resolve start, treating naive UTC as UTC', async () => {
+    const started = new Date(Date.now() - 12_000).toISOString().replace(/Z$/, '')
+    server.use(
+      http.get('/jobs/j-elapsed', () =>
+        HttpResponse.json({
+          id: 'j-elapsed',
+          status: 'running',
+          current_stage: 'resolve',
+          stages: [
+            {
+              stage: 'resolve',
+              state: 'running',
+              detail: 'fetching feed',
+              started_at: started,
+              finished_at: null,
+            },
+          ],
+          report: {},
+        }),
+      ),
+    )
+    renderAt('j-elapsed')
+    await waitFor(() => expect(screen.getAllByText(/12s|13s|11s/).length).toBeGreaterThanOrEqual(1))
+    expect(screen.queryByText(/210m/)).not.toBeInTheDocument()
+  })
+
   it('shows the voice review when a job is awaiting review', async () => {
     server.use(
       http.get('/jobs/j2', () =>

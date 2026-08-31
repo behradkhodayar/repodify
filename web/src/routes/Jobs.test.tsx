@@ -34,6 +34,23 @@ describe('Jobs', () => {
     expect(screen.getByText(/completed/i)).toBeInTheDocument()
   })
 
+  it('shows Created from naive UTC without adding the local offset', async () => {
+    const created = new Date(Date.now() - 5 * 60_000).toISOString().replace(/Z$/, '')
+    server.use(
+      http.get('/jobs', () =>
+        HttpResponse.json({
+          jobs: [
+            { id: 'j-created', status: 'queued', current_stage: null, target_minutes: 10, created_at: created },
+          ],
+          total: 1,
+        }),
+      ),
+    )
+    renderPage()
+    await waitFor(() => expect(screen.getByText('5m ago')).toBeInTheDocument())
+    expect(screen.queryByText(/3h ago|4h ago/)).not.toBeInTheDocument()
+  })
+
   it('shows an empty state', async () => {
     server.use(http.get('/jobs', () => HttpResponse.json({ jobs: [], total: 0 })))
     renderPage()

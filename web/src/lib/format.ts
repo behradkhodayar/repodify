@@ -16,11 +16,11 @@ export function latestLabel(unix: number | null | undefined, now = Date.now()): 
 }
 
 /** Compact relative time, e.g. "just now", "5m ago", "3d ago". */
-export function relativeTime(iso: string | null | undefined): string {
+export function relativeTime(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return '—'
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return '—'
-  const secs = Math.round((Date.now() - then) / 1000)
+  const then = parseInstant(iso)
+  if (then == null) return '—'
+  const secs = Math.round((now - then) / 1000)
   if (secs < 45) return 'just now'
   const mins = Math.round(secs / 60)
   if (mins < 60) return `${mins}m ago`
@@ -73,21 +73,63 @@ export function parsePercent(text: string | null | undefined): number | null {
   return n <= 100 ? n : null
 }
 
+/** Milliseconds since epoch. Naive ISO (no Z / offset) is UTC — our API stores UTC. */
+const TZ_SUFFIX = /(?:[zZ]|[+-]\d{2}:?\d{2})$/
+
+export function parseInstant(iso: string | null | undefined): number | null {
+  if (!iso) return null
+  const trimmed = iso.trim()
+  if (!trimmed) return null
+  const normalized = TZ_SUFFIX.test(trimmed) ? trimmed : `${trimmed}Z`
+  const ms = Date.parse(normalized)
+  return Number.isNaN(ms) ? null : ms
+}
+
+function formatElapsedMs(ms: number): string {
+  const secs = Math.round(ms / 1000)
+  if (secs < 60) return `${secs}s`
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return s ? `${m}m ${String(s).padStart(2, '0')}s` : `${m}m`
+}
+
 /** Compact duration between two instants, e.g. `12s`, `1m`, `1m 03s`. */
 export function elapsedLabel(
   fromIso: string | null | undefined,
   toIso?: string | null,
   now = Date.now(),
 ): string {
-  if (!fromIso) return ''
-  const from = new Date(fromIso).getTime()
-  const to = toIso ? new Date(toIso).getTime() : now
-  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return ''
-  const secs = Math.round((to - from) / 1000)
-  if (secs < 60) return `${secs}s`
-  const m = Math.floor(secs / 60)
-  const s = secs % 60
-  return s ? `${m}m ${String(s).padStart(2, '0')}s` : `${m}m`
+  const from = parseInstant(fromIso)
+  if (from == null) return ''
+  const to = toIso ? parseInstant(toIso) : now
+  if (to == null || to < from) return ''
+  return formatElapsedMs(to - from)
+}
+
+type StageTimes = {
+  stage: string
+  started_at: string | null
+  finished_at: string | null
+}
+
+/**
+ * Wall-clock length of one job: first Resolve start → Assemble finish (or now).
+ * Does not sum per-stage times or look at other jobs.
+ */
+export function pipelineElapsed(stages: readonly StageTimes[], now = Date.now()): string {
+  const resolveStarts = stages
+    .filter((s) => s.stage === 'resolve')
+    .map((s) => parseInstant(s.started_at))
+    .filter((t): t is number => t != null)
+  if (!resolveStarts.length) return ''
+  const from = Math.min(...resolveStarts)
+  const assembleEnds = stages
+    .filter((s) => s.stage === 'assemble')
+    .map((s) => parseInstant(s.finished_at))
+    .filter((t): t is number => t != null)
+  const to = assembleEnds.length ? Math.max(...assembleEnds) : now
+  if (to < from) return ''
+  return formatElapsedMs(to - from)
 }
 
 /** Catalog voice label with an explicit gender tag, e.g. `Heart (female)`. */

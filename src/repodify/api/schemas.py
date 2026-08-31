@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Literal
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PlainSerializer
 
 from repodify.models.domain import VoiceAssignment
+
+
+def _utc_json(dt: datetime) -> str:
+    """ISO-8601 UTC. SQLite round-trips as naive; treat naive values as UTC."""
+    aware = dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
+    return aware.isoformat().replace("+00:00", "Z")
+
+
+UtcDateTime = Annotated[datetime, PlainSerializer(_utc_json, return_type=str, when_used="json")]
 
 
 class ResolveRequest(BaseModel):
@@ -17,7 +26,7 @@ class ResolveRequest(BaseModel):
 class EpisodeOut(BaseModel):
     guid: str
     title: str
-    published_at: datetime | None = None
+    published_at: UtcDateTime | None = None
     duration_s: int | None = None
     order_index: int
     is_short_or_trailer: bool
@@ -111,8 +120,8 @@ class StageOut(BaseModel):
     stage: str
     state: str
     detail: str | None = None
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    started_at: UtcDateTime | None = None
+    finished_at: UtcDateTime | None = None
 
 
 class JobStatusResponse(BaseModel):
@@ -140,7 +149,7 @@ class JobSummaryOut(BaseModel):
     status: str
     current_stage: str | None = None
     target_minutes: int
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 class JobListResponse(BaseModel):

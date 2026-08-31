@@ -8,8 +8,10 @@ export function Logo({ className, animate = true }: { className?: string; animat
       <span className="flex size-8 items-center justify-center rounded-md bg-wave shadow-glow">
         <Waveform bars={4} animate={animate} className="h-3.5" barClassName="bg-white/90" />
       </span>
-      <span className="font-display text-lg font-semibold tracking-tight text-foreground">
-        repo<span className="text-wave">dify</span>
+      <span className="font-display text-lg font-semibold tracking-tight">
+        <span className="text-wave">re</span>
+        <span className="text-foreground">pod</span>
+        <span className="text-wave">ify</span>
       </span>
     </span>
   )
