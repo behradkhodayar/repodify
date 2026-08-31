@@ -4,6 +4,7 @@ import type { EpisodeOut } from '../api/types'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Checkbox } from './ui/checkbox'
+import { Input } from './ui/input'
 import { Select } from './ui/select'
 import { Textarea } from './ui/textarea'
 
@@ -39,10 +40,20 @@ export function EpisodePicker({
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
+  const [query, setQuery] = useState('')
 
-  const visible = [...episodes].sort((a, b) =>
+  const trimmed = query.trim()
+  const filtered =
+    trimmed === ''
+      ? episodes
+      : episodes.filter((item) => item.title.toLowerCase().includes(trimmed.toLowerCase()))
+  const visible = [...filtered].sort((a, b) =>
     sort === 'newest' ? b.order_index - a.order_index : a.order_index - b.order_index,
   )
+  const countLabel =
+    trimmed === ''
+      ? `Showing ${episodes.length} episodes`
+      : `Showing ${visible.length} of ${episodes.length} episodes`
 
   function toggleOpen(guid: string) {
     setOpen((prev) => {
@@ -70,80 +81,93 @@ export function EpisodePicker({
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Input
+          aria-label="Filter episodes"
+          placeholder="Find an episode…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="sm:flex-1"
+        />
         <Select
           aria-label="Sort episodes"
           value={sort}
           onChange={(e) => setSort(parseSort(e.target.value))}
-          className="sm:ml-auto sm:w-44"
+          className="sm:w-44"
         >
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
         </Select>
       </div>
-      <p className="text-xs text-muted-foreground">Showing {episodes.length} episodes</p>
-      <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
-        {visible.map((ep) => {
-          const isSelected = selected.has(ep.guid)
-          const isOpen = open.has(ep.guid)
-          const hasNote = Boolean(prompts[ep.guid]?.trim())
-          const meta = [formatDate(ep.published_at), formatDuration(ep.duration_s)].filter(Boolean)
-          return (
-            <li key={ep.guid}>
-              <label
-                className={cn(
-                  'flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition-colors',
-                  isSelected
-                    ? 'border-primary/40 bg-primary/5'
-                    : 'border-border hover:bg-muted/50',
-                )}
-              >
-                <Checkbox
-                  aria-label={ep.title}
-                  checked={isSelected}
-                  onChange={() => handleToggle(ep.guid)}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{ep.title}</span>
-                  {meta.length > 0 && (
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {meta.join(' · ')}
-                    </span>
+      <p className="text-xs text-muted-foreground">{countLabel}</p>
+      {visible.length === 0 ? (
+        <p className="px-1 py-6 text-sm text-muted-foreground">
+          No episodes match “{trimmed}”.
+        </p>
+      ) : (
+        <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
+          {visible.map((ep) => {
+            const isSelected = selected.has(ep.guid)
+            const isOpen = open.has(ep.guid)
+            const hasNote = Boolean(prompts[ep.guid]?.trim())
+            const meta = [formatDate(ep.published_at), formatDuration(ep.duration_s)].filter(Boolean)
+            return (
+              <li key={ep.guid}>
+                <label
+                  className={cn(
+                    'flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition-colors',
+                    isSelected
+                      ? 'border-primary/40 bg-primary/5'
+                      : 'border-border hover:bg-muted/50',
                   )}
-                </span>
-                {ep.is_short_or_trailer && <Badge variant="secondary">trailer</Badge>}
-              </label>
-
-              {isSelected && (
-                <div className="mt-1 pl-8">
-                  <button
-                    type="button"
-                    onClick={() => toggleOpen(ep.guid)}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {isOpen ? (
-                      <ChevronDown className="size-3" />
-                    ) : (
-                      <ChevronRight className="size-3" />
+                >
+                  <Checkbox
+                    aria-label={ep.title}
+                    checked={isSelected}
+                    onChange={() => handleToggle(ep.guid)}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{ep.title}</span>
+                    {meta.length > 0 && (
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {meta.join(' · ')}
+                      </span>
                     )}
-                    {hasNote ? 'note' : 'add note'}
-                  </button>
-                  {isOpen && (
-                    <Textarea
-                      aria-label={`Note for ${ep.title}`}
-                      value={prompts[ep.guid] ?? ''}
-                      onChange={(e) => onPromptChange(ep.guid, e.target.value)}
-                      placeholder="e.g. keep only the interview; cut 4:20 to 6:09"
-                      rows={2}
-                      maxLength={4000} // mirrors MAX_PROMPT_CHARS server-side cap
-                      className="mt-1"
-                    />
-                  )}
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+                  </span>
+                  {ep.is_short_or_trailer && <Badge variant="secondary">trailer</Badge>}
+                </label>
+
+                {isSelected && (
+                  <div className="mt-1 pl-8">
+                    <button
+                      type="button"
+                      onClick={() => toggleOpen(ep.guid)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      {isOpen ? (
+                        <ChevronDown className="size-3" />
+                      ) : (
+                        <ChevronRight className="size-3" />
+                      )}
+                      {hasNote ? 'note' : 'add note'}
+                    </button>
+                    {isOpen && (
+                      <Textarea
+                        aria-label={`Note for ${ep.title}`}
+                        value={prompts[ep.guid] ?? ''}
+                        onChange={(e) => onPromptChange(ep.guid, e.target.value)}
+                        placeholder="e.g. keep only the interview; cut 4:20 to 6:09"
+                        rows={2}
+                        maxLength={4000} // mirrors MAX_PROMPT_CHARS server-side cap
+                        className="mt-1"
+                      />
+                    )}
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }

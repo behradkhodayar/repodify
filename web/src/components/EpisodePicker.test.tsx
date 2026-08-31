@@ -140,4 +140,29 @@ describe('EpisodePicker filter and sort', () => {
     await user.selectOptions(screen.getByLabelText(/sort episodes/i), 'oldest')
     expect(checkboxNames()).toEqual(['Alpha Episode', 'Beta Latest'])
   })
+
+  it('filters titles case-insensitively', async () => {
+    const user = userEvent.setup()
+    render(<ListHarness episodes={[OLD, NEW]} />)
+    await user.type(screen.getByLabelText(/filter episodes/i), 'alpha')
+    expect(checkboxNames()).toEqual(['Alpha Episode'])
+    expect(screen.getByText('Showing 1 of 2 episodes')).toBeInTheDocument()
+  })
+
+  it('treats a whitespace-only query as no filter', async () => {
+    const user = userEvent.setup()
+    render(<ListHarness episodes={[OLD, NEW]} />)
+    await user.type(screen.getByLabelText(/filter episodes/i), '   ')
+    expect(checkboxNames()).toEqual(['Beta Latest', 'Alpha Episode'])
+    expect(screen.getByText('Showing 2 episodes')).toBeInTheDocument()
+  })
+
+  it('shows an empty state when nothing matches', async () => {
+    const user = userEvent.setup()
+    render(<ListHarness episodes={[OLD, NEW]} />)
+    await user.type(screen.getByLabelText(/filter episodes/i), 'zzzz')
+    expect(screen.getByText('No episodes match “zzzz”.')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getByText('Showing 0 of 2 episodes')).toBeInTheDocument()
+  })
 })
