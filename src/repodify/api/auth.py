@@ -14,9 +14,10 @@ def make_require_token(expected: str | None) -> Callable[[str | None], None]:
     """
 
     def require_token(authorization: str | None = Header(default=None)) -> None:
-        if expected is None:
+        token = expected.strip() if isinstance(expected, str) else expected
+        if not token:
             return
-        if authorization != f"Bearer {expected}":
+        if authorization != f"Bearer {token}":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="invalid or missing token",

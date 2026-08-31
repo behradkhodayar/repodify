@@ -42,6 +42,18 @@ function renderPage() {
 }
 
 describe('Settings', () => {
+  it('keeps LLM and voice cards visible when their APIs fail', async () => {
+    server.use(
+      http.get('/settings/llm', () => new HttpResponse('nope', { status: 401 })),
+      http.get('/voices', () => new HttpResponse('nope', { status: 401 })),
+      http.get('/settings/voices', () => new HttpResponse('nope', { status: 401 })),
+    )
+    renderPage()
+    await waitFor(() => expect(screen.getByText(/summarization llm/i)).toBeInTheDocument())
+    expect(screen.getByText(/preferred stock voices/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/couldn't load/i).length).toBeGreaterThan(0)
+  })
+
   it('saves the token to localStorage', async () => {
     stubSettingsApis()
     const user = userEvent.setup()
