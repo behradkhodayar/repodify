@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { elapsedLabel, parsePercent, PIPELINE_STAGES, stockVoiceLabel } from './format'
+import { elapsedLabel, latestLabel, parsePercent, PIPELINE_STAGES, stockVoiceLabel } from './format'
+
+describe('latestLabel', () => {
+  const now = Date.parse('2026-01-10T00:00:00Z')
+
+  it('formats day-scale freshness', () => {
+    expect(latestLabel(Date.parse('2026-01-07T00:00:00Z') / 1000, now)).toBe('latest: 3 days ago')
+  })
+
+  it('returns null when unknown', () => {
+    expect(latestLabel(null)).toBeNull()
+    expect(latestLabel(0)).toBeNull()
+  })
+})
 
 describe('parsePercent', () => {
   it('reads the first 0–100 percent token', () => {

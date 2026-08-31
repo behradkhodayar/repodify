@@ -70,7 +70,7 @@ export function Settings() {
 }
 
 function LlmCard() {
-  const { data } = useLlmSettings()
+  const { data, isError } = useLlmSettings()
   const update = useUpdateLlmSettings()
   const [backend, setBackend] = useState('anthropic')
   const [openrouterModel, setOpenrouterModel] = useState('')
@@ -84,6 +84,23 @@ function LlmCard() {
     setOpenrouterModel(data.openrouter_model)
     setOllamaModel(data.ollama_model)
   }, [data])
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cpu className="size-[18px] text-primary" /> Summarization LLM
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-status-failed">
+            Couldn&apos;t load LLM settings. If the API requires a token, save it above.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (!data) return null
 
@@ -180,6 +197,22 @@ function VoicesCard() {
   }, [saved.data])
 
   const voices = catalog.data?.voices ?? []
+  if (catalog.isError || saved.isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mic className="size-[18px] text-primary" /> Preferred stock voices
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-status-failed">
+            Couldn&apos;t load voice settings. If the API requires a token, save it above.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
   if (!catalog.data || !saved.data) return null
 
   return (

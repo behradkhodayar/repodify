@@ -16,7 +16,8 @@ Repodify turns a podcast — or a chosen chronological stretch of it — into
 a single digest episode. A user pastes a podcast link, picks which episodes to
 include (oldest-first), and the service:
 
-1. resolves the link to an RSS feed and lists episodes,
+1. searches for a show by name (or accepts a pasted RSS / Apple URL), resolves
+   the live RSS `feed_url`, and lists episodes,
 2. downloads the selected episodes' audio,
 3. transcribes them (speech-to-text),
 4. summarizes each episode (LLM "map"),
@@ -86,8 +87,10 @@ sequenceDiagram
     participant W as Worker
     participant FS as Object store
 
+    C->>A: GET /feeds/search?q=
+    A-->>C: ranked candidates (each with feed_url)
     C->>A: POST /feeds/resolve {url}
-    A-->>C: feed + episodes (oldest-first)
+    A-->>C: feed + episodes (oldest-first, live RSS)
     C->>A: POST /jobs {feed_url, episode_ids, options}
     A->>DB: create_job (status=queued)
     A->>Q: enqueue run_job(job_id)
@@ -255,7 +258,8 @@ dependency (`api/auth.py`); CORS is configured from `cors_allow_origins`.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | Unauthenticated liveness probe |
-| POST | `/feeds/resolve` | Resolve a link → feed title + episodes |
+| GET | `/feeds/search?q=` | Name / URL / Apple-id search → ranked candidates |
+| POST | `/feeds/resolve` | Fetch live RSS for a `feed_url` → episodes |
 | POST | `/jobs` | Create a job (`JobOptions`) and enqueue it |
 | GET | `/jobs` | Paginated job history (`limit`, `offset`) |
 | GET | `/jobs/{id}` | Status + per-stage state (poll this) |

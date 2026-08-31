@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from repodify.models.domain import VoiceAssignment
 
@@ -23,10 +23,36 @@ class EpisodeOut(BaseModel):
     is_short_or_trailer: bool
 
 
+class CandidateOut(BaseModel):
+    title: str
+    author: str = ""
+    feed_url: str
+    artwork: str | None = None
+    itunes_id: int | None = None
+    pi_feed_id: int | None = None
+    newest_item: int | None = None
+    episode_count: int | None = None
+    language: str | None = None
+    sources: list[str] = Field(default_factory=list)
+    identity: str
+    cached: bool = False
+    dead: bool = False
+
+
+class SearchResponse(BaseModel):
+    query: str
+    kind: str
+    candidates: list[CandidateOut]
+    degraded: bool = False
+    cached: bool = False
+    warning: str | None = None
+
+
 class ResolveResponse(BaseModel):
     feed_title: str
     rss_url: str
     episodes: list[EpisodeOut]
+    cached: bool = False
 
 
 class CreateJobRequest(BaseModel):

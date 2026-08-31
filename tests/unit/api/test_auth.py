@@ -30,3 +30,8 @@ def test_accepts_correct_token():
 
 def test_disabled_when_token_is_none():
     assert _client(None).get("/x").status_code == 200
+
+
+def test_disabled_when_token_is_blank():
+    assert _client("").get("/x").status_code == 200
+    assert _client("   ").get("/x").status_code == 200

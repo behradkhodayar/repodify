@@ -12,6 +12,10 @@ from repodify.models.domain import Episode, Feed
 
 _TRAILER_RE = re.compile(r"\b(trailer|teaser|bonus|intro)\b", re.IGNORECASE)
 _SHORT_SECONDS = 120
+_NEW_FEED_RE = re.compile(
+    r"<itunes:new-feed-url[^>]*>\s*([^<\s]+)\s*</itunes:new-feed-url>",
+    re.IGNORECASE,
+)
 
 
 def _first_enclosure_url(entry) -> str | None:
@@ -49,6 +53,15 @@ def _is_short_or_trailer(title: str, duration_s: int | None) -> bool:
     if duration_s is not None and duration_s < _SHORT_SECONDS:
         return True
     return bool(_TRAILER_RE.search(title))
+
+
+def itunes_new_feed_url(data: bytes) -> str | None:
+    """Return `<itunes:new-feed-url>` if the RSS advertises a migration."""
+    match = _NEW_FEED_RE.search(data.decode("utf-8", errors="replace"))
+    if not match:
+        return None
+    url = match.group(1).strip()
+    return url or None
 
 
 def parse_feed(source_url: str, rss_url: str, data: bytes) -> Feed:

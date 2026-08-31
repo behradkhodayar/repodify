@@ -18,6 +18,33 @@ function renderPage() {
   )
 }
 
+const SEARCH = http.get('/feeds/search', () =>
+  HttpResponse.json({
+    query: 'https://x',
+    kind: 'rss_url',
+    candidates: [
+      {
+        title: 'https://x',
+        author: '',
+        feed_url: 'https://x',
+        artwork: null,
+        itunes_id: null,
+        pi_feed_id: null,
+        newest_item: null,
+        episode_count: null,
+        language: null,
+        sources: ['url'],
+        identity: 'url:https://x',
+        cached: false,
+        dead: false,
+      },
+    ],
+    degraded: false,
+    cached: false,
+    warning: null,
+  }),
+)
+
 const RESOLVE = http.post('/feeds/resolve', () =>
   HttpResponse.json({
     feed_title: 'Show',
@@ -30,12 +57,13 @@ const RESOLVE = http.post('/feeds/resolve', () =>
 
 describe('NewDigest', () => {
   it('resolves a feed, lists episodes, and creates a job', async () => {
-    server.use(RESOLVE, http.post('/jobs', () => HttpResponse.json({ job_id: 'job-1' })))
+    server.use(SEARCH, RESOLVE, http.post('/jobs', () => HttpResponse.json({ job_id: 'job-1' })))
     const user = userEvent.setup()
     renderPage()
 
-    await user.type(screen.getByLabelText(/feed url/i), 'https://x')
-    await user.click(screen.getByRole('button', { name: /resolve/i }))
+    await user.type(screen.getByLabelText(/podcast name or rss url/i), 'https://x')
+    await waitFor(() => expect(screen.getByRole('option')).toBeInTheDocument(), { timeout: 3000 })
+    await user.click(screen.getByRole('option'))
     await waitFor(() => expect(screen.getByText('Ep One')).toBeInTheDocument())
 
     await user.click(screen.getByRole('checkbox', { name: /ep one/i }))
@@ -44,19 +72,25 @@ describe('NewDigest', () => {
   })
 
   it('submits custom_prompt and per-episode episode_prompts', async () => {
-    let body: any = null
+    let body: {
+      custom_prompt?: string
+      episode_prompts?: Record<string, string>
+      feed_url?: string
+    } | null = null
     server.use(
+      SEARCH,
       RESOLVE,
       http.post('/jobs', async ({ request }) => {
-        body = await request.json()
+        body = (await request.json()) as typeof body
         return HttpResponse.json({ job_id: 'job-2' })
       }),
     )
     const user = userEvent.setup()
     renderPage()
 
-    await user.type(screen.getByLabelText(/feed url/i), 'https://x')
-    await user.click(screen.getByRole('button', { name: /resolve/i }))
+    await user.type(screen.getByLabelText(/podcast name or rss url/i), 'https://x')
+    await waitFor(() => expect(screen.getByRole('option')).toBeInTheDocument(), { timeout: 3000 })
+    await user.click(screen.getByRole('option'))
     await waitFor(() => expect(screen.getByText('Ep One')).toBeInTheDocument())
 
     await user.click(screen.getByRole('checkbox', { name: /ep one/i }))
@@ -66,7 +100,8 @@ describe('NewDigest', () => {
     await user.click(screen.getByRole('button', { name: /create digest/i }))
 
     await waitFor(() => expect(body).not.toBeNull())
-    expect(body.custom_prompt).toBe('skip sponsor reads')
-    expect(body.episode_prompts).toEqual({ e1: 'keep the interview' })
+    expect(body!.custom_prompt).toBe('skip sponsor reads')
+    expect(body!.episode_prompts).toEqual({ e1: 'keep the interview' })
+    expect(body!.feed_url).toBe('https://x/rss')
   })
 })

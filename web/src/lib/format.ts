@@ -1,3 +1,20 @@
+/** Dropdown freshness, e.g. "latest: 3 days ago". */
+export function latestLabel(unix: number | null | undefined, now = Date.now()): string | null {
+  if (unix == null || unix <= 0) return null
+  const secs = Math.max(0, Math.round(now / 1000 - unix))
+  if (secs < 45) return 'latest: just now'
+  const mins = Math.round(secs / 60)
+  if (mins < 60) return `latest: ${mins} minute${mins === 1 ? '' : 's'} ago`
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return `latest: ${hours} hour${hours === 1 ? '' : 's'} ago`
+  const days = Math.round(hours / 24)
+  if (days < 30) return `latest: ${days} day${days === 1 ? '' : 's'} ago`
+  const months = Math.round(days / 30)
+  if (months < 12) return `latest: ${months} month${months === 1 ? '' : 's'} ago`
+  const years = Math.round(months / 12)
+  return `latest: ${years} year${years === 1 ? '' : 's'} ago`
+}
+
 /** Compact relative time, e.g. "just now", "5m ago", "3d ago". */
 export function relativeTime(iso: string | null | undefined): string {
   if (!iso) return '—'

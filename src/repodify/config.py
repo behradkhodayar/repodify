@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The project root (config.py -> repodify -> src -> repo). Persistence
@@ -121,6 +121,24 @@ class Settings(BaseSettings):
     # HTTP API
     api_token: str | None = None  # when set, all endpoints except /health require it
     cors_allow_origins: list[str] = ["*"]
+
+    # Podcast directory search. Empty PI keys → iTunes-only, zero-config.
+    podcastindex_api_key: str | None = None
+    podcastindex_api_secret: str | None = None
+    # Any non-empty value enables POST-resolve `/add/byfeedurl` using the key above.
+    podcastindex_write_key: str | None = None
+    itunes_country: str = "us"
+    search_min_chars: int = 3
+    feed_poll_minutes: int = 30
+
+    @field_validator("api_token", mode="before")
+    @classmethod
+    def _blank_api_token_means_disabled(cls, value: object) -> str | None:
+        """`.env.example` ships `API_TOKEN=`; empty must disable auth, not require Bearer."""
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
     @model_validator(mode="after")
     def _anchor_persistence_to_project_root(self) -> Settings:

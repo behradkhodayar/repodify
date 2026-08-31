@@ -9,6 +9,7 @@ import httpx
 from arq.connections import RedisSettings
 
 from repodify.config import Settings, get_settings
+from repodify.ingest.identity import USER_AGENT
 from repodify.ingest.resolvers import resolve
 from repodify.models.domain import (
     Episode,
@@ -99,7 +100,7 @@ def build_deps(settings: Settings) -> Deps:
     repo = JobRepository(sf)
     settings_repo = SettingsRepository(sf)
     storage = _import_filesystem_storage()(settings.data_dir)
-    http = httpx.Client(timeout=60.0)
+    http = httpx.Client(timeout=60.0, headers={"User-Agent": USER_AGENT})
 
     if settings.use_fakes:
         from repodify.ports.diarizer import FakeDiarizer

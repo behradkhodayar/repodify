@@ -28,9 +28,9 @@ def test_apple_lookup_returns_feed_url():
 
 def test_castbox_scrapes_rss_link():
     html = (
-        '<html><head>'
+        "<html><head>"
         '<link type="application/rss+xml" href="https://rss.castbox.fm/everest/abc.xml">'
-        '</head></html>'
+        "</head></html>"
     )
     with respx.mock:
         respx.get("https://castbox.fm/channel/id999").respond(text=html)
@@ -42,9 +42,9 @@ def test_castbox_scrapes_rss_link():
 def test_castbox_falls_back_to_json_feed_url():
     # No <link rss> on the page, but an embedded JSON blob carries the feed URL.
     html = (
-        '<html><body><script>window.__INITIAL_STATE__='
+        "<html><body><script>window.__INITIAL_STATE__="
         '{"channel":{"feed_url":"https://rss.castbox.fm/everest/xyz.xml"}}'
-        '</script></body></html>'
+        "</script></body></html>"
     )
     with respx.mock:
         respx.get("https://castbox.fm/channel/id777").respond(text=html)
@@ -56,4 +56,10 @@ def test_castbox_falls_back_to_json_feed_url():
 def test_unresolvable_raises():
     with httpx.Client() as http:
         with pytest.raises(UnresolvableFeedError):
-            resolve("https://unknown.example.com/page", http)
+            resolve("not-a-feed", http)
+
+
+def test_generic_http_passthrough_including_feedburner():
+    url = "https://feeds.feedburner.com/udacity-linear-digressions"
+    with httpx.Client() as http:
+        assert resolve(url, http) == url
