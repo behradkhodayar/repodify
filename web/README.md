@@ -1,32 +1,45 @@
-# React + TypeScript + Vite
+# Repodify web client
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The React 19 + Vite PWA for [Repodify](../README.md). It's served same-origin by
+the API at `/app` (client-side router `basename="/app"`, Vite `base: '/app/'`) and
+drives the whole flow: search a show, pick episodes, configure the digest, step
+through the pipeline gates, and stream the finished audio.
 
-Currently, two official plugins are available:
+Most of the time you don't run this directly — [`./launch`](../launch) builds and
+serves it for you. Use the commands below when working on the client itself.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Commands
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install        # once
+npm run dev        # dev server on :5173, proxies API calls to :8000
+npm run build      # tsc -b && vite build → web/dist/, which the API serves at /app
+npm run preview    # preview the production build
+npm test           # Vitest + MSW component/hook tests
+npm run lint       # tsc -b (type check)
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The dev server proxies `/feeds`, `/jobs`, `/voices`, `/settings`, and `/health` to
+`API_PROXY_TARGET` (default `http://localhost:8000`). If the API is protected by
+`API_TOKEN`, set the token on the **Settings** screen — the client stores it in
+`localStorage.api_token` and sends it as a bearer token.
+
+## Stack & layout
+
+- **React 19**, **Vite 8**, **Tailwind**, **TanStack Query**, **React Router 7**,
+  **Radix UI** primitives, **Framer Motion**.
+- `src/api/` — `client.ts` (same-origin fetch + bearer), `queries.ts` (query hooks),
+  `types.ts` (mirrors `api/schemas.py` — keep them aligned).
+- `src/routes/` — Overview, NewDigest, Jobs (history), JobDetail, Settings.
+- `src/components/` — feature components + `ui/` primitives + `layout/` shell.
+- `src/lib/` — theme, formatting, nav, hooks.
+- Tests are co-located as `*.test.ts(x)`; MSW handlers live in `src/test/msw.ts`
+  and are configured `onUnhandledRequest: 'error'`.
+
+## Conventions
+
+- Keep `src/api/types.ts` in sync with the backend schemas in
+  `src/repodify/api/schemas.py`.
+- Don't duplicate pipeline business rules in the client — it renders gates and
+  progress; the backend owns the logic.
+- After UI changes, run `npm test` and check both desktop and mobile viewports.
