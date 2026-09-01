@@ -129,25 +129,31 @@ The pipeline is a LangGraph `StateGraph` compiled from node closures over a
 ```mermaid
 flowchart TD
     START((start)) --> R[resolve]
-    R --> D[download node]
-    D --> S[summarize]
+    R --> DL[download]
+    DL --> G1{gate: transcribe}
+    G1 --> T[transcribe]
+    T --> G2{gate: diarize}
+    G2 --> DZ[diarize]
+    DZ --> G3{gate: voices}
+    G3 --> S[summarize]
     S --> AR[arc]
     AR --> SC[script]
-    SC --> SY[synth node]
+    SC --> G4{gate: tts}
+    G4 --> SY[synth node]
     SY --> END((end))
 
-    subgraph D[download node]
-        d1[download episodes] --> d2[transcribe episodes] --> d3[diarize: label speakers]
-    end
     subgraph SY[synth node]
         y1[TTS synthesize] --> y2[assemble WAV + transcode mp3]
     end
 ```
 
-Six graph nodes cover nine tracked **stages** (`models/enums.py:StageName`): the
-`download` node runs `download`, `transcribe`, and `diarize`; the `synth` node runs
-both `tts` and `assemble`. (`StageName.LIST` exists for an interactive selection
-step; today selection happens at job creation via `episode_ids`, so it is unused.)
+Graph nodes cover the tracked **stages** (`models/enums.py:StageName`) plus a
+gate-only `voices` node. The `synth` node still runs both `tts` and `assemble`.
+Each ML node calls LangGraph `interrupt()` so the worker can persist a SQLite
+checkpoint (`{DATA_DIR}/checkpoints.db`) and wait at `awaiting_config`. The
+client resumes with `POST /jobs/{id}/continue`. (`StageName.LIST` exists for an
+interactive selection step; today selection happens at job creation via
+`episode_ids`, so it is unused.)
 
 Data threaded through the graph (`pipeline/state.py:PipelineState`):
 
@@ -183,8 +189,8 @@ from the pipeline logic.
 | Port (protocol) | Method(s) | Real adapter | Fake |
 |---|---|---|---|
 | `Resolver` | `matches`, `resolve` | `Apple`/`Castbox`/`RawRss` resolvers | (registry, no fake needed) |
-| `Transcriber` (STT) | `transcribe(path) -> Transcript`, `release()` | `FasterWhisperTranscriber` (CTranslate2) | `FakeTranscriber` |
-| `Diarizer` | `diarize(path) -> [SpeakerTurn]`, `release()` | `PyannoteDiarizer` (pyannote) | `FakeDiarizer` |
+| `Transcriber` (STT) | `transcribe(path) -> Transcript`, `release()` | `FasterWhisperTranscriber` (local) / `OpenRouterTranscriber` (BYOK) | `FakeTranscriber` |
+| `Diarizer` | `diarize(path) -> [SpeakerTurn]`, `release()` | `PyannoteDiarizer` (local) / `PyannoteCloudDiarizer` (BYOK) | `FakeDiarizer` |
 | `StructuredLLM` | `generate(system, user, schema) -> BaseModel` | `AnthropicStructuredLLM`, `OllamaStructuredLLM` | `FakeStructuredLLM`, `LocalStubLLM` |
 | `TTS` | `synthesize(text, voice) -> wav bytes`, `release()` | `RoutingTTS` → `F5TTS` (cloned) / `KokoroTTS` (stock catalog) | `FakeTTS` (silent WAV sized to word count) |
 | `VoiceCloner` | `clone(audio_path, transcript, keys, storage, job_id) -> {key: Voice}` | `ClipVoiceCloner` (cuts clips from the labeled transcript) | `FakeVoiceCloner` |
@@ -262,10 +268,11 @@ dependency (`api/auth.py`); CORS is configured from `cors_allow_origins`.
 | POST | `/feeds/resolve` | Fetch live RSS for a `feed_url` → episodes |
 | POST | `/jobs` | Create a job (`JobOptions`) and enqueue it |
 | GET | `/jobs` | Paginated job history (`limit`, `offset`) |
-| GET | `/jobs/{id}` | Status + per-stage state (poll this) |
+| GET | `/jobs/{id}` | Status + per-stage state + current `gate` (poll this) |
+| POST | `/jobs/{id}/continue` | Submit a gate payload; resumes the SQLite checkpoint |
 | GET | `/voices` | Stock (Kokoro) voice catalog |
-| GET | `/jobs/{id}/speakers` | Detected cast for a job `awaiting_review` |
-| POST | `/jobs/{id}/voices` | Submit per-speaker voice assignments; resumes the job |
+| GET | `/jobs/{id}/speakers` | Detected cast for a voices gate |
+| POST | `/jobs/{id}/voices` | Compatibility: voice assignments; resumes the job |
 | GET | `/jobs/{id}/result` | `audio_mp3_url`, `audio_wav_url`, summary, chapters |
 | GET | `/jobs/{id}/audio?format=mp3\|wav` | Range-streamed audio |
 
@@ -309,13 +316,12 @@ narrates closer to the target length.
 | Voice cloning | `clone=true` | Diarization (DIARIZE stage) labels the transcript; `ClipVoiceCloner` cuts a reference clip per speaker for F5-TTS. |
 | Stock voices | `voice_assignments` / default | Catalog voices via Kokoro (`GET /voices`); `RoutingTTS` sends stock voices to Kokoro and cloned voices to F5-TTS. |
 | Speaker-preserving | `preserve_speakers=true` | The digest is voiced by the real detected cast: the script is a multi-speaker dialogue labeled with diarization ids, each in their assigned (cloned/stock) voice. Overrides `host_count`. |
-| Interactive review | `review_voices=true` | Two-phase job: runs resolve→download→diarize, then **pauses at `awaiting_review`**. The client reads `GET /jobs/{id}/speakers` and `POST`s per-speaker `voice_assignments` to `/jobs/{id}/voices`, which resumes into a speaker-preserving digest. |
+| Stepped local/BYOK | every job | Pauses at transcribe, diarize, voices (if assigning), summarize, and TTS. `POST /jobs/{id}/continue` stores the payload and resumes the SQLite checkpoint. |
 
-The interactive review splits the graph (`build_ingest_graph` / `build_digest_graph`):
-the ingest phase persists its state to `{job_id}/state/ingest.json` and the detected
-cast into the job report, then `run_review_digest` reloads that state (with the fresh,
-reviewed options) and runs the digest to completion. No cross-process checkpointer is
-needed.
+Gates persist across shutting the app down. Mid-stage crash resumes from the last
+completed node. Hosted STT is OpenRouter `/audio/transcriptions`; hosted
+diarization is pyannoteAI (no embeddings — cross-episode clustering falls back
+to per-episode labels).
 
 **Cloning guardrails (always enforced, non-optional):** the output is labeled
 `synthetic: true` with a disclaimer in the show notes, a **spoken disclaimer** (in
@@ -391,8 +397,8 @@ Artifact `kind`s recorded in the DB: `audio_download`, `reference_clip`,
 - **Object storage → S3.** `Storage` is a port; the audio endpoint is the only
   filesystem-coupled consumer and is isolated in `api/audio.py` (it becomes a
   redirect to a pre-signed URL).
-- **Durable checkpointer → Postgres.** `build_graph` accepts a `checkpointer`; a
-  Postgres saver enables crash-resume.
+- **Durable checkpointer.** A SQLite saver is wired (`pipeline/checkpoint.py`).
+  Postgres remains a possible later swap.
 - **Multi-user accounts.** Auth is a single dependency (`make_require_token`);
   per-user ownership would extend `Job` + the repo queries.
 - **Live progress → SSE/WebSocket.** Progress is already persisted per stage; a
