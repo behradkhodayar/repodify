@@ -31,6 +31,7 @@ from repodify.pipeline.progress import (
 from repodify.pipeline.state import Deps, PipelineState
 from repodify.script.writer import write_script
 from repodify.summarize.chains import summarize_episode, synthesize_arc
+from repodify.summarize.guidance import runtime_guidance
 from repodify.synth.assemble import (
     assemble_wav,
     build_show_notes,
@@ -72,6 +73,15 @@ def _wants_speaker_id(options) -> bool:
     """
     assign = getattr(options, "assign_voices", False)
     return bool(options.clone or options.preserve_speakers or options.review_voices or assign)
+
+
+def _whole_prompt(state: PipelineState) -> str | None:
+    options = state["options"]
+    extra = runtime_guidance(options, list(state.get("cast") or []))
+    custom = options.custom_prompt
+    if custom and extra:
+        return f"{custom}\n\n{extra}"
+    return custom or extra or None
 
 
 def _take_gate(name: str, extra: dict | None = None) -> dict:
@@ -325,7 +335,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                         e.title,
                         e.order_index,
                         deps.llm_map,
-                        whole_prompt=state["options"].custom_prompt,
+                        whole_prompt=_whole_prompt(state),
                         episode_prompt=state["options"].episode_prompts.get(e.guid),
                     )
                 )
@@ -350,7 +360,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             arc = synthesize_arc(
                 state["summaries"],
                 deps.llm_reduce,
-                whole_prompt=state["options"].custom_prompt,
+                whole_prompt=_whole_prompt(state),
             )
             repo.finish_stage(
                 job_id,
@@ -367,10 +377,15 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         job_id = state["job_id"]
         options = state["options"]
         llm = model_id(deps.llm_reduce)
+        length_label = (
+            "smart length"
+            if options.length_mode == "smart" or options.target_minutes is None
+            else f"writing {options.target_minutes} min script"
+        )
         repo.start_stage(
             job_id,
             StageName.SCRIPT,
-            detail=join_detail(f"writing {options.target_minutes} min script", llm),
+            detail=join_detail(length_label, llm),
         )
         try:
             # Cast is computed in the DIARIZE stage (and persisted across an
@@ -381,11 +396,15 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             script = write_script(
                 state["arc"],
                 deps.llm_reduce,
-                target_minutes=options.target_minutes,
+                target_minutes=(
+                    None
+                    if options.length_mode == "smart"
+                    else options.target_minutes
+                ),
                 wpm=deps.settings.wpm,
                 host_count=options.host_count,
                 cast=cast if options.preserve_speakers else None,
-                whole_prompt=options.custom_prompt,
+                whole_prompt=_whole_prompt(state),
             )
             est = script.estimated_minutes(deps.settings.wpm)
             repo.finish_stage(

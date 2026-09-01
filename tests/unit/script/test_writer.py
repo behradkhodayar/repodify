@@ -19,6 +19,21 @@ def _arc() -> ArcOutline:
     )
 
 
+def test_write_script_smart_length_skips_word_budget():
+    returned = Script(
+        segments=[ScriptSegment(speaker="narrator", text="a short natural draft")]
+    )
+    llm = FakeStructuredLLM([returned])
+
+    script = write_script(_arc(), llm, target_minutes=None, wpm=130)
+
+    assert script.segments[0].text == "a short natural draft"
+    assert len(llm.calls) == 1
+    user = llm.calls[0][1]
+    assert "natural" in user.lower()
+    assert "3900" not in user
+
+
 def test_write_script_passes_word_budget_and_normalizes_speaker():
     # A within-budget draft (>= 3900 words) so the writer accepts it in one pass.
     returned = Script(

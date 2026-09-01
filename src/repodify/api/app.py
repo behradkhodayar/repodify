@@ -20,6 +20,7 @@ from repodify.api.audio import audio_response
 from repodify.api.auth import make_require_token
 from repodify.api.schemas import (
     CandidateOut,
+    ContinueJobRequest,
     CreateJobRequest,
     CreateJobResponse,
     EpisodeOut,
@@ -55,6 +56,7 @@ from repodify.models.enums import JobStatus
 from repodify.persistence.engine import init_db, make_engine, session_factory
 from repodify.persistence.repo import JobRepository
 from repodify.persistence.settings_repo import SettingsRepository
+from repodify.pipeline.gates import GateError, apply_gate_payload
 from repodify.ports.llm import LLM_BACKENDS, LlmOverrides, effective_llm
 from repodify.ports.tts import TTS
 from repodify.storage.base import Storage
@@ -320,6 +322,60 @@ def create_app(
         (enqueue_resume or enqueue)(job_id)
         return CreateJobResponse(job_id=job_id)
 
+    def _require_byok_key(gate: str, payload: dict) -> None:
+        if payload.get("mode") != "byok":
+            return
+        backend = payload.get("backend")
+        if gate in ("transcribe", "tts") or backend == "openrouter":
+            if not settings.openrouter_api_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail="OPENROUTER_API_KEY is not configured on the server",
+                )
+        elif gate == "diarize":
+            if not settings.pyannoteai_api_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail="PYANNOTEAI_API_KEY is not configured on the server",
+                )
+        elif gate == "summarize" and backend == "anthropic":
+            if not settings.anthropic_api_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail="ANTHROPIC_API_KEY is not configured on the server",
+                )
+
+    @router.post("/jobs/{job_id}/continue", response_model=CreateJobResponse)
+    def continue_job(job_id: str, req: ContinueJobRequest) -> CreateJobResponse:
+        try:
+            job = repo.get_job(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+        paused = {JobStatus.AWAITING_CONFIG.value, JobStatus.AWAITING_REVIEW.value}
+        if job.status not in paused:
+            raise HTTPException(status_code=409, detail="job is not awaiting configuration")
+        report = json.loads(job.report_json or "{}")
+        current = report.get("gate")
+        if current and current != req.gate:
+            raise HTTPException(
+                status_code=409, detail=f"job is awaiting {current}, not {req.gate}"
+            )
+        try:
+            _require_byok_key(req.gate, req.payload)
+            options = apply_gate_payload(
+                JobOptions.model_validate_json(job.options_json),
+                req.gate,
+                req.payload,
+            )
+        except GateError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        repo.set_options(job_id, options)
+        report["pending_resume"] = req.payload
+        repo.set_report(job_id, report)
+        repo.set_status(job_id, JobStatus.QUEUED)
+        (enqueue_resume or enqueue)(job_id)
+        return CreateJobResponse(job_id=job_id)
+
     @router.get("/jobs", response_model=JobListResponse)
     def list_jobs(limit: int = 50, offset: int = 0) -> JobListResponse:
         jobs, total = repo.list_jobs(limit=limit, offset=offset)
@@ -343,6 +399,7 @@ def create_app(
             job = repo.get_job(job_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="job not found") from exc
+        report = json.loads(job.report_json or "{}")
         return JobStatusResponse(
             id=job.id,
             status=job.status,
@@ -357,7 +414,19 @@ def create_app(
                 )
                 for s in job.stages
             ],
-            report=json.loads(job.report_json or "{}"),
+            report=report,
+            gate=report.get("gate"),
+            gate_info={
+                "openrouter_configured": bool(settings.openrouter_api_key),
+                "anthropic_configured": bool(settings.anthropic_api_key),
+                "pyannoteai_configured": bool(settings.pyannoteai_api_key),
+                "hf_token_configured": bool(settings.hf_token),
+                "whisper_model": settings.whisper_model,
+                "ollama_model": settings.ollama_model,
+                "openrouter_llm_model": settings.openrouter_llm_model,
+                "openrouter_tts_model": settings.openrouter_tts_model,
+                "speakers": report.get("speakers") or [],
+            },
         )
 
     @router.get("/jobs/{job_id}/result", response_model=ResultResponse)

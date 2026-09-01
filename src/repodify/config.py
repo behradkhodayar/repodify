@@ -46,6 +46,7 @@ class Settings(BaseSettings):
 
     # Secrets / connections
     anthropic_api_key: str | None = None
+    pyannoteai_api_key: str | None = None
     database_url: str = "sqlite:///./data/app.db"
     redis_url: str = "redis://localhost:6379"
 
