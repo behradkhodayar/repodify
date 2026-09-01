@@ -112,9 +112,11 @@ Domain vocabulary lives in `models/domain.py` (`Feed`, `Episode`, `Transcript`,
 Settings are env-driven (`config.py`, `.env.example`). Relative `DATA_DIR` and
 SQLite `DATABASE_URL` are **anchored to the project root**, not the process CWD
 (issue #27) — otherwise the API, worker, and an ad-hoc run each get a private
-`data/app.db`. The web Settings page persists LLM backend/model and preferred
-stock voices in `app_settings`; those values **override** `.env` via
-`effective_llm` (`ports/llm.py`).
+`data/app.db`. The web Settings page persists Local/BYOK models, API keys, and
+preferred stock voices in `app_settings`; those values **override** `.env` via
+`apply_overrides` (`persistence/settings_repo.py`) and `effective_llm`
+(`ports/llm.py`). GET `/settings` never returns secret values, only `*_configured`
+flags.
 
 ---
 

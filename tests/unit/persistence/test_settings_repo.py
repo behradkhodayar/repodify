@@ -51,3 +51,29 @@ def test_preferred_stock_voices_can_clear(settings_repo):
     settings_repo.set_preferred_stock_voices(["af_heart"])
     settings_repo.set_preferred_stock_voices([])
     assert settings_repo.get_preferred_stock_voices() == []
+
+
+def test_overrides_round_trip_and_partial_update(settings_repo):
+    settings_repo.set_overrides({"whisper_model": "small", "ollama_model": "llama3"})
+    assert settings_repo.get_overrides()["whisper_model"] == "small"
+    settings_repo.set_overrides({"whisper_model": "base"})
+    ov = settings_repo.get_overrides()
+    assert ov["whisper_model"] == "base"
+    assert ov["ollama_model"] == "llama3"
+
+
+def test_empty_override_clears_key(settings_repo):
+    settings_repo.set_overrides({"openrouter_api_key": "sk-or"})
+    settings_repo.set_overrides({"openrouter_api_key": ""})
+    assert "openrouter_api_key" not in settings_repo.get_overrides()
+
+
+def test_apply_overrides_beats_env_per_field():
+    from repodify.config import Settings
+    from repodify.persistence.settings_repo import apply_overrides
+
+    base = Settings(_env_file=None, whisper_model="large-v3", openrouter_api_key=None)
+    eff = apply_overrides(base, {"whisper_model": "small", "openrouter_api_key": "sk-or"})
+    assert eff.whisper_model == "small"
+    assert eff.openrouter_api_key == "sk-or"
+    assert eff.ollama_model == base.ollama_model

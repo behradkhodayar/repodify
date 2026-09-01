@@ -19,6 +19,8 @@ from pydantic import ValidationError
 from repodify.api.audio import audio_response
 from repodify.api.auth import make_require_token
 from repodify.api.schemas import (
+    AppSettingsResponse,
+    AppSettingsUpdate,
     CandidateOut,
     ContinueJobRequest,
     CreateJobRequest,
@@ -42,7 +44,7 @@ from repodify.api.schemas import (
     VoiceSettingsUpdate,
     VoicesResponse,
 )
-from repodify.config import Settings, get_settings
+from repodify.config import WHISPER_MODELS, Settings, get_settings
 from repodify.ingest.cache import JsonCache
 from repodify.ingest.feed import parse_feed
 from repodify.ingest.fetch import FeedFetchError, PrivateFeedError, SsrfBlocked, fetch_feed
@@ -55,7 +57,11 @@ from repodify.models.domain import JobOptions
 from repodify.models.enums import JobStatus
 from repodify.persistence.engine import init_db, make_engine, session_factory
 from repodify.persistence.repo import JobRepository
-from repodify.persistence.settings_repo import SettingsRepository
+from repodify.persistence.settings_repo import (
+    SECRET_FIELDS,
+    SettingsRepository,
+    apply_overrides,
+)
 from repodify.pipeline.gates import GateError, apply_gate_payload
 from repodify.ports.llm import LLM_BACKENDS, LlmOverrides, effective_llm
 from repodify.ports.tts import TTS
@@ -218,8 +224,14 @@ def create_app(
             raise HTTPException(status_code=404, detail="sample not found")
         return FileResponse(path, media_type="audio/wav", filename=f"{voice_id}.wav")
 
+    def _effective() -> Settings:
+        if settings_repo is None:
+            return settings
+        return apply_overrides(settings, settings_repo.get_overrides())
+
     def _llm_settings_response() -> LlmSettingsResponse:
-        eff = effective_llm(settings, settings_repo.get_llm_overrides())
+        runtime = _effective()
+        eff = effective_llm(runtime, settings_repo.get_llm_overrides())
         return LlmSettingsResponse(
             backend=eff.backend,
             openrouter_model=eff.openrouter_model,
@@ -227,7 +239,43 @@ def create_app(
             anthropic_map_model=eff.anthropic_map_model,
             anthropic_reduce_model=eff.anthropic_reduce_model,
             available_backends=list(LLM_BACKENDS),
-            openrouter_configured=bool(settings.openrouter_api_key),
+            openrouter_configured=bool(runtime.openrouter_api_key),
+        )
+
+    def _gate_info(report: dict) -> dict:
+        eff = _effective()
+        return {
+            "openrouter_configured": bool(eff.openrouter_api_key),
+            "anthropic_configured": bool(eff.anthropic_api_key),
+            "pyannoteai_configured": bool(eff.pyannoteai_api_key),
+            "hf_token_configured": bool(eff.hf_token),
+            "whisper_model": eff.whisper_model,
+            "ollama_model": eff.ollama_model,
+            "openrouter_llm_model": eff.openrouter_llm_model,
+            "openrouter_tts_model": eff.openrouter_tts_model,
+            "openrouter_stt_model": eff.openrouter_stt_model,
+            "pyannoteai_model": eff.pyannoteai_model,
+            "speakers": report.get("speakers") or [],
+        }
+
+    def _app_settings_response() -> AppSettingsResponse:
+        eff = _effective()
+        return AppSettingsResponse(
+            whisper_model=eff.whisper_model,
+            whisper_models=list(WHISPER_MODELS),
+            ollama_model=eff.ollama_model,
+            ollama_base_url=eff.ollama_base_url,
+            diarization_model=eff.diarization_model,
+            hf_token_configured=bool(eff.hf_token),
+            openrouter_stt_model=eff.openrouter_stt_model,
+            openrouter_llm_model=eff.openrouter_llm_model,
+            openrouter_tts_model=eff.openrouter_tts_model,
+            openrouter_configured=bool(eff.openrouter_api_key),
+            anthropic_map_model=eff.map_model,
+            anthropic_reduce_model=eff.reduce_model,
+            anthropic_configured=bool(eff.anthropic_api_key),
+            pyannoteai_model=eff.pyannoteai_model,
+            pyannoteai_configured=bool(eff.pyannoteai_api_key),
         )
 
     @router.get("/settings/llm", response_model=LlmSettingsResponse)
@@ -242,7 +290,7 @@ def create_app(
             raise HTTPException(status_code=503, detail="settings store unavailable")
         if req.backend is not None and req.backend not in LLM_BACKENDS:
             raise HTTPException(status_code=422, detail=f"unknown backend: {req.backend}")
-        if req.backend == "openrouter" and not settings.openrouter_api_key:
+        if req.backend == "openrouter" and not _effective().openrouter_api_key:
             raise HTTPException(
                 status_code=400, detail="OPENROUTER_API_KEY is not configured on the server"
             )
@@ -280,6 +328,27 @@ def create_app(
         return VoiceSettingsResponse(
             preferred_stock_voices=settings_repo.get_preferred_stock_voices()
         )
+
+    @router.get("/settings", response_model=AppSettingsResponse)
+    def get_app_settings() -> AppSettingsResponse:
+        if settings_repo is None:
+            raise HTTPException(status_code=503, detail="settings store unavailable")
+        return _app_settings_response()
+
+    @router.put("/settings", response_model=AppSettingsResponse)
+    def put_app_settings(req: AppSettingsUpdate) -> AppSettingsResponse:
+        if settings_repo is None:
+            raise HTTPException(status_code=503, detail="settings store unavailable")
+        payload = req.model_dump(exclude_unset=True)
+        if (whisper := payload.get("whisper_model")) is not None and whisper not in WHISPER_MODELS:
+            raise HTTPException(status_code=422, detail=f"unknown whisper model: {whisper}")
+        for key, value in payload.items():
+            if key in SECRET_FIELDS or value is None:
+                continue
+            if isinstance(value, str) and not value.strip():
+                raise HTTPException(status_code=422, detail="model id must not be empty")
+        settings_repo.set_overrides(payload)
+        return _app_settings_response()
 
     @router.get("/jobs/{job_id}/speakers", response_model=SpeakersResponse)
     def get_speakers(job_id: str) -> SpeakersResponse:
@@ -325,21 +394,22 @@ def create_app(
     def _require_byok_key(gate: str, payload: dict) -> None:
         if payload.get("mode") != "byok":
             return
+        runtime = _effective()
         backend = payload.get("backend")
         if gate in ("transcribe", "tts") or backend == "openrouter":
-            if not settings.openrouter_api_key:
+            if not runtime.openrouter_api_key:
                 raise HTTPException(
                     status_code=400,
                     detail="OPENROUTER_API_KEY is not configured on the server",
                 )
         elif gate == "diarize":
-            if not settings.pyannoteai_api_key:
+            if not runtime.pyannoteai_api_key:
                 raise HTTPException(
                     status_code=400,
                     detail="PYANNOTEAI_API_KEY is not configured on the server",
                 )
         elif gate == "summarize" and backend == "anthropic":
-            if not settings.anthropic_api_key:
+            if not runtime.anthropic_api_key:
                 raise HTTPException(
                     status_code=400,
                     detail="ANTHROPIC_API_KEY is not configured on the server",
@@ -416,17 +486,7 @@ def create_app(
             ],
             report=report,
             gate=report.get("gate"),
-            gate_info={
-                "openrouter_configured": bool(settings.openrouter_api_key),
-                "anthropic_configured": bool(settings.anthropic_api_key),
-                "pyannoteai_configured": bool(settings.pyannoteai_api_key),
-                "hf_token_configured": bool(settings.hf_token),
-                "whisper_model": settings.whisper_model,
-                "ollama_model": settings.ollama_model,
-                "openrouter_llm_model": settings.openrouter_llm_model,
-                "openrouter_tts_model": settings.openrouter_tts_model,
-                "speakers": report.get("speakers") or [],
-            },
+            gate_info=_gate_info(report),
         )
 
     @router.get("/jobs/{job_id}/result", response_model=ResultResponse)
