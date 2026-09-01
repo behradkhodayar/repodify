@@ -16,6 +16,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # ./data/app.db the web UI never reads (issue #27).
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# faster-whisper sizes the Settings page and transcribe gate offer.
+WHISPER_MODELS: tuple[str, ...] = ("tiny", "base", "small", "medium", "large-v3")
+
 
 def _anchor(path: Path) -> Path:
     """Resolve a relative path against the project root, not the CWD."""
@@ -77,6 +80,8 @@ class Settings(BaseSettings):
     # function calling (langchain's structured-output method). Picked at runtime
     # from the Settings page; this is only the fallback default.
     openrouter_llm_model: str = "openai/gpt-4o-mini"
+    # Hosted STT model on OpenRouter's /audio/transcriptions endpoint.
+    openrouter_stt_model: str = "openai/whisper-large-v3"
 
     # Models
     whisper_model: str = "large-v3"
@@ -109,6 +114,8 @@ class Settings(BaseSettings):
     # 4.x-native "community-1" pipeline returns per-speaker embeddings, which the
     # cross-episode speaker-identity clustering needs.
     diarization_model: str = "pyannote/speaker-diarization-community-1"
+    # Hosted pyannoteAI model id (BYOK diarization).
+    pyannoteai_model: str = "community-1"
     # Cosine-distance threshold for merging same-speaker embeddings across
     # episodes. Lower = stricter (fewer merges). Tuned against pyannote embeddings.
     cross_episode_speaker_threshold: float = 0.70

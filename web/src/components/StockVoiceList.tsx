@@ -30,11 +30,11 @@ export function StockVoiceList({
   }
 
   return (
-    <ul className="divide-y divide-border rounded-md border border-border">
+    <ul className="grid gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-2">
       {voices.map((v) => {
         const label = stockVoiceLabel(v.name, v.gender)
         return (
-          <li key={v.id} className="flex items-center gap-2 px-2 py-1.5">
+          <li key={v.id} className="flex items-center gap-2 bg-card px-2 py-1.5">
             <PlaySample voiceId={v.id} name={v.name} />
             <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
               <Checkbox

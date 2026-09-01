@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import type {
+  AppSettingsUpdate,
   CreateJobRequest,
   LlmSettingsUpdate,
   ContinueJobRequest,
@@ -87,5 +88,20 @@ export function useUpdateVoiceSettings() {
   return useMutation({
     mutationFn: (body: VoiceSettingsUpdate) => api.updateVoiceSettings(body),
     onSuccess: (data) => qc.setQueryData(['voice-settings'], data),
+  })
+}
+
+export function useAppSettings() {
+  return useQuery({ queryKey: ['app-settings'], queryFn: () => api.getAppSettings() })
+}
+
+export function useUpdateAppSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: AppSettingsUpdate) => api.updateAppSettings(body),
+    onSuccess: (data) => {
+      qc.setQueryData(['app-settings'], data)
+      qc.invalidateQueries({ queryKey: ['llm-settings'] })
+    },
   })
 }

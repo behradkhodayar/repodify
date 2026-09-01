@@ -112,6 +112,8 @@ export interface GateInfo {
   ollama_model?: string
   openrouter_llm_model?: string
   openrouter_tts_model?: string
+  openrouter_stt_model?: string
+  pyannoteai_model?: string
   speakers?: SpeakerOut[]
 }
 
@@ -169,4 +171,39 @@ export interface LlmSettingsUpdate {
   backend?: string
   openrouter_model?: string
   ollama_model?: string
+}
+
+export interface AppSettingsResponse {
+  whisper_model: string
+  whisper_models: string[]
+  ollama_model: string
+  ollama_base_url: string
+  diarization_model: string
+  hf_token_configured: boolean
+  openrouter_stt_model: string
+  openrouter_llm_model: string
+  openrouter_tts_model: string
+  openrouter_configured: boolean
+  anthropic_map_model: string
+  anthropic_reduce_model: string
+  anthropic_configured: boolean
+  pyannoteai_model: string
+  pyannoteai_configured: boolean
+}
+
+export interface AppSettingsUpdate {
+  whisper_model?: string
+  ollama_model?: string
+  ollama_base_url?: string
+  diarization_model?: string
+  hf_token?: string
+  openrouter_stt_model?: string
+  openrouter_llm_model?: string
+  openrouter_tts_model?: string
+  openrouter_api_key?: string
+  map_model?: string
+  reduce_model?: string
+  anthropic_api_key?: string
+  pyannoteai_model?: string
+  pyannoteai_api_key?: string
 }

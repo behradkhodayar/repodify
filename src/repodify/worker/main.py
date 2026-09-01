@@ -87,13 +87,14 @@ def _build_real_tts(settings: Settings):
 
 def build_deps(settings: Settings) -> Deps:
     """Wire the pipeline's dependencies, choosing fakes or real backends."""
-    from repodify.persistence.settings_repo import SettingsRepository
+    from repodify.persistence.settings_repo import SettingsRepository, apply_overrides
 
     engine = make_engine(settings.database_url)
     init_db(engine)
     sf = session_factory(engine)
     repo = JobRepository(sf)
     settings_repo = SettingsRepository(sf)
+    settings = apply_overrides(settings, settings_repo.get_overrides())
     storage = _import_filesystem_storage()(settings.data_dir)
     http = httpx.Client(timeout=60.0, headers={"User-Agent": USER_AGENT})
 
@@ -199,7 +200,7 @@ def apply_job_backends(deps: Deps, settings: Settings, options: JobOptions) -> D
                 raise RuntimeError("OPENROUTER_API_KEY is required for BYOK transcription")
             deps.transcriber = OpenRouterTranscriber(
                 api_key=settings.openrouter_api_key,
-                model=options.transcribe.model or "openai/whisper-large-v3",
+                model=options.transcribe.model or settings.openrouter_stt_model,
                 base_url=settings.openrouter_base_url,
             )
         else:
@@ -216,7 +217,7 @@ def apply_job_backends(deps: Deps, settings: Settings, options: JobOptions) -> D
                 raise RuntimeError("PYANNOTEAI_API_KEY is required for BYOK diarization")
             deps.diarizer = PyannoteCloudDiarizer(
                 api_key=settings.pyannoteai_api_key,
-                model=options.diarize.model or "community-1",
+                model=options.diarize.model or settings.pyannoteai_model,
             )
         else:
             from repodify.transcribe.diarization import PyannoteDiarizer
@@ -258,9 +259,7 @@ def apply_job_backends(deps: Deps, settings: Settings, options: JobOptions) -> D
                 base_url=settings.openrouter_base_url,
             )
         else:
-            deps.tts = _build_real_tts(
-                settings.model_copy(update={"tts_backend": "f5"})
-            )
+            deps.tts = _build_real_tts(settings.model_copy(update={"tts_backend": "f5"}))
     return deps
 
 
@@ -295,7 +294,7 @@ def run_pipeline(job_id: str, settings: Settings | None = None) -> str:
     deps = build_deps(settings)
     job = deps.repo.get_job(job_id)
     options = JobOptions.model_validate_json(job.options_json)
-    deps = apply_job_backends(deps, settings, options)
+    deps = apply_job_backends(deps, deps.settings, options)
     try:
         with open_checkpointer(settings.data_dir) as saver:
             graph = build_graph(deps, checkpointer=saver)

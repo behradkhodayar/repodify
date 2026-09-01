@@ -179,3 +179,42 @@ class LlmSettingsUpdate(BaseModel):
     backend: str | None = None
     openrouter_model: str | None = None
     ollama_model: str | None = None
+
+
+class AppSettingsResponse(BaseModel):
+    """Effective Local + BYOK runtime config. Secrets are flags only."""
+
+    whisper_model: str
+    whisper_models: list[str]
+    ollama_model: str
+    ollama_base_url: str
+    diarization_model: str
+    hf_token_configured: bool
+    openrouter_stt_model: str
+    openrouter_llm_model: str
+    openrouter_tts_model: str
+    openrouter_configured: bool
+    anthropic_map_model: str
+    anthropic_reduce_model: str
+    anthropic_configured: bool
+    pyannoteai_model: str
+    pyannoteai_configured: bool
+
+
+class AppSettingsUpdate(BaseModel):
+    """Partial update. Omitted fields stay as-is; empty secrets clear the override."""
+
+    whisper_model: str | None = None
+    ollama_model: str | None = None
+    ollama_base_url: str | None = None
+    diarization_model: str | None = None
+    hf_token: str | None = None
+    openrouter_stt_model: str | None = None
+    openrouter_llm_model: str | None = None
+    openrouter_tts_model: str | None = None
+    openrouter_api_key: str | None = None
+    map_model: str | None = None
+    reduce_model: str | None = None
+    anthropic_api_key: str | None = None
+    pyannoteai_model: str | None = None
+    pyannoteai_api_key: str | None = None

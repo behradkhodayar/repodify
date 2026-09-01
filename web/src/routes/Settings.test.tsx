@@ -6,14 +6,22 @@ import { describe, expect, it } from 'vitest'
 import { server } from '../test/msw'
 import { Settings } from './Settings'
 
-const LLM = {
-  backend: 'anthropic',
-  openrouter_model: 'openai/gpt-4o-mini',
+const APP = {
+  whisper_model: 'small',
+  whisper_models: ['tiny', 'base', 'small', 'medium', 'large-v3'],
   ollama_model: 'qwen2.5-coder:7b',
+  ollama_base_url: 'http://localhost:11434',
+  diarization_model: 'pyannote/speaker-diarization-community-1',
+  hf_token_configured: false,
+  openrouter_stt_model: 'openai/whisper-large-v3',
+  openrouter_llm_model: 'openai/gpt-4o-mini',
+  openrouter_tts_model: 'fish-audio/s2.1-pro',
+  openrouter_configured: true,
   anthropic_map_model: 'claude-haiku-4-5-20251001',
   anthropic_reduce_model: 'claude-opus-4-8',
-  available_backends: ['anthropic', 'ollama', 'openrouter'],
-  openrouter_configured: true,
+  anthropic_configured: false,
+  pyannoteai_model: 'community-1',
+  pyannoteai_configured: false,
 }
 
 const VOICES = {
@@ -26,7 +34,7 @@ const VOICES = {
 
 function stubSettingsApis() {
   server.use(
-    http.get('/settings/llm', () => HttpResponse.json(LLM)),
+    http.get('/settings', () => HttpResponse.json(APP)),
     http.get('/voices', () => HttpResponse.json(VOICES)),
     http.get('/settings/voices', () => HttpResponse.json({ preferred_stock_voices: [] })),
   )
@@ -42,14 +50,26 @@ function renderPage() {
 }
 
 describe('Settings', () => {
-  it('keeps LLM and voice cards visible when their APIs fail', async () => {
+  it('splits runtime config into Local and BYOK columns', async () => {
+    stubSettingsApis()
+    renderPage()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Local' })).toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: 'BYOK' })).toBeInTheDocument()
+    expect(screen.getByLabelText(/whisper model/i)).toHaveValue('small')
+    expect(screen.getByLabelText(/ollama model/i)).toHaveValue('qwen2.5-coder:7b')
+    expect(screen.getByLabelText(/openrouter stt model/i)).toHaveValue('openai/whisper-large-v3')
+    expect(screen.getByLabelText(/openrouter llm model/i)).toHaveValue('openai/gpt-4o-mini')
+  })
+
+  it('keeps Local, BYOK, and voice cards visible when their APIs fail', async () => {
     server.use(
-      http.get('/settings/llm', () => new HttpResponse('nope', { status: 401 })),
+      http.get('/settings', () => new HttpResponse('nope', { status: 401 })),
       http.get('/voices', () => new HttpResponse('nope', { status: 401 })),
       http.get('/settings/voices', () => new HttpResponse('nope', { status: 401 })),
     )
     renderPage()
-    await waitFor(() => expect(screen.getByText(/summarization llm/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Local' })).toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: 'BYOK' })).toBeInTheDocument()
     expect(screen.getByText(/preferred stock voices/i)).toBeInTheDocument()
     expect(screen.getAllByText(/couldn't load/i).length).toBeGreaterThan(0)
   })
@@ -59,41 +79,89 @@ describe('Settings', () => {
     const user = userEvent.setup()
     renderPage()
     await user.type(screen.getByLabelText(/api token/i), 'secret')
-    await user.click(screen.getByRole('button', { name: /^save$/i }))
+    await user.click(screen.getByRole('button', { name: /^save token$/i }))
     expect(localStorage.getItem('api_token')).toBe('secret')
   })
 
-  it('selects the openrouter backend + model and saves it', async () => {
+  it('saves local and BYOK models together', async () => {
     let putBody: unknown = null
     server.use(
+      http.get('/settings', () => HttpResponse.json(APP)),
       http.get('/voices', () => HttpResponse.json(VOICES)),
       http.get('/settings/voices', () => HttpResponse.json({ preferred_stock_voices: [] })),
-      http.get('/settings/llm', () => HttpResponse.json(LLM)),
-      http.put('/settings/llm', async ({ request }) => {
+      http.put('/settings', async ({ request }) => {
         putBody = await request.json()
-        return HttpResponse.json({ ...LLM, backend: 'openrouter', openrouter_model: 'x/y' })
+        return HttpResponse.json({ ...APP, ...(putBody as object) })
       }),
     )
     const user = userEvent.setup()
     renderPage()
-    // Wait for the card to hydrate from the GET.
-    await waitFor(() => expect(screen.getByLabelText(/llm backend/i)).toHaveValue('anthropic'))
-    await user.selectOptions(screen.getByLabelText(/llm backend/i), 'openrouter')
-    const model = screen.getByLabelText(/^model$/i)
-    await user.clear(model)
-    await user.type(model, 'x/y')
-    await user.click(screen.getByRole('button', { name: /save llm settings/i }))
-    await waitFor(() =>
-      expect(putBody).toEqual({ backend: 'openrouter', openrouter_model: 'x/y', ollama_model: 'qwen2.5-coder:7b' }),
+    await waitFor(() => expect(screen.getByLabelText(/whisper model/i)).toHaveValue('small'))
+    await user.selectOptions(screen.getByLabelText(/whisper model/i), 'base')
+    const ollama = screen.getByLabelText(/ollama model/i)
+    await user.clear(ollama)
+    await user.type(ollama, 'llama3.1:8b')
+    const llm = screen.getByLabelText(/openrouter llm model/i)
+    await user.clear(llm)
+    await user.type(llm, 'anthropic/claude-3.5-haiku')
+    await user.click(screen.getByRole('button', { name: /save runtime settings/i }))
+    await waitFor(() => expect(putBody).not.toBeNull())
+    expect(putBody).toEqual(
+      expect.objectContaining({
+        whisper_model: 'base',
+        ollama_model: 'llama3.1:8b',
+        openrouter_llm_model: 'anthropic/claude-3.5-haiku',
+      }),
     )
+  })
+
+  it('sends a typed API key and never displays stored secrets', async () => {
+    let putBody: Record<string, unknown> | null = null
+    server.use(
+      http.get('/settings', () => HttpResponse.json({ ...APP, openrouter_configured: true })),
+      http.get('/voices', () => HttpResponse.json(VOICES)),
+      http.get('/settings/voices', () => HttpResponse.json({ preferred_stock_voices: [] })),
+      http.put('/settings', async ({ request }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ ...APP, openrouter_configured: true })
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByLabelText(/openrouter api key/i)).toBeInTheDocument())
+    expect(screen.queryByDisplayValue(/sk-/)).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText(/openrouter api key/i), 'sk-or-new')
+    await user.click(screen.getByRole('button', { name: /save runtime settings/i }))
+    await waitFor(() =>
+      expect(putBody).toEqual(expect.objectContaining({ openrouter_api_key: 'sk-or-new' })),
+    )
+  })
+
+  it('omits blank key fields so a save does not clear existing secrets', async () => {
+    let putBody: Record<string, unknown> | null = null
+    server.use(
+      http.get('/settings', () => HttpResponse.json({ ...APP, openrouter_configured: true })),
+      http.get('/voices', () => HttpResponse.json(VOICES)),
+      http.get('/settings/voices', () => HttpResponse.json({ preferred_stock_voices: [] })),
+      http.put('/settings', async ({ request }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json(APP)
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByLabelText(/whisper model/i)).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /save runtime settings/i }))
+    await waitFor(() => expect(putBody).not.toBeNull())
+    expect(putBody).not.toHaveProperty('openrouter_api_key')
+    expect(putBody).not.toHaveProperty('anthropic_api_key')
+    expect(putBody).not.toHaveProperty('hf_token')
   })
 
   it('saves preferred stock voices with gender-tagged names', async () => {
     let putBody: unknown = null
+    stubSettingsApis()
     server.use(
-      http.get('/settings/llm', () => HttpResponse.json(LLM)),
-      http.get('/voices', () => HttpResponse.json(VOICES)),
-      http.get('/settings/voices', () => HttpResponse.json({ preferred_stock_voices: [] })),
       http.put('/settings/voices', async ({ request }) => {
         putBody = await request.json()
         return HttpResponse.json(putBody as { preferred_stock_voices: string[] })
