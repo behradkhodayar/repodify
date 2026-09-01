@@ -14,6 +14,7 @@ download — running **entirely on your own machine** or with **your own API key
   <img alt="LangGraph" src="https://img.shields.io/badge/pipeline-LangGraph-1C3C3C">
   <img alt="React 19" src="https://img.shields.io/badge/web-React%2019-61DAFB?logo=react&logoColor=black">
   <img alt="Ruff" src="https://img.shields.io/badge/lint-ruff-D7FF64?logo=ruff&logoColor=black">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
 > **Why this exists.** Suppose it's 2026, you're new to ML, and you want to learn
@@ -388,6 +389,4 @@ fake, and open one PR per logical unit.
 
 ## License
 
-A license will be added before the first tagged open-source release. Until then,
-all rights are reserved by the author. If you'd like to use or extend Repodify,
-please open an issue.
+Repodify is released under the [MIT License](LICENSE). © 2026 Behrad Khodayar.

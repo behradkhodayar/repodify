@@ -7,6 +7,8 @@ name = "repodify"
 version = "0.1.0"
 description = "Turn a podcast into a ~30-minute chronological digest episode."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",
