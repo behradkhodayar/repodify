@@ -295,7 +295,8 @@ def create_app(
             job = repo.get_job(job_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="job not found") from exc
-        if job.status != JobStatus.AWAITING_REVIEW.value:
+        paused = {JobStatus.AWAITING_CONFIG.value, JobStatus.AWAITING_REVIEW.value}
+        if job.status not in paused:
             raise HTTPException(status_code=409, detail="job is not awaiting voice review")
 
         report = json.loads(job.report_json or "{}")
@@ -311,6 +312,10 @@ def create_app(
             }
         )
         repo.set_options(job_id, options)
+        report["pending_resume"] = {
+            "voice_assignments": [a.model_dump() for a in req.voice_assignments],
+        }
+        repo.set_report(job_id, report)
         repo.set_status(job_id, JobStatus.QUEUED)
         (enqueue_resume or enqueue)(job_id)
         return CreateJobResponse(job_id=job_id)

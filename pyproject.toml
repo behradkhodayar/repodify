@@ -25,6 +25,7 @@ dependencies = [
     # Cross-episode speaker clustering is imported by the worker even in fake
     # mode (`./launch --fake` runs `uv sync` without [gpu]).
     "numpy>=2.0",
+    "langgraph-checkpoint-sqlite>=3.1.1",
 ]
 
 [project.optional-dependencies]

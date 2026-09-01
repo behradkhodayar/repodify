@@ -76,21 +76,40 @@ class JobRepository:
             s.commit()
 
     def start_stage(self, job_id: str, stage: StageName, detail: str | None = None) -> None:
+        """Mark ``stage`` running.
+
+        Re-entering a stage that is already RUNNING (node replay after a crash or
+        a LangGraph interrupt resume) resets the existing row instead of inserting
+        a duplicate.
+        """
         with self._sf() as s:
             job = s.get(Job, job_id)
             if job is None:
                 raise KeyError(job_id)
             job.current_stage = stage.value
             job.status = JobStatus.RUNNING.value
-            s.add(
-                StageStatus(
-                    job_id=job_id,
-                    stage=stage.value,
-                    state=StageState.RUNNING.value,
-                    detail=detail,
-                    started_at=_now(),
+            existing = s.scalars(
+                select(StageStatus)
+                .where(
+                    StageStatus.job_id == job_id,
+                    StageStatus.stage == stage.value,
+                    StageStatus.state == StageState.RUNNING.value,
                 )
-            )
+                .order_by(StageStatus.started_at.desc())
+            ).first()
+            if existing is not None:
+                existing.detail = detail
+                existing.started_at = _now()
+            else:
+                s.add(
+                    StageStatus(
+                        job_id=job_id,
+                        stage=stage.value,
+                        state=StageState.RUNNING.value,
+                        detail=detail,
+                        started_at=_now(),
+                    )
+                )
             s.commit()
 
     def update_stage_detail(self, job_id: str, stage: StageName, detail: str) -> None:
@@ -136,9 +155,7 @@ class JobRepository:
         episode_guid: str | None = None,
     ) -> None:
         with self._sf() as s:
-            s.add(
-                Artifact(job_id=job_id, kind=kind, uri=uri, episode_guid=episode_guid)
-            )
+            s.add(Artifact(job_id=job_id, kind=kind, uri=uri, episode_guid=episode_guid))
             s.commit()
 
     def set_report(self, job_id: str, report: dict) -> None:

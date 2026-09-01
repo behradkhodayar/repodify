@@ -28,6 +28,7 @@ from repodify.ports.transcriber import FakeTranscriber
 from repodify.ports.tts import FakeTTS, Voice
 from repodify.ports.voice_cloner import FakeVoiceCloner
 from repodify.ports.watermarker import FakeWatermarker
+from tests.helpers import invoke_through_gates
 
 
 class SpyTranscriber(FakeTranscriber):
@@ -69,9 +70,7 @@ def test_pipeline_releases_transcriber_and_tts(tmp_path, sample_feed_xml, repo):
     )
     # Long enough (>= target_minutes * wpm words) that the writer accepts it in
     # one pass instead of retrying for expansion and draining the fake's queue.
-    script = Script(
-        segments=[ScriptSegment(speaker="narrator", text=" ".join(["word"] * 200))]
-    )
+    script = Script(segments=[ScriptSegment(speaker="narrator", text=" ".join(["word"] * 200))])
     llm_reduce = FakeStructuredLLM([arc, script])
 
     options = JobOptions(episode_ids=["ep-1", "ep-2"], target_minutes=1)
@@ -98,13 +97,14 @@ def test_pipeline_releases_transcriber_and_tts(tmp_path, sample_feed_xml, repo):
                 repo=repo,
                 settings=Settings(_env_file=None),
             )
-            build_graph(deps).invoke(
+            invoke_through_gates(
+                build_graph(deps),
                 {
                     "job_id": job_id,
                     "feed_url": "https://castbox.fm/channel/xyz",
                     "options": options,
                 },
-                config={"configurable": {"thread_id": job_id}},
+                job_id,
             )
 
     assert transcriber.calls, "transcriber should have run"

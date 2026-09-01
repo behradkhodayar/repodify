@@ -25,7 +25,8 @@ class JobStatus(StrEnum):
 
     QUEUED = "queued"
     RUNNING = "running"
-    AWAITING_REVIEW = "awaiting_review"  # paused after diarization for voice review
+    AWAITING_CONFIG = "awaiting_config"  # paused at a local/BYOK gate
+    AWAITING_REVIEW = "awaiting_review"  # deprecated alias; treat as awaiting_config
     COMPLETED = "completed"
     FAILED = "failed"
 

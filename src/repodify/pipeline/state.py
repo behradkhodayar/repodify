@@ -38,6 +38,7 @@ class PipelineState(TypedDict, total=False):
     options: JobOptions
     feed: Feed
     selected: list[Episode]
+    downloaded: list[Episode]
     transcripts: dict[str, Transcript]
     summaries: list[EpisodeSummary]
     arc: ArcOutline

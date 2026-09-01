@@ -33,6 +33,7 @@ from repodify.ports.tts import FakeTTS, Voice
 from repodify.ports.voice_cloner import FakeVoiceCloner
 from repodify.ports.watermarker import FakeWatermarker
 from repodify.storage.filesystem import FilesystemStorage
+from tests.helpers import invoke_through_gates
 
 CAST = ["SPEAKER_00", "SPEAKER_01", "SPEAKER_02"]
 
@@ -106,19 +107,29 @@ def test_speaker_preserving_pipeline_voices_the_real_cast(tmp_path, sample_feed_
                 repo=repo,
                 settings=Settings(_env_file=None),
             )
-            build_graph(deps).invoke(
+            invoke_through_gates(
+                build_graph(deps),
                 {
                     "job_id": job_id,
                     "feed_url": "https://castbox.fm/channel/xyz",
                     "options": options,
                 },
-                config={"configurable": {"thread_id": job_id}},
+                job_id,
             )
 
     job = repo.get_job(job_id)
     states = {s.stage: s.state for s in job.stages}
-    for stage in ["resolve", "download", "transcribe", "diarize", "summarize",
-                  "arc", "script", "tts", "assemble"]:
+    for stage in [
+        "resolve",
+        "download",
+        "transcribe",
+        "diarize",
+        "summarize",
+        "arc",
+        "script",
+        "tts",
+        "assemble",
+    ]:
         assert states.get(stage) == "done", f"stage {stage} was {states.get(stage)}"
 
     # A reference clip was cloned for each real cast speaker.
@@ -160,7 +171,8 @@ def test_speaker_preserving_with_stock_voices_has_no_clone_guardrails(
         [EpisodeSummary(key_points=["p1"]), EpisodeSummary(key_points=["p2"])]
     )
     arc = ArcOutline(
-        title="A", throughline="t",
+        title="A",
+        throughline="t",
         beats=[ArcBeat(heading="B", episode_guids=["ep-1"], narrative="n")],
     )
     script = Script(
@@ -183,16 +195,28 @@ def test_speaker_preserving_with_stock_voices_has_no_clone_guardrails(
         with httpx.Client() as http:
             deps = Deps(
                 resolver_resolve=lambda url, http: "https://feed.example.com/feed.xml",
-                http=http, storage=storage, transcriber=transcriber, diarizer=diarizer,
-                transcoder=FakeTranscoder(), llm_map=llm_map, llm_reduce=llm_reduce,
-                tts=FakeTTS(), voices={"narrator": Voice(name="narrator")},
-                voice_cloner=FakeVoiceCloner(), watermarker=FakeWatermarker(),
-                repo=repo, settings=Settings(_env_file=None),
+                http=http,
+                storage=storage,
+                transcriber=transcriber,
+                diarizer=diarizer,
+                transcoder=FakeTranscoder(),
+                llm_map=llm_map,
+                llm_reduce=llm_reduce,
+                tts=FakeTTS(),
+                voices={"narrator": Voice(name="narrator")},
+                voice_cloner=FakeVoiceCloner(),
+                watermarker=FakeWatermarker(),
+                repo=repo,
+                settings=Settings(_env_file=None),
             )
-            build_graph(deps).invoke(
-                {"job_id": job_id, "feed_url": "https://castbox.fm/channel/xyz",
-                 "options": options},
-                config={"configurable": {"thread_id": job_id}},
+            invoke_through_gates(
+                build_graph(deps),
+                {
+                    "job_id": job_id,
+                    "feed_url": "https://castbox.fm/channel/xyz",
+                    "options": options,
+                },
+                job_id,
             )
 
     job = repo.get_job(job_id)

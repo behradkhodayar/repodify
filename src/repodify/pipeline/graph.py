@@ -1,9 +1,8 @@
-"""Compile the pipeline nodes into runnable LangGraphs.
+"""Compile the pipeline nodes into a runnable LangGraph.
 
-`build_graph` is the whole pipeline (create → complete). The interactive
-voice-review flow splits it in two around the diarization pause: `build_ingest_graph`
-runs up to and including diarization, and `build_digest_graph` resumes from the
-already-labeled transcripts once the user has assigned voices.
+The graph is linear. Gated nodes (`transcribe`, `diarize`, `voices`,
+`summarize`, `synth`) call `interrupt()` so the worker can persist a SQLite
+checkpoint and wait for the user's local/BYOK config. `synth` also runs assemble.
 """
 
 from __future__ import annotations
@@ -14,12 +13,17 @@ from langgraph.graph import END, START, StateGraph
 from repodify.pipeline.nodes import make_nodes
 from repodify.pipeline.state import Deps, PipelineState
 
-# Full linear stage order. `download` also runs transcribe + diarize; `synth` also
-# runs assemble.
-_ORDER = ["resolve", "download", "summarize", "arc", "script", "synth"]
-# The interactive review pauses between these two segments.
-_INGEST = ["resolve", "download"]
-_DIGEST = ["summarize", "arc", "script", "synth"]
+_ORDER = [
+    "resolve",
+    "download",
+    "transcribe",
+    "diarize",
+    "voices",
+    "summarize",
+    "arc",
+    "script",
+    "synth",
+]
 
 
 def _compile(deps: Deps, order: list[str], checkpointer):
@@ -35,19 +39,9 @@ def _compile(deps: Deps, order: list[str], checkpointer):
 
 
 def build_graph(deps: Deps, checkpointer=None):
-    """Build and compile the whole pipeline graph.
+    """Build and compile the pipeline graph.
 
-    `checkpointer` defaults to an in-memory saver (used in tests); the worker
-    supplies a Postgres-backed saver in production.
+    `checkpointer` defaults to an in-memory saver (used in in-process tests); the
+    worker supplies a SQLite saver so gates survive process restart.
     """
     return _compile(deps, _ORDER, checkpointer)
-
-
-def build_ingest_graph(deps: Deps, checkpointer=None):
-    """Resolve → download (transcribe + diarize). The half before the voice review."""
-    return _compile(deps, _INGEST, checkpointer)
-
-
-def build_digest_graph(deps: Deps, checkpointer=None):
-    """Summarize → arc → script → synth. Resumes from labeled transcripts."""
-    return _compile(deps, _DIGEST, checkpointer)
