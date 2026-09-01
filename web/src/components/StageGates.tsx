@@ -47,7 +47,7 @@ function MissingKey({ missing, configured }: { missing: boolean; configured: boo
   if (!missing || configured) return null
   return (
     <p className="text-xs text-status-failed">
-      Set the API key in Settings / .env before using a hosted backend.
+      Set the API key in Settings before using a hosted backend.
     </p>
   )
 }
@@ -69,7 +69,7 @@ function TranscribeGate({ jobId, info }: { jobId: string; info?: GateInfo }) {
   const cont = useContinueJob(jobId)
   const [mode, setMode] = useState<'local' | 'byok'>('local')
   const [localModel, setLocalModel] = useState(info?.whisper_model ?? 'small')
-  const [byokModel, setByokModel] = useState('openai/whisper-large-v3')
+  const [byokModel, setByokModel] = useState(info?.openrouter_stt_model ?? 'openai/whisper-large-v3')
 
   return (
     <Card>
@@ -124,7 +124,7 @@ function DiarizeGate({ jobId, info }: { jobId: string; info?: GateInfo }) {
   const cont = useContinueJob(jobId)
   const [assign, setAssign] = useState(false)
   const [mode, setMode] = useState<'local' | 'byok'>('local')
-  const [byokModel, setByokModel] = useState('community-1')
+  const [byokModel, setByokModel] = useState(info?.pyannoteai_model ?? 'community-1')
 
   return (
     <Card>

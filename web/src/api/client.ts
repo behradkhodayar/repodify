@@ -1,4 +1,6 @@
 import type {
+  AppSettingsResponse,
+  AppSettingsUpdate,
   ContinueJobRequest,
   CreateJobRequest,
   JobListResponse,
@@ -85,6 +87,12 @@ export const api = {
   getLlmSettings: () => apiFetch<LlmSettingsResponse>('/settings/llm'),
   updateLlmSettings: (body: LlmSettingsUpdate) =>
     apiFetch<LlmSettingsResponse>('/settings/llm', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  getAppSettings: () => apiFetch<AppSettingsResponse>('/settings'),
+  updateAppSettings: (body: AppSettingsUpdate) =>
+    apiFetch<AppSettingsResponse>('/settings', {
       method: 'PUT',
       body: JSON.stringify(body),
     }),

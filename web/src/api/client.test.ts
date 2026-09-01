@@ -64,4 +64,50 @@ describe('api client', () => {
     expect((await api.getLlmSettings()).backend).toBe('anthropic')
     expect((await api.updateLlmSettings({ backend: 'openrouter' })).backend).toBe('openrouter')
   })
+
+  it('gets and updates app settings', async () => {
+    server.use(
+      http.get('/settings', () =>
+        HttpResponse.json({
+          whisper_model: 'small',
+          whisper_models: ['small'],
+          ollama_model: 'qwen2.5-coder:7b',
+          ollama_base_url: 'http://localhost:11434',
+          diarization_model: 'pyannote/speaker-diarization-community-1',
+          hf_token_configured: false,
+          openrouter_stt_model: 'openai/whisper-large-v3',
+          openrouter_llm_model: 'openai/gpt-4o-mini',
+          openrouter_tts_model: 'fish-audio/s2.1-pro',
+          openrouter_configured: true,
+          anthropic_map_model: 'haiku',
+          anthropic_reduce_model: 'opus',
+          anthropic_configured: false,
+          pyannoteai_model: 'community-1',
+          pyannoteai_configured: false,
+        }),
+      ),
+      http.put('/settings', async ({ request }) => {
+        const body = (await request.json()) as { whisper_model?: string }
+        return HttpResponse.json({
+          whisper_model: body.whisper_model ?? 'small',
+          whisper_models: ['small'],
+          ollama_model: 'qwen2.5-coder:7b',
+          ollama_base_url: 'http://localhost:11434',
+          diarization_model: 'pyannote/speaker-diarization-community-1',
+          hf_token_configured: false,
+          openrouter_stt_model: 'openai/whisper-large-v3',
+          openrouter_llm_model: 'openai/gpt-4o-mini',
+          openrouter_tts_model: 'fish-audio/s2.1-pro',
+          openrouter_configured: true,
+          anthropic_map_model: 'haiku',
+          anthropic_reduce_model: 'opus',
+          anthropic_configured: false,
+          pyannoteai_model: 'community-1',
+          pyannoteai_configured: false,
+        })
+      }),
+    )
+    expect((await api.getAppSettings()).whisper_model).toBe('small')
+    expect((await api.updateAppSettings({ whisper_model: 'base' })).whisper_model).toBe('base')
+  })
 })
