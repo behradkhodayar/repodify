@@ -184,6 +184,86 @@ def build_deps(settings: Settings) -> Deps:
     )
 
 
+def apply_job_backends(deps: Deps, settings: Settings, options: JobOptions) -> Deps:
+    """Swap STT/diarize/LLM/TTS for this job's local vs BYOK choices.
+
+    Fake mode is unchanged so pytest and ``./launch --fake`` stay offline.
+    """
+    if settings.use_fakes:
+        return deps
+    if options.transcribe is not None:
+        if options.transcribe.mode == "byok":
+            from repodify.transcribe.openrouter import OpenRouterTranscriber
+
+            if not settings.openrouter_api_key:
+                raise RuntimeError("OPENROUTER_API_KEY is required for BYOK transcription")
+            deps.transcriber = OpenRouterTranscriber(
+                api_key=settings.openrouter_api_key,
+                model=options.transcribe.model or "openai/whisper-large-v3",
+                base_url=settings.openrouter_base_url,
+            )
+        else:
+            from repodify.transcribe.faster_whisper import FasterWhisperTranscriber
+
+            deps.transcriber = FasterWhisperTranscriber(
+                options.transcribe.model or settings.whisper_model
+            )
+    if options.diarize is not None and options.assign_voices:
+        if options.diarize.mode == "byok":
+            from repodify.transcribe.pyannote_cloud import PyannoteCloudDiarizer
+
+            if not settings.pyannoteai_api_key:
+                raise RuntimeError("PYANNOTEAI_API_KEY is required for BYOK diarization")
+            deps.diarizer = PyannoteCloudDiarizer(
+                api_key=settings.pyannoteai_api_key,
+                model=options.diarize.model or "community-1",
+            )
+        else:
+            from repodify.transcribe.diarization import PyannoteDiarizer
+
+            deps.diarizer = PyannoteDiarizer(
+                settings.hf_token,
+                options.diarize.model or settings.diarization_model,
+            )
+    if options.llm is not None:
+        if options.llm.mode == "local":
+            from repodify.ports.llm import LlmOverrides
+
+            llm_map, llm_reduce = _build_real_llms(
+                settings,
+                LlmOverrides(llm_backend="ollama", ollama_model=options.llm.model),
+            )
+        else:
+            from repodify.ports.llm import LlmOverrides
+
+            backend = options.llm.backend or "openrouter"
+            if backend not in ("anthropic", "openrouter"):
+                raise RuntimeError(f"unknown LLM backend: {backend}")
+            ov = LlmOverrides(
+                llm_backend=backend,
+                openrouter_llm_model=options.llm.model if backend == "openrouter" else None,
+            )
+            llm_map, llm_reduce = _build_real_llms(settings, ov)
+        deps.llm_map = llm_map
+        deps.llm_reduce = llm_reduce
+    if options.tts is not None:
+        if options.tts.mode == "byok":
+            from repodify.synth.openrouter_tts import OpenRouterTTS
+
+            if not settings.openrouter_api_key:
+                raise RuntimeError("OPENROUTER_API_KEY is required for BYOK TTS")
+            deps.tts = OpenRouterTTS(
+                api_key=settings.openrouter_api_key,
+                model=options.tts.model or settings.openrouter_tts_model,
+                base_url=settings.openrouter_base_url,
+            )
+        else:
+            deps.tts = _build_real_tts(
+                settings.model_copy(update={"tts_backend": "f5"})
+            )
+    return deps
+
+
 def _import_filesystem_storage():
     from repodify.storage.filesystem import FilesystemStorage
 
@@ -215,6 +295,7 @@ def run_pipeline(job_id: str, settings: Settings | None = None) -> str:
     deps = build_deps(settings)
     job = deps.repo.get_job(job_id)
     options = JobOptions.model_validate_json(job.options_json)
+    deps = apply_job_backends(deps, settings, options)
     try:
         with open_checkpointer(settings.data_dir) as saver:
             graph = build_graph(deps, checkpointer=saver)

@@ -268,6 +268,19 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                         }
                     )
                 cast = pooled_roster[:MAX_CAST]
+                sources = [
+                    (deps.storage.local_path(audio_key(job_id, ep)), transcripts[ep.guid])
+                    for ep in downloaded
+                    if ep.guid in transcripts
+                ]
+                registers = estimate_cast_registers(sources, [s.id for s in cast])
+                gender_of = {"high": "female", "low": "male"}
+                cast = [
+                    s.model_copy(update={"gender": gender_of.get(registers[s.id])})
+                    if s.id in registers
+                    else s
+                    for s in cast
+                ]
                 speaker_ids = {s.id for t in transcripts.values() for s in t.speakers}
                 repo.finish_stage(
                     job_id,
@@ -304,6 +317,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 "speaker_id": s.id,
                 "speaking_seconds": s.speaking_seconds,
                 "display_name": s.label,
+                "gender": s.gender,
             }
             for s in (state.get("cast") or [])
         ]
