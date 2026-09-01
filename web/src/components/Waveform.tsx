@@ -1,7 +1,7 @@
 import { cn } from '../lib/utils'
 
 /**
- * The repodify signature mark: a row of emerald->teal equalizer bars.
+ * The repodify signature mark: a row of gold equalizer bars.
  * Animated by default; the global reduced-motion rule freezes it when asked.
  */
 export function Waveform({
