@@ -20,24 +20,24 @@
     --muted-foreground: 240 4% 46%;
     --border: 240 6% 90%;
     --input: 240 6% 90%;
-    --ring: 160 84% 39%;
+    --ring: 38.74 100% 56.27%;
 
-    /* Emerald primary */
-    --primary: 160 84% 39%;
-    --primary-foreground: 0 0% 100%;
+    /* Gold primary (#FFB020) — dark foreground for contrast on the bright fill */
+    --primary: 38.74 100% 56.27%;
+    --primary-foreground: 240 10% 4%;
 
-    /* Signature waveform gradient (emerald -> teal) */
-    --wave-from: 160 84% 39%;
-    --wave-to: 173 80% 40%;
+    /* Signature waveform gradient (gold -> deep gold) */
+    --wave-from: 38.74 100% 56.27%;
+    --wave-to: 38.74 100% 46%;
 
-    /* Status hues */
-    --status-done: 160 84% 39%;
-    --status-running: 38 92% 50%;
+    /* Status hues. Running stays a deeper orange so it does not collide with gold done. */
+    --status-done: 38.74 100% 56.27%;
+    --status-running: 24 95% 53%;
     --status-failed: 351 83% 57%;
     --status-idle: 240 4% 60%;
 
     /* Ambient page tint anchors */
-    --glow: 160 84% 39%;
+    --glow: 38.74 100% 56.27%;
 
     --radius: 0.75rem;
   }
@@ -53,20 +53,20 @@
     --muted-foreground: 240 5% 60%;
     --border: 240 5% 16%;
     --input: 240 5% 18%;
-    --ring: 160 84% 45%;
+    --ring: 38.74 100% 62%;
 
-    --primary: 160 84% 42%;
+    --primary: 38.74 100% 58%;
     --primary-foreground: 240 10% 4%;
 
-    --wave-from: 160 84% 45%;
-    --wave-to: 173 80% 48%;
+    --wave-from: 38.74 100% 62%;
+    --wave-to: 38.74 100% 50%;
 
-    --status-done: 160 76% 45%;
-    --status-running: 38 92% 55%;
+    --status-done: 38.74 95% 60%;
+    --status-running: 24 95% 58%;
     --status-failed: 351 90% 65%;
     --status-idle: 240 5% 45%;
 
-    --glow: 160 84% 42%;
+    --glow: 38.74 100% 58%;
   }
 
   * {
@@ -106,7 +106,7 @@
     font-family: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
   }
 
-  /* Signature emerald->teal text/fill gradient. */
+  /* Signature gold text/fill gradient. */
   .text-wave {
     background-image: linear-gradient(
       100deg,
