@@ -78,6 +78,7 @@ class Speaker(BaseModel):
     id: str  # diarization label, e.g. "SPEAKER_00"
     label: str | None = None  # optional human-facing name
     speaking_seconds: float = 0.0
+    gender: Literal["female", "male"] | None = None
 
 
 class Transcript(BaseModel):
@@ -225,13 +226,21 @@ class VoiceAssignment(BaseModel):
     display_name: str | None = None  # optional human name for show notes
 
 
+class ExecutionChoice(BaseModel):
+    """Local vs BYOK selection for one ML stage."""
+
+    mode: Literal["local", "byok"]
+    model: str | None = None
+    backend: str | None = None  # LLM only: anthropic | ollama | openrouter
+
+
 class JobOptions(BaseModel):
     """Per-run options chosen by the user."""
 
     episode_ids: list[str] = Field(default_factory=list)
     host_count: int = 1
     clone: bool = False
-    target_minutes: int = 30
+    target_minutes: int | None = 30
     voice_assignments: list[VoiceAssignment] = Field(default_factory=list)
     # Speaker-preserving digest: voice the digest as the real detected cast (each
     # speaker in their own cloned/stock voice). Overrides host_count when set.
@@ -239,6 +248,14 @@ class JobOptions(BaseModel):
     # Interactive review: pause after diarization so the user can assign a voice to
     # each detected speaker before the digest is written. Implies preserve_speakers.
     review_voices: bool = False
+    assign_voices: bool = False
+    use_original_voices: bool | None = None
+    length_mode: Literal["manual", "smart"] = "manual"
+    transcribe: ExecutionChoice | None = None
+    diarize: ExecutionChoice | None = None
+    llm: ExecutionChoice | None = None
+    tts: ExecutionChoice | None = None
+    narrator_voice: str | None = None
 
     # Free-text editorial guidance layered onto the built-in summarization
     # prompts. `custom_prompt` steers the whole digest (applied at every LLM

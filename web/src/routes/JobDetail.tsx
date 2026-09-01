@@ -5,7 +5,7 @@ import { AudioPlayer } from '../components/AudioPlayer'
 import { StageProgress } from '../components/StageProgress'
 import { StatusBadge } from '../components/StatusBadge'
 import { Waveform } from '../components/Waveform'
-import { VoiceReview } from '../components/VoiceReview'
+import { StageGates } from '../components/StageGates'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Progress } from '../components/ui/progress'
 import { Skeleton } from '../components/ui/skeleton'
@@ -17,7 +17,10 @@ export function JobDetail() {
   const job = useJob(id)
   const completed = job.data?.status === 'completed'
   const result = useResult(id, completed)
-  const ticking = job.data?.status === 'running' || job.data?.status === 'awaiting_review'
+  const ticking =
+    job.data?.status === 'running' ||
+    job.data?.status === 'awaiting_review' ||
+    job.data?.status === 'awaiting_config'
   const now = useNow(!!ticking)
 
   if (job.isLoading) {
@@ -92,7 +95,9 @@ export function JobDetail() {
         </Card>
 
         <div className="space-y-6 lg:col-span-2">
-          {status === 'awaiting_review' && <VoiceReview jobId={id} />}
+          {(status === 'awaiting_config' || status === 'awaiting_review') && (
+            <StageGates job={job.data} />
+          )}
 
           {status === 'failed' && (
             <Card className="border-status-failed/30">

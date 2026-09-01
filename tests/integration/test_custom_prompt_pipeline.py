@@ -22,6 +22,7 @@ from repodify.ports.tts import FakeTTS, Voice
 from repodify.ports.voice_cloner import FakeVoiceCloner
 from repodify.ports.watermarker import FakeWatermarker
 from repodify.storage.filesystem import FilesystemStorage
+from tests.helpers import invoke_through_gates
 
 
 def test_pipeline_forwards_custom_prompts_to_llms(tmp_path, sample_feed_xml, repo):
@@ -40,9 +41,7 @@ def test_pipeline_forwards_custom_prompts_to_llms(tmp_path, sample_feed_xml, rep
         throughline="How the show evolved.",
         beats=[ArcBeat(heading="B", episode_guids=["ep-1"], narrative="It started.")],
     )
-    script = Script(
-        segments=[ScriptSegment(speaker="narrator", text=" ".join(["word"] * 200))]
-    )
+    script = Script(segments=[ScriptSegment(speaker="narrator", text=" ".join(["word"] * 200))])
     llm_reduce = FakeStructuredLLM([arc, script])
 
     options = JobOptions(
@@ -78,13 +77,14 @@ def test_pipeline_forwards_custom_prompts_to_llms(tmp_path, sample_feed_xml, rep
                 repo=repo,
                 settings=settings,
             )
-            build_graph(deps).invoke(
+            invoke_through_gates(
+                build_graph(deps),
                 {
                     "job_id": job_id,
                     "feed_url": "https://castbox.fm/channel/xyz",
                     "options": options,
                 },
-                config={"configurable": {"thread_id": job_id}},
+                job_id,
             )
 
     # ep-1's map call has whole + episode guidance and a timestamped transcript.

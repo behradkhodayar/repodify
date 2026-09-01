@@ -11,11 +11,9 @@ from repodify.models.domain import JobOptions
 from repodify.persistence.engine import init_db, make_engine, session_factory
 from repodify.persistence.repo import JobRepository
 from repodify.storage.filesystem import FilesystemStorage
-from repodify.worker.main import run_pipeline
+from tests.helpers import run_through_gates
 
-CASTBOX_PAGE = (
-    '<link type="application/rss+xml" href="https://feed.example.com/feed.xml">'
-)
+CASTBOX_PAGE = '<link type="application/rss+xml" href="https://feed.example.com/feed.xml">'
 
 
 def test_two_host_pipeline_uses_both_hosts(tmp_path, sample_feed_xml):
@@ -38,7 +36,7 @@ def test_two_host_pipeline_uses_both_hosts(tmp_path, sample_feed_xml):
         respx.get("https://feed.example.com/feed.xml").respond(content=sample_feed_xml)
         respx.get("https://cdn.example.com/ep1.mp3").respond(content=b"A1")
         respx.get("https://cdn.example.com/ep2.mp3").respond(content=b"A2")
-        output_uri = run_pipeline(job_id, settings)
+        output_uri = run_through_gates(job_id, settings, repo)
 
     assert output_uri.startswith("file://")
 

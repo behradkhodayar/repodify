@@ -86,17 +86,12 @@ store.
 - API: `api/app.py:create_app` / `build_default_app`
 - Worker: `worker/main.py:build_deps` / `run_pipeline` / `run_review_digest`
 
-The pipeline is a linear LangGraph (`pipeline/graph.py`). Six nodes cover nine
-tracked stages (`models/enums.py:StageName`): the `download` node also
-transcribes and diarizes; the `synth` node also assembles. Interactive voice
-review splits the graph (`build_ingest_graph` / `build_digest_graph`); ingest
-state is written to `{job_id}/state/ingest.json` and the digest reloads it.
-Progress is **polled** (`GET /jobs/{id}`). Do not add SSE/WebSocket unless asked.
-
-LangGraph's in-memory `MemorySaver` is what is wired today. A durable
-checkpointer is an intended swap (see architecture.md §14), not something the
-worker currently provides. Crash-resume for the review flow is the ingest JSON,
-not a Postgres saver.
+The pipeline is a linear LangGraph (`pipeline/graph.py`). Nodes match the
+tracked stages except `synth` also assembles and `voices` is a gate-only node.
+Each ML stage `interrupt()`s until `POST /jobs/{id}/continue`. The worker uses a
+SQLite checkpointer at `{DATA_DIR}/checkpoints.db` so a job can sit at a gate
+across process restart. Progress is **polled** (`GET /jobs/{id}`). Do not add
+SSE/WebSocket unless asked.
 
 **Ports/adapters is the load-bearing convention.** New ML or hosted provider:
 
@@ -127,11 +122,10 @@ stock voices in `app_settings`; those values **override** `.env` via
 
 | Mode | Trigger | Notes |
 |---|---|---|
-| Single narrator | default (`host_count=1`) | One `narrator` voice |
-| Two-host | `host_count=2` | Speakers `host_a` / `host_b` |
-| Clone | `clone=true` | Guardrails always on |
-| Speaker-preserving | `preserve_speakers=true` | Real detected cast; overrides `host_count` |
-| Interactive review | `review_voices=true` | Pauses at `awaiting_review`; implies preserve-speakers |
+| Single narrator | diarize gate: assign voices off | One stock/narrator voice, chosen at the TTS gate |
+| Original cast | voices gate: original | Clone all detected speakers; guardrails always on |
+| Stock replacements | voices gate: replace | Per-speaker stock catalog voice; gender-tagged |
+| Per-stage local/BYOK | each ML gate | Local GPU adapters or OpenRouter / pyannoteAI |
 
 Cloning guardrails are **non-optional**: `synthetic: true` plus a disclaimer in
 the show notes, a spoken disclaimer prepended in a non-cloned voice, and an

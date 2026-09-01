@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, PlainSerializer
 
@@ -105,6 +105,7 @@ class SpeakerOut(BaseModel):
     speaker_id: str
     speaking_seconds: float = 0.0
     display_name: str | None = None
+    gender: Literal["female", "male"] | None = None
 
 
 class SpeakersResponse(BaseModel):
@@ -114,6 +115,11 @@ class SpeakersResponse(BaseModel):
 
 class SubmitVoicesRequest(BaseModel):
     voice_assignments: list[VoiceAssignment]
+
+
+class ContinueJobRequest(BaseModel):
+    gate: Literal["transcribe", "diarize", "voices", "summarize", "tts"]
+    payload: dict[str, Any] = {}
 
 
 class StageOut(BaseModel):
@@ -130,6 +136,8 @@ class JobStatusResponse(BaseModel):
     current_stage: str | None = None
     stages: list[StageOut]
     report: dict
+    gate: str | None = None
+    gate_info: dict[str, Any] = {}
 
 
 class ChapterOut(BaseModel):
@@ -148,7 +156,7 @@ class JobSummaryOut(BaseModel):
     id: str
     status: str
     current_stage: str | None = None
-    target_minutes: int
+    target_minutes: int | None = None
     created_at: UtcDateTime
 
 

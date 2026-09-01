@@ -9,9 +9,6 @@ import { PageHeader } from '../components/PageHeader'
 import { PodcastSearch } from '../components/PodcastSearch'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Checkbox } from '../components/ui/checkbox'
-import { Input } from '../components/ui/input'
-import { Select } from '../components/ui/select'
 import { Separator } from '../components/ui/separator'
 import { Textarea } from '../components/ui/textarea'
 
@@ -32,9 +29,6 @@ export function NewDigest() {
   const [query, setQuery] = useState('')
   const [rssUrl, setRssUrl] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [targetMinutes, setTargetMinutes] = useState(30)
-  const [hostCount, setHostCount] = useState(1)
-  const [reviewVoices, setReviewVoices] = useState(false)
   const [customPrompt, setCustomPrompt] = useState('')
   const [episodePrompts, setEpisodePrompts] = useState<Record<string, string>>({})
   const resolve = useResolveFeed()
@@ -69,9 +63,6 @@ export function NewDigest() {
     const { job_id } = await create.mutateAsync({
       feed_url,
       episode_ids: [...selected],
-      host_count: hostCount,
-      target_minutes: targetMinutes,
-      review_voices: reviewVoices,
       custom_prompt: customPrompt.trim() || undefined,
       episode_prompts,
     })
@@ -120,9 +111,10 @@ export function NewDigest() {
       {resolve.data && (
         <Card>
           <CardHeader>
-            <CardTitle>Choose episodes &amp; format</CardTitle>
+            <CardTitle>Choose episodes</CardTitle>
             <CardDescription>
-              Select the episodes to include, then tune the digest.
+              Select the episodes to include. Length, voices, and local vs hosted
+              backends are chosen after download, at each pipeline step.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -140,40 +132,6 @@ export function NewDigest() {
             <Separator />
 
             <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-              <label className="space-y-1.5">
-                <span className="block text-sm font-medium">Target length</span>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={targetMinutes}
-                    onChange={(e) => setTargetMinutes(Number(e.target.value))}
-                    className="w-24"
-                  />
-                  <span className="text-sm text-muted-foreground">min</span>
-                </div>
-              </label>
-
-              <label className="space-y-1.5">
-                <span className="block text-sm font-medium">Hosts</span>
-                <Select
-                  value={hostCount}
-                  onChange={(e) => setHostCount(Number(e.target.value))}
-                  className="w-44"
-                >
-                  <option value={1}>1 · narrator</option>
-                  <option value={2}>2 · dialogue</option>
-                </Select>
-              </label>
-
-              <label className="flex items-center gap-2 sm:pb-2.5">
-                <Checkbox
-                  checked={reviewVoices}
-                  onChange={(e) => setReviewVoices(e.target.checked)}
-                />
-                <span className="text-sm font-medium">Assign voices per speaker</span>
-              </label>
-
               <label className="w-full space-y-1.5">
                 <span className="block text-sm font-medium">Custom instructions</span>
                 <Textarea

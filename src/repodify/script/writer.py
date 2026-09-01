@@ -115,7 +115,7 @@ def _warn_on_budget_drift(script: Script, word_budget: int) -> None:
 def write_script(
     arc: ArcOutline,
     llm: StructuredLLM,
-    target_minutes: int,
+    target_minutes: int | None,
     wpm: int,
     host_count: int = 1,
     cast: list[Speaker] | None = None,
@@ -135,10 +135,13 @@ def write_script(
     `_MAX_SCRIPT_ATTEMPTS` times, and keep the longest draft. A warning is logged
     if the best draft still strays more than 25% from the word budget.
     """
-    word_budget = target_minutes * wpm
+    smart = target_minutes is None
+    word_budget = 0 if smart else target_minutes * wpm
     format_kwargs = dict(
-        target_minutes=target_minutes,
-        word_budget=word_budget,
+        target_minutes="a natural" if smart else target_minutes,
+        word_budget="no fixed count — choose a length that fits the material"
+        if smart
+        else word_budget,
         title=arc.title,
         throughline=arc.throughline,
         beats=_format_beats(arc),
@@ -173,6 +176,10 @@ def write_script(
     # Whole-digest guidance rides on the base prompt so it persists across the
     # expansion retries below (which rebuild `user` from `base_user`).
     base_user = prompts.with_guidance(base_user, whole=whole_prompt)
+
+    if smart:
+        script = normalize(llm.generate(system, base_user, Script))
+        return script
 
     floor = word_budget * (1 - _BUDGET_TOLERANCE)
 

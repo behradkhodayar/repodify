@@ -25,6 +25,7 @@ from repodify.ports.tts import FakeTTS, Voice
 from repodify.ports.voice_cloner import FakeVoiceCloner
 from repodify.ports.watermarker import FakeWatermarker
 from repodify.storage.filesystem import FilesystemStorage
+from tests.helpers import invoke_through_gates
 
 
 def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
@@ -88,13 +89,14 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
                 settings=settings,
             )
             graph = build_graph(deps)
-            final = graph.invoke(
+            final = invoke_through_gates(
+                graph,
                 {
                     "job_id": job_id,
                     "feed_url": "https://castbox.fm/channel/xyz",
                     "options": options,
                 },
-                config={"configurable": {"thread_id": job_id}},
+                job_id,
             )
 
     # A valid, non-empty WAV was produced.
@@ -107,8 +109,14 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
     job = repo.get_job(job_id)
     states = {s.stage: s.state for s in job.stages}
     expected_stages = [
-        "resolve", "download", "transcribe", "summarize",
-        "arc", "script", "tts", "assemble",
+        "resolve",
+        "download",
+        "transcribe",
+        "summarize",
+        "arc",
+        "script",
+        "tts",
+        "assemble",
     ]
     for stage in expected_stages:
         assert states.get(stage) == "done", f"stage {stage} was {states.get(stage)}"

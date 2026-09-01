@@ -88,17 +88,22 @@ curl -s -X POST localhost:8000/feeds/resolve \
   -H 'content-type: application/json' \
   -d '{"url": "https://example.com/feed.xml"}'
 
-# 3. Create a job for the episodes you want (oldest-first)
-#    host_count: 1 = single narrator (default), 2 = two-host dialogue
+# 3. Create a job for the episodes you want (oldest-first).
+#    Length, voices, and local vs BYOK backends are chosen at later gates.
 curl -s -X POST localhost:8000/jobs \
   -H 'content-type: application/json' \
-  -d '{"feed_url": "https://example.com/feed.xml", "episode_ids": ["ep-1","ep-2"], "host_count": 2, "target_minutes": 30}'
+  -d '{"feed_url": "https://example.com/feed.xml", "episode_ids": ["ep-1","ep-2"]}'
 
-# 4. Track progress, then fetch the result (audio URLs + summary + chapters)
+# 4. The job pauses at each ML stage (`awaiting_config`). Continue, e.g. transcribe:
+curl -s -X POST localhost:8000/jobs/<job_id>/continue \
+  -H 'content-type: application/json' \
+  -d '{"gate": "transcribe", "payload": {"mode": "local", "model": "small"}}'
+
+# 5. Track progress, then fetch the result (audio URLs + summary + chapters)
 curl -s localhost:8000/jobs/<job_id>
 curl -s localhost:8000/jobs/<job_id>/result
 
-# 5. Stream/download the finished digest (mp3 or wav; supports HTTP Range)
+# 6. Stream/download the finished digest (mp3 or wav; supports HTTP Range)
 curl -s -o digest.mp3 "localhost:8000/jobs/<job_id>/audio?format=mp3"
 
 # List recent jobs; liveness probe
@@ -106,13 +111,12 @@ curl -s "localhost:8000/jobs?limit=20"
 curl -s localhost:8000/health
 ```
 
-### Two-host mode
+### Local vs BYOK at each stage
 
-Set `"host_count": 2` on a job to get a two-host dialogue (speakers `host_a` and
-`host_b`) instead of a single narrator. In real mode, give each host a stock
-reference voice via `HOST_A_REF_AUDIO`/`HOST_A_REF_TEXT` and
-`HOST_B_REF_AUDIO`/`HOST_B_REF_TEXT` (see `.env.example`); fake mode needs no
-assets.
+Each ML gate offers **local** (faster-whisper, pyannote, Ollama, Kokoro/F5-TTS)
+or **BYOK** (OpenRouter STT/LLM/TTS, pyannoteAI diarization). Keys stay in
+`.env` / Settings — they are never stored on the job. Fake mode still fakes
+every adapter so tests need no GPU or network.
 
 ### Local LLM via Ollama (no Anthropic key)
 
@@ -198,14 +202,14 @@ curl -s -X POST localhost:8000/jobs \
 When any voice is cloned the same guardrails apply (synthetic label, spoken
 disclaimer, watermark). Stock voices use Kokoro-82M; cloned voices use F5-TTS.
 
-Because the detected speaker ids aren't known until diarization runs, set
-`"review_voices": true` to have the job **pause after diarization** for review:
+Jobs now **always pause** at transcribe, diarize, voices (if you assign
+speakers), summarize, and TTS. `GET /jobs/{id}` includes `gate` and
+`gate_info`; `POST /jobs/{id}/continue` with that gate's payload resumes from
+the SQLite checkpoint. You can shut the app down at a gate and continue later.
 
-1. Create the job with `"review_voices": true`. It runs resolve → download →
-   transcribe → diarize, then stops at status `awaiting_review`.
-2. `GET /jobs/{id}/speakers` returns the detected cast (ids + talk time).
-3. `POST /jobs/{id}/voices` with a `voice_assignments` array resumes the job into
-   a speaker-preserving digest using the voices you chose.
+At the diarize gate, `"assign_voices": false` skips diarization (single
+narrator). `"assign_voices": true` then pauses at voices so you keep original
+(cloned) voices or replace each speaker with a gender-tagged stock voice.
 
 ## Web client (PWA)
 

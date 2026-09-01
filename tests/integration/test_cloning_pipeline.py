@@ -15,7 +15,7 @@ from repodify.models.domain import JobOptions
 from repodify.persistence.engine import init_db, make_engine, session_factory
 from repodify.persistence.repo import JobRepository
 from repodify.storage.filesystem import FilesystemStorage
-from repodify.worker.main import run_pipeline
+from tests.helpers import run_through_gates
 
 CASTBOX_PAGE = '<link type="application/rss+xml" href="https://feed.example.com/feed.xml">'
 
@@ -40,7 +40,7 @@ def test_cloning_pipeline_applies_guardrails(tmp_path, sample_feed_xml):
         respx.get("https://feed.example.com/feed.xml").respond(content=sample_feed_xml)
         respx.get("https://cdn.example.com/ep1.mp3").respond(content=b"A1")
         respx.get("https://cdn.example.com/ep2.mp3").respond(content=b"A2")
-        run_pipeline(job_id, settings)
+        run_through_gates(job_id, settings, repo)
 
     job = repo.get_job(job_id)
     assert job.status == "completed"

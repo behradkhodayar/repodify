@@ -29,6 +29,7 @@ from repodify.ports.tts import FakeTTS, Voice
 from repodify.ports.voice_cloner import FakeVoiceCloner
 from repodify.ports.watermarker import FakeWatermarker
 from repodify.storage.filesystem import FilesystemStorage
+from tests.helpers import invoke_through_gates
 
 
 def _script() -> Script:
@@ -96,14 +97,14 @@ def _run_pipeline(tmp_path, sample_feed_xml, repo, *, clone=False, live=None):
                 repo=repo,
                 settings=Settings(_env_file=None),
             )
-            graph = build_graph(deps)
-            graph.invoke(
+            invoke_through_gates(
+                build_graph(deps),
                 {
                     "job_id": job_id,
                     "feed_url": "https://castbox.fm/channel/xyz",
                     "options": options,
                 },
-                config={"configurable": {"thread_id": job_id}},
+                job_id,
             )
     return repo.get_job(job_id)
 

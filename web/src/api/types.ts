@@ -83,6 +83,7 @@ export interface SpeakerOut {
   speaker_id: string
   speaking_seconds: number
   display_name?: string | null
+  gender?: 'female' | 'male' | null
 }
 
 export interface SpeakersResponse {
@@ -102,12 +103,31 @@ export interface StageOut {
   finished_at: string | null
 }
 
+export interface GateInfo {
+  openrouter_configured?: boolean
+  anthropic_configured?: boolean
+  pyannoteai_configured?: boolean
+  hf_token_configured?: boolean
+  whisper_model?: string
+  ollama_model?: string
+  openrouter_llm_model?: string
+  openrouter_tts_model?: string
+  speakers?: SpeakerOut[]
+}
+
+export interface ContinueJobRequest {
+  gate: 'transcribe' | 'diarize' | 'voices' | 'summarize' | 'tts'
+  payload: Record<string, unknown>
+}
+
 export interface JobStatusResponse {
   id: string
-  status: 'queued' | 'running' | 'awaiting_review' | 'completed' | 'failed'
+  status: 'queued' | 'running' | 'awaiting_review' | 'awaiting_config' | 'completed' | 'failed'
   current_stage: string | null
   stages: StageOut[]
-  report: { skipped?: string[]; warnings?: string[]; show_notes?: unknown }
+  report: { skipped?: string[]; warnings?: string[]; show_notes?: unknown; gate?: string }
+  gate?: string | null
+  gate_info?: GateInfo
 }
 
 export interface ChapterOut {
