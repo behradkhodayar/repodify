@@ -3,6 +3,7 @@ import { api } from './client'
 import type {
   CreateJobRequest,
   LlmSettingsUpdate,
+  ContinueJobRequest,
   SubmitVoicesRequest,
   VoiceSettingsUpdate,
 } from './types'
@@ -31,6 +32,7 @@ export function useJob(id: string) {
       const status = query.state.data?.status
       if (status === 'completed' || status === 'failed') return false
       if (status === 'queued' || status === 'running') return 1000
+      if (status === 'awaiting_config' || status === 'awaiting_review') return 2000
       return 2000
     },
   })
@@ -52,6 +54,14 @@ export function useSubmitVoices(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: SubmitVoicesRequest) => api.submitVoices(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job', id] }),
+  })
+}
+
+export function useContinueJob(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ContinueJobRequest) => api.continueJob(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['job', id] }),
   })
 }

@@ -44,7 +44,7 @@ export function statusLabel(status: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-const ACTIVE = new Set(['queued', 'running', 'awaiting_review'])
+const ACTIVE = new Set(['queued', 'running', 'awaiting_review', 'awaiting_config'])
 export function isActive(status: string): boolean {
   return ACTIVE.has(status)
 }

@@ -1,4 +1,5 @@
 import type {
+  ContinueJobRequest,
   CreateJobRequest,
   JobListResponse,
   JobStatusResponse,
@@ -73,6 +74,11 @@ export const api = {
   getSpeakers: (id: string) => apiFetch<SpeakersResponse>(`/jobs/${id}/speakers`),
   submitVoices: (id: string, body: SubmitVoicesRequest) =>
     apiFetch<{ job_id: string }>(`/jobs/${id}/voices`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  continueJob: (id: string, body: ContinueJobRequest) =>
+    apiFetch<{ job_id: string }>(`/jobs/${id}/continue`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
