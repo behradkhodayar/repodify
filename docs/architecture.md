@@ -36,7 +36,7 @@ is **user control at every seam**: each ML stage can run **locally** (on the
 user's GPU/CPU) or **BYOK** (a hosted provider, with a key the user supplies), and
 the whole app runs on CPU with **fakes** for tests and keyless dev. Summarization
 is the first use case; the same pipeline is built to translate, augment, or
-re-voice a run of episodes (see the [Roadmap](../README.md#roadmap)).
+re-voice a run of episodes (see the [Roadmap](../ROADMAP.md)).
 
 ---
 
