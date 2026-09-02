@@ -9,4 +9,11 @@ describe('Logo', () => {
     expect(screen.getByText('pod')).toHaveClass('text-foreground')
     expect(screen.getByText('ify')).toHaveClass('text-wave')
   })
+
+  it('uses the brand favicon as the mark next to the wordmark', () => {
+    const { container } = render(<Logo animate={false} />)
+    const mark = container.querySelector('img')
+    expect(mark).not.toBeNull()
+    expect(mark).toHaveAttribute('src', `${import.meta.env.BASE_URL}favicon.svg`)
+  })
 })
