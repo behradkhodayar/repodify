@@ -1,7 +1,3 @@
-<p align="center">
-  <img alt="Repodify" src="web/public/RepodifyGithub.png" width="100%">
-</p>
-
 # Repodify
 
 **Turn a stretch of a podcast into one tailored ~30-minute digest episode.**
