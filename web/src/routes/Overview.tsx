@@ -2,10 +2,10 @@ import { motion } from 'framer-motion'
 import { Activity, CheckCircle2, Clock, Plus, Radio, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useJobs } from '../api/queries'
+import { BrandMark } from '../components/BrandMark'
 import { EmptyState } from '../components/EmptyState'
 import { StatCard } from '../components/StatCard'
 import { StatusBadge } from '../components/StatusBadge'
-import { Waveform } from '../components/Waveform'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
@@ -48,7 +48,7 @@ export function Overview() {
               </Link>
             </Button>
           </div>
-          <Waveform bars={28} className="h-16 w-full max-w-xs sm:h-24" />
+          <BrandMark className="size-24 shadow-glow sm:size-28" />
         </div>
       </Card>
 
