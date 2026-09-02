@@ -53,9 +53,7 @@ That's it. `./launch` syncs deps, starts Redis, & runs the API, the worker,
 When it's up (busy ports are remapped automatically):
 
 ```
-  API           http://localhost:8000
   Built app     http://localhost:8000/app/
-  Vite dev      http://localhost:5173/app/
 ```
 
 u need [uv](https://docs.astral.sh/uv/), Python 3.13, Node 20+, & Docker or
