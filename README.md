@@ -18,7 +18,14 @@ every step.
   <img alt="React 19" src="https://img.shields.io/badge/web-React%2019-61DAFB?logo=react&logoColor=black">
   <img alt="Ruff" src="https://img.shields.io/badge/lint-ruff-D7FF64?logo=ruff&logoColor=black">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
-  <a href="https://peerpush.com/p/repodify"><img alt="Launching on PeerPush" src="https://peerpush.com/p/repodify/badge.png"></a>
+  <a href="https://peerpush.com/p/repodify" target="_blank" rel="noopener">
+    <img
+      src="https://peerpush.com/p/repodify/badge.png"
+      alt="Repodify on PeerPush"
+      width="230"
+      style="width: 230px;"
+    />
+  </a>
 </p>
 
 > **Why this exists.** Suppose it's 2026, u're new to ML, & u want to learn
