@@ -37,12 +37,40 @@ describe('JobDetail', () => {
           audio_wav_url: '/jobs/j1/audio?format=wav',
           summary: 'the story',
           chapters: [{ title: 'Intro', start_s: 0 }],
+          language: 'en',
         }),
       ),
     )
     renderAt('j1')
     await waitFor(() => expect(screen.getByText('the story')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /intro/i })).toBeInTheDocument()
+  })
+
+  it('marks Persian show notes as RTL', async () => {
+    server.use(
+      http.get('/jobs/j-fa', () =>
+        HttpResponse.json({
+          id: 'j-fa',
+          status: 'completed',
+          current_stage: null,
+          stages: [{ stage: 'assemble', state: 'done', detail: null, started_at: null, finished_at: null }],
+          report: {},
+          target_language: 'fa',
+        }),
+      ),
+      http.get('/jobs/j-fa/result', () =>
+        HttpResponse.json({
+          audio_mp3_url: '/jobs/j-fa/audio?format=mp3',
+          audio_wav_url: '/jobs/j-fa/audio?format=wav',
+          summary: 'خلاصه داستان',
+          chapters: [{ title: 'شروع', start_s: 0 }],
+          language: 'fa',
+        }),
+      ),
+    )
+    renderAt('j-fa')
+    await waitFor(() => expect(screen.getByText('خلاصه داستان')).toBeInTheDocument())
+    expect(screen.getByText('خلاصه داستان')).toHaveAttribute('dir', 'rtl')
   })
 
   it('shows live download detail on a running job', async () => {

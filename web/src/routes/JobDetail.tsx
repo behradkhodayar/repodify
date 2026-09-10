@@ -143,12 +143,20 @@ export function JobDetail() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm leading-relaxed text-muted-foreground">
+                  <p
+                    className="text-sm leading-relaxed text-muted-foreground"
+                    dir={result.data.language === 'fa' ? 'rtl' : undefined}
+                    lang={result.data.language === 'fa' ? 'fa' : undefined}
+                  >
                     {result.data.summary}
                   </p>
                 </CardContent>
               </Card>
-              <AudioPlayer jobId={id} chapters={result.data.chapters} />
+              <AudioPlayer
+                jobId={id}
+                chapters={result.data.chapters}
+                language={result.data.language}
+              />
             </>
           )}
         </div>
