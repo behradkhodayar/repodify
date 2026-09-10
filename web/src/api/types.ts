@@ -57,6 +57,7 @@ export interface CreateJobRequest {
   review_voices?: boolean
   custom_prompt?: string | null
   episode_prompts?: Record<string, string>
+  target_language?: 'en' | 'fa'
 }
 
 export interface StockVoiceOut {
@@ -64,6 +65,7 @@ export interface StockVoiceOut {
   name: string
   gender: 'female' | 'male' | null
   sample_url: string
+  language?: 'en' | 'fa'
 }
 
 export interface VoicesResponse {
@@ -114,6 +116,8 @@ export interface GateInfo {
   openrouter_tts_model?: string
   openrouter_stt_model?: string
   pyannoteai_model?: string
+  chatterbox_persian_model?: string
+  openrouter_tts_model_fa?: string
   speakers?: SpeakerOut[]
 }
 
@@ -130,6 +134,7 @@ export interface JobStatusResponse {
   report: { skipped?: string[]; warnings?: string[]; show_notes?: unknown; gate?: string }
   gate?: string | null
   gate_info?: GateInfo
+  target_language?: 'en' | 'fa'
 }
 
 export interface ChapterOut {
@@ -142,6 +147,7 @@ export interface ResultResponse {
   audio_wav_url: string
   summary: string
   chapters: ChapterOut[]
+  language?: 'en' | 'fa'
 }
 
 export interface JobSummaryOut {
@@ -189,6 +195,8 @@ export interface AppSettingsResponse {
   anthropic_configured: boolean
   pyannoteai_model: string
   pyannoteai_configured: boolean
+  chatterbox_persian_model: string
+  openrouter_tts_model_fa: string
 }
 
 export interface AppSettingsUpdate {
@@ -206,4 +214,6 @@ export interface AppSettingsUpdate {
   anthropic_api_key?: string
   pyannoteai_model?: string
   pyannoteai_api_key?: string
+  chatterbox_persian_model?: string
+  openrouter_tts_model_fa?: string
 }

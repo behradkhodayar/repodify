@@ -65,4 +65,34 @@ describe('StageGates', () => {
     await userEvent.click(screen.getByRole('button', { name: /smart decision/i }))
     expect(minutes).toBeDisabled()
   })
+
+  it('offers Chatterbox and Persian voices on a Farsi TTS gate', async () => {
+    server.use(
+      http.get('/voices', () =>
+        HttpResponse.json({
+          stock_voices: ['af_heart'],
+          voices: [
+            { id: 'af_heart', name: 'Heart', gender: 'female', sample_url: '/voices/af_heart/sample', language: 'en' },
+            { id: 'fa_neda', name: 'Neda', gender: 'female', sample_url: '/voices/fa_neda/sample', language: 'fa' },
+          ],
+        }),
+      ),
+      http.post('/jobs/j1/continue', () => HttpResponse.json({ job_id: 'j1' })),
+    )
+    renderGate(
+      base({
+        gate: 'tts',
+        target_language: 'fa',
+        gate_info: {
+          openrouter_configured: true,
+          openrouter_tts_model: 'fish-audio/s2.1-pro',
+          openrouter_tts_model_fa: 'fish-audio/s2.1-pro',
+        },
+      }),
+    )
+    expect(screen.getByRole('button', { name: /chatterbox/i })).toBeInTheDocument()
+    const narrator = await screen.findByLabelText(/narrator voice/i)
+    await waitFor(() => expect(narrator).toHaveValue('fa_neda'))
+    expect(screen.queryByRole('option', { name: /heart/i })).not.toBeInTheDocument()
+  })
 })

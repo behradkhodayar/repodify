@@ -179,6 +179,7 @@ def create_app(
                 review_voices=req.review_voices,
                 custom_prompt=req.custom_prompt,
                 episode_prompts=req.episode_prompts,
+                target_language=req.target_language,
             )
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -192,17 +193,20 @@ def create_app(
             list_stock_voices,
             stock_voice_display_name,
             stock_voice_gender,
+            stock_voice_language,
         )
 
-        ids = list_stock_voices()
+        english = list_stock_voices()
+        ids = english + list_stock_voices("fa")
         return VoicesResponse(
-            stock_voices=ids,
+            stock_voices=english,
             voices=[
                 StockVoiceOut(
                     id=vid,
                     name=stock_voice_display_name(vid),
                     gender=stock_voice_gender(vid),
                     sample_url=f"/voices/{vid}/sample",
+                    language=stock_voice_language(vid),
                 )
                 for vid in ids
             ],
@@ -210,15 +214,16 @@ def create_app(
 
     @router.get("/voices/{voice_id}/sample")
     def voice_sample(voice_id: str) -> FileResponse:
-        from repodify.synth.stock_voices import STOCK_VOICES
+        from repodify.synth.stock_voices import PERSIAN_STOCK_VOICES, STOCK_VOICES
         from repodify.synth.voice_samples import (
             ensure_voice_sample,
             resolve_sample_path,
         )
 
-        if voice_id not in STOCK_VOICES:
+        if voice_id not in STOCK_VOICES and voice_id not in PERSIAN_STOCK_VOICES:
             raise HTTPException(status_code=404, detail="unknown stock voice")
-        ensure_voice_sample(voice_id, storage, sample_tts)
+        if voice_id in STOCK_VOICES:
+            ensure_voice_sample(voice_id, storage, sample_tts)
         path = resolve_sample_path(voice_id, storage)
         if path is None:
             raise HTTPException(status_code=404, detail="sample not found")
@@ -255,6 +260,8 @@ def create_app(
             "openrouter_tts_model": eff.openrouter_tts_model,
             "openrouter_stt_model": eff.openrouter_stt_model,
             "pyannoteai_model": eff.pyannoteai_model,
+            "chatterbox_persian_model": eff.chatterbox_persian_model,
+            "openrouter_tts_model_fa": eff.openrouter_tts_model_fa,
             "speakers": report.get("speakers") or [],
         }
 
@@ -276,6 +283,8 @@ def create_app(
             anthropic_configured=bool(eff.anthropic_api_key),
             pyannoteai_model=eff.pyannoteai_model,
             pyannoteai_configured=bool(eff.pyannoteai_api_key),
+            chatterbox_persian_model=eff.chatterbox_persian_model,
+            openrouter_tts_model_fa=eff.openrouter_tts_model_fa,
         )
 
     @router.get("/settings/llm", response_model=LlmSettingsResponse)
@@ -470,6 +479,7 @@ def create_app(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="job not found") from exc
         report = json.loads(job.report_json or "{}")
+        options = JobOptions.model_validate_json(job.options_json)
         return JobStatusResponse(
             id=job.id,
             status=job.status,
@@ -487,6 +497,7 @@ def create_app(
             report=report,
             gate=report.get("gate"),
             gate_info=_gate_info(report),
+            target_language=options.target_language,
         )
 
     @router.get("/jobs/{job_id}/result", response_model=ResultResponse)
@@ -494,11 +505,13 @@ def create_app(
         job = _require_completed(repo, job_id)
         report = json.loads(job.report_json or "{}")
         show_notes = report.get("show_notes") or {}
+        options = JobOptions.model_validate_json(job.options_json)
         return ResultResponse(
             audio_mp3_url=f"/jobs/{job_id}/audio?format=mp3",
             audio_wav_url=f"/jobs/{job_id}/audio?format=wav",
             summary=show_notes.get("summary", ""),
             chapters=show_notes.get("chapters", []),
+            language=options.target_language,
         )
 
     @router.get("/jobs/{job_id}/audio")

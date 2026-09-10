@@ -10,7 +10,15 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s % 60).padStart(2, '0')}`
 }
 
-export function AudioPlayer({ jobId, chapters }: { jobId: string; chapters: ChapterOut[] }) {
+export function AudioPlayer({
+  jobId,
+  chapters,
+  language,
+}: {
+  jobId: string
+  chapters: ChapterOut[]
+  language?: 'en' | 'fa'
+}) {
   const ref = useRef<HTMLAudioElement>(null)
   function seek(start: number) {
     if (ref.current) ref.current.currentTime = start
@@ -51,7 +59,13 @@ export function AudioPlayer({ jobId, chapters }: { jobId: string; chapters: Chap
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                       <Play className="size-3" />
                     </span>
-                    <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                    <span
+                      className="min-w-0 flex-1 truncate"
+                      dir={language === 'fa' ? 'rtl' : undefined}
+                      lang={language === 'fa' ? 'fa' : undefined}
+                    >
+                      {c.title}
+                    </span>
                     <span className="font-mono text-xs text-muted-foreground">
                       {formatTime(c.start_s)}
                     </span>

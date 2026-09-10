@@ -70,6 +70,7 @@ def test_result_returned_when_completed(repo, tmp_path):
     assert body["audio_wav_url"] == f"/jobs/{job_id}/audio?format=wav"
     assert body["summary"] == "the story"
     assert body["chapters"][0]["title"] == "Intro"
+    assert body["language"] == "en"
 
 
 def test_health_is_unauthenticated(repo, tmp_path):
@@ -131,6 +132,9 @@ def test_voices_lists_stock_catalog(repo, tmp_path):
         assert catalog[vid]["sample_url"] == f"/voices/{vid}/sample"
     assert catalog["af_heart"]["gender"] == "female"
     assert catalog["am_adam"]["gender"] == "male"
+    assert catalog["af_heart"]["language"] == "en"
+    assert catalog["fa_neda"]["language"] == "fa"
+    assert catalog["fa_arman"]["gender"] == "male"
 
 
 def test_speakers_endpoint_reports_status_and_detected_cast(repo, tmp_path):
@@ -200,6 +204,62 @@ def test_create_job_persists_voice_assignments(repo, tmp_path):
     options = JobOptions.model_validate_json(repo.get_job(resp.json()["job_id"]).options_json)
     assert options.voice_assignments[0].speaker_id == "SPEAKER_00"
     assert options.voice_assignments[0].stock_voice == "af_heart"
+
+
+def test_create_job_persists_target_language(repo, tmp_path):
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        resp = client.post(
+            "/jobs",
+            json={
+                "feed_url": "https://feed",
+                "episode_ids": ["ep-1"],
+                "target_language": "fa",
+            },
+        )
+        assert resp.status_code == 200
+        job_id = resp.json()["job_id"]
+        options = JobOptions.model_validate_json(repo.get_job(job_id).options_json)
+        assert options.target_language == "fa"
+        status = client.get(f"/jobs/{job_id}").json()
+        assert status["target_language"] == "fa"
+
+
+def test_create_job_defaults_target_language_to_english(repo, tmp_path):
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        resp = client.post(
+            "/jobs",
+            json={"feed_url": "https://feed", "episode_ids": ["ep-1"]},
+        )
+    assert resp.status_code == 200
+    options = JobOptions.model_validate_json(repo.get_job(resp.json()["job_id"]).options_json)
+    assert options.target_language == "en"
+
+
+def test_create_job_rejects_unknown_target_language(repo, tmp_path):
+    with httpx.Client() as http:
+        client = TestClient(_app(repo, http, tmp_path))
+        resp = client.post(
+            "/jobs",
+            json={
+                "feed_url": "https://feed",
+                "episode_ids": ["ep-1"],
+                "target_language": "de",
+            },
+        )
+    assert resp.status_code == 422
+
+
+def test_result_includes_persian_language(repo, tmp_path):
+    job_id = repo.create_job("https://feed", JobOptions(episode_ids=["ep-1"], target_language="fa"))
+    repo.add_artifact(job_id, "output_audio", "file:///out/digest.wav")
+    repo.set_report(job_id, {"show_notes": {"summary": "خلاصه", "chapters": []}})
+    repo.set_status(job_id, JobStatus.COMPLETED)
+    with httpx.Client() as http:
+        body = TestClient(_app(repo, http, tmp_path)).get(f"/jobs/{job_id}/result").json()
+    assert body["language"] == "fa"
+    assert body["summary"] == "خلاصه"
 
 
 def test_create_job_persists_custom_prompts(repo, tmp_path):

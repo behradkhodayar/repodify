@@ -1,7 +1,9 @@
 import pytest
 
 from repodify.synth.stock_voices import (
+    DEFAULT_PERSIAN_STOCK_VOICE,
     DEFAULT_STOCK_VOICE,
+    PERSIAN_STOCK_VOICES,
     SAMPLE_LINE,
     STOCK_VOICE_STYLES,
     STOCK_VOICES,
@@ -13,7 +15,9 @@ from repodify.synth.stock_voices import (
     stock_voice,
     stock_voice_display_name,
     stock_voice_gender,
+    stock_voice_language,
     stock_voice_register,
+    voices_for_job,
 )
 
 
@@ -132,6 +136,50 @@ def test_interleave_handles_single_register_and_empty():
     assert interleave_by_register([]) == []
     only_female = ["af_heart", "af_bella", "bf_emma"]
     assert interleave_by_register(only_female) == only_female  # nothing to alternate
+
+
+def test_persian_catalog_is_separate_from_english():
+    english = list_stock_voices()
+    persian = list_stock_voices("fa")
+    assert english == list(STOCK_VOICES)
+    assert persian == list(PERSIAN_STOCK_VOICES)
+    assert set(english).isdisjoint(persian)
+    assert DEFAULT_PERSIAN_STOCK_VOICE in persian
+
+
+def test_persian_stock_voice_has_style_and_no_required_sample():
+    v = stock_voice("fa_neda")
+    assert v.kokoro_voice is None
+    assert v.instructions
+    assert stock_voice_gender("fa_neda") == "female"
+    assert stock_voice_gender("fa_arman") == "male"
+    assert stock_voice_register("fa_neda") == "high"
+    assert stock_voice_register("fa_arman") == "low"
+    assert stock_voice_language("fa_neda") == "fa"
+    assert stock_voice_language("af_heart") == "en"
+
+
+def test_effective_stock_catalog_persian_ignores_english_preferred():
+    assert effective_stock_catalog(["af_heart"], language="fa") == list(PERSIAN_STOCK_VOICES)
+
+
+def test_voices_for_job_english_keeps_fallback_and_overlays_narrator():
+    from repodify.ports.tts import Voice
+
+    fallback = {"narrator": Voice(name="narrator"), "host_a": Voice(name="host_a")}
+    voices = voices_for_job("en", "af_heart", fallback)
+    assert voices["narrator"].kokoro_voice == "af_heart"
+    assert voices["host_a"].name == "host_a"
+
+
+def test_voices_for_job_persian_uses_persian_stock():
+    from repodify.ports.tts import Voice
+
+    fallback = {"narrator": Voice(name="narrator")}
+    voices = voices_for_job("fa", None, fallback)
+    assert voices["narrator"].name == DEFAULT_PERSIAN_STOCK_VOICE
+    assert voices["host_a"].name == "fa_arman"
+    assert voices["host_b"].name == "fa_neda"
 
 
 def test_match_by_gender_assigns_same_register_voices():

@@ -21,8 +21,7 @@ _MAX_SCRIPT_ATTEMPTS = 3
 
 def _format_beats(arc: ArcOutline) -> str:
     return "\n".join(
-        f"- {beat.heading} (episodes {beat.episode_guids}): {beat.narrative}"
-        for beat in arc.beats
+        f"- {beat.heading} (episodes {beat.episode_guids}): {beat.narrative}" for beat in arc.beats
     )
 
 
@@ -40,9 +39,7 @@ def _normalize_speakers(script: Script, host_count: int) -> Script:
         )
     speakers = {seg.speaker for seg in script.segments}
     if not speakers.issubset(set(HOST_SPEAKERS)):
-        raise ValueError(
-            f"two-host script must use only {HOST_SPEAKERS}, got {sorted(speakers)}"
-        )
+        raise ValueError(f"two-host script must use only {HOST_SPEAKERS}, got {sorted(speakers)}")
     if speakers != set(HOST_SPEAKERS):
         raise ValueError("two-host script must include both host_a and host_b")
     return script
@@ -90,9 +87,9 @@ def _normalize_multivoice(script: Script, cast_ids: set[str]) -> Script:
     segments = []
     for seg in script.segments:
         canon = _canonical_speaker(seg.speaker, cast_ids, by_int)
-        segments.append(seg if canon in (None, seg.speaker) else seg.model_copy(
-            update={"speaker": canon}
-        ))
+        segments.append(
+            seg if canon in (None, seg.speaker) else seg.model_copy(update={"speaker": canon})
+        )
     if any(_canonical_speaker(s.speaker, cast_ids, by_int) is None for s in script.segments):
         raise ValueError(
             f"multi-voice script must use only cast {sorted(cast_ids)}, "
@@ -121,6 +118,7 @@ def write_script(
     cast: list[Speaker] | None = None,
     *,
     whole_prompt: str | None = None,
+    target_language: str | None = None,
 ) -> Script:
     """Write a spoken script for the digest.
 
@@ -173,9 +171,10 @@ def write_script(
         def normalize(script: Script) -> Script:
             return _normalize_speakers(script, host_count)
 
-    # Whole-digest guidance rides on the base prompt so it persists across the
-    # expansion retries below (which rebuild `user` from `base_user`).
+    # Whole-digest guidance and target-language instructions ride on the base
+    # prompt so they persist across expansion retries below.
     base_user = prompts.with_guidance(base_user, whole=whole_prompt)
+    base_user = prompts.with_target_language(base_user, target_language)
 
     if smart:
         script = normalize(llm.generate(system, base_user, Script))
@@ -202,8 +201,10 @@ def write_script(
             break
         # Too short — ask for a longer draft on the next pass. Only under-budget
         # drafts are retried; an over-budget draft is accepted (and warned on).
-        user = base_user + "\n\n" + prompts.SCRIPT_EXPAND.format(
-            words=script.word_count, word_budget=word_budget
+        user = (
+            base_user
+            + "\n\n"
+            + prompts.SCRIPT_EXPAND.format(words=script.word_count, word_budget=word_budget)
         )
 
     if best is None:  # every attempt failed validation

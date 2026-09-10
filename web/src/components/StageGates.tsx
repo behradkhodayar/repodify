@@ -61,7 +61,7 @@ export function StageGates({ job }: { job: JobStatusResponse }) {
     return <VoicesGate jobId={job.id} speakers={job.gate_info?.speakers ?? []} />
   }
   if (gate === 'summarize') return <SummarizeGate jobId={job.id} info={job.gate_info} />
-  if (gate === 'tts') return <TtsGate jobId={job.id} info={job.gate_info} />
+  if (gate === 'tts') return <TtsGate jobId={job.id} info={job.gate_info} targetLanguage={job.target_language} />
   return null
 }
 
@@ -386,12 +386,32 @@ function SummarizeGate({ jobId, info }: { jobId: string; info?: GateInfo }) {
   )
 }
 
-function TtsGate({ jobId, info }: { jobId: string; info?: GateInfo }) {
+function TtsGate({
+  jobId,
+  info,
+  targetLanguage = 'en',
+}: {
+  jobId: string
+  info?: GateInfo
+  targetLanguage?: 'en' | 'fa'
+}) {
   const cont = useContinueJob(jobId)
   const voices = useVoices()
+  const persian = targetLanguage === 'fa'
   const [mode, setMode] = useState<'local' | 'byok'>('local')
-  const [model, setModel] = useState(info?.openrouter_tts_model ?? 'fish-audio/s2.1-pro')
-  const [narrator, setNarrator] = useState(voices.data?.voices?.[0]?.id ?? 'af_heart')
+  const [model, setModel] = useState(
+    persian
+      ? (info?.openrouter_tts_model_fa ?? info?.openrouter_tts_model ?? 'fish-audio/s2.1-pro')
+      : (info?.openrouter_tts_model ?? 'fish-audio/s2.1-pro'),
+  )
+  const catalog = (voices.data?.voices ?? []).filter((v) =>
+    persian ? v.language === 'fa' : v.language !== 'fa',
+  )
+  const [narrator, setNarrator] = useState(catalog[0]?.id ?? (persian ? 'fa_neda' : 'af_heart'))
+  const narratorOptions = catalog.length > 0 ? catalog : voices.data?.voices ?? []
+  const narratorValue = narratorOptions.some((v) => v.id === narrator)
+    ? narrator
+    : (narratorOptions[0]?.id ?? narrator)
 
   return (
     <Card>
@@ -402,7 +422,12 @@ function TtsGate({ jobId, info }: { jobId: string; info?: GateInfo }) {
         <CardDescription>Synthesize the script locally or with OpenRouter speech.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ModeToggle value={mode} onChange={setMode} localLabel="Local · Kokoro / F5" byokLabel="BYOK · OpenRouter" />
+        <ModeToggle
+          value={mode}
+          onChange={setMode}
+          localLabel={persian ? 'Local · Chatterbox Persian' : 'Local · Kokoro / F5'}
+          byokLabel="BYOK · OpenRouter"
+        />
         {mode === 'byok' && (
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Speech model</span>
@@ -415,8 +440,8 @@ function TtsGate({ jobId, info }: { jobId: string; info?: GateInfo }) {
           <p className="text-xs text-muted-foreground">
             Used for a single-narrator digest. Ignored when speakers keep original or stock assignments.
           </p>
-          <Select aria-label="Narrator voice" value={narrator} onChange={(e) => setNarrator(e.target.value)}>
-            {(voices.data?.voices ?? []).map((v) => (
+          <Select aria-label="Narrator voice" value={narratorValue} onChange={(e) => setNarrator(e.target.value)}>
+            {narratorOptions.map((v) => (
               <option key={v.id} value={v.id}>
                 {stockVoiceLabel(v.name, v.gender)}
               </option>
@@ -431,7 +456,7 @@ function TtsGate({ jobId, info }: { jobId: string; info?: GateInfo }) {
             onClick={() =>
               cont.mutate({
                 gate: 'tts',
-                payload: { mode, model: mode === 'byok' ? model : undefined, narrator_voice: narrator },
+                payload: { mode, model: mode === 'byok' ? model : undefined, narrator_voice: narratorValue },
               })
             }
           >

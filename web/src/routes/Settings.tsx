@@ -88,6 +88,8 @@ type FormState = {
   anthropic_api_key: string
   pyannoteai_api_key: string
   hf_token: string
+  chatterbox_persian_model: string
+  openrouter_tts_model_fa: string
 }
 
 const EMPTY: FormState = {
@@ -105,6 +107,8 @@ const EMPTY: FormState = {
   anthropic_api_key: '',
   pyannoteai_api_key: '',
   hf_token: '',
+  chatterbox_persian_model: '',
+  openrouter_tts_model_fa: '',
 }
 
 function fromResponse(data: AppSettingsResponse): FormState {
@@ -120,6 +124,8 @@ function fromResponse(data: AppSettingsResponse): FormState {
     map_model: data.anthropic_map_model,
     reduce_model: data.anthropic_reduce_model,
     pyannoteai_model: data.pyannoteai_model,
+    chatterbox_persian_model: data.chatterbox_persian_model,
+    openrouter_tts_model_fa: data.openrouter_tts_model_fa,
   }
 }
 
@@ -151,6 +157,8 @@ function RuntimeSettings() {
       map_model: form.map_model,
       reduce_model: form.reduce_model,
       pyannoteai_model: form.pyannoteai_model,
+      chatterbox_persian_model: form.chatterbox_persian_model,
+      openrouter_tts_model_fa: form.openrouter_tts_model_fa,
     }
     if (form.openrouter_api_key.trim()) body.openrouter_api_key = form.openrouter_api_key.trim()
     if (form.anthropic_api_key.trim()) body.anthropic_api_key = form.anthropic_api_key.trim()
@@ -248,8 +256,18 @@ function RuntimeSettings() {
             <Separator />
             <Stage title="Text to speech">
               <p className="text-sm text-muted-foreground">
-                Kokoro for stock catalog voices, F5-TTS for clones. No extra model id.
+                English: Kokoro for stock catalog voices, F5-TTS for clones. Persian:
+                Chatterbox Farsi. A Hugging Face token above is needed to download the
+                gated checkpoint.
               </p>
+              <Field label="Persian TTS model">
+                <Input
+                  aria-label="Persian TTS model"
+                  value={form.chatterbox_persian_model}
+                  onChange={(e) => patch({ chatterbox_persian_model: e.target.value })}
+                  placeholder="Thomcles/Chatterbox-TTS-Persian-Farsi"
+                />
+              </Field>
             </Stage>
           </CardContent>
         </Card>
@@ -344,6 +362,14 @@ function RuntimeSettings() {
                   onChange={(e) => patch({ openrouter_tts_model: e.target.value })}
                 />
               </Field>
+              <Field label="OpenRouter Persian TTS model">
+                <Input
+                  aria-label="OpenRouter Persian TTS model"
+                  value={form.openrouter_tts_model_fa}
+                  onChange={(e) => patch({ openrouter_tts_model_fa: e.target.value })}
+                  placeholder="fish-audio/s2.1-pro"
+                />
+              </Field>
             </Stage>
           </CardContent>
         </Card>
@@ -373,7 +399,7 @@ function VoicesCard() {
     setPreferred(saved.data.preferred_stock_voices)
   }, [saved.data])
 
-  const voices = catalog.data?.voices ?? []
+  const voices = (catalog.data?.voices ?? []).filter((v) => v.language !== 'fa')
   if (catalog.isError || saved.isError) {
     return (
       <Card>

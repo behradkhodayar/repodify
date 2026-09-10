@@ -104,4 +104,29 @@ describe('NewDigest', () => {
     expect(body!.episode_prompts).toEqual({ e1: 'keep the interview' })
     expect(body!.feed_url).toBe('https://x/rss')
   })
+
+  it('submits Persian as the target language', async () => {
+    let body: { target_language?: string } | null = null
+    server.use(
+      SEARCH,
+      RESOLVE,
+      http.post('/jobs', async ({ request }) => {
+        body = (await request.json()) as typeof body
+        return HttpResponse.json({ job_id: 'job-fa' })
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.type(screen.getByLabelText(/podcast name or rss url/i), 'https://x')
+    await waitFor(() => expect(screen.getByRole('option')).toBeInTheDocument(), { timeout: 3000 })
+    await user.click(screen.getByRole('option'))
+    await waitFor(() => expect(screen.getByText('Ep One')).toBeInTheDocument())
+    await user.click(screen.getByRole('checkbox', { name: /ep one/i }))
+    await user.selectOptions(screen.getByLabelText(/digest language/i), 'fa')
+    await user.click(screen.getByRole('button', { name: /create digest/i }))
+
+    await waitFor(() => expect(body).not.toBeNull())
+    expect(body!.target_language).toBe('fa')
+  })
 })

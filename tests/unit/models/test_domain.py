@@ -1,8 +1,8 @@
 import pytest
 
 from repodify.models.domain import (
-    JobOptions,
     MAX_PROMPT_CHARS,
+    JobOptions,
     Script,
     ScriptSegment,
     ShowNotes,

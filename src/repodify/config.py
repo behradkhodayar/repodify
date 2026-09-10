@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     openrouter_tts_model: str = "fish-audio/s2.1-pro"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Local Persian TTS: Chatterbox multilingual with the T3 Farsi finetune.
+    chatterbox_persian_model: str = "Thomcles/Chatterbox-TTS-Persian-Farsi"
+    # Hosted Persian TTS on OpenRouter. Fish Audio S2.1-Pro is multilingual and
+    # auto-detects Persian; override if you want a dedicated model.
+    openrouter_tts_model_fa: str = "fish-audio/s2.1-pro"
 
     # OpenRouter LLM model used when LLM_BACKEND=openrouter. Must support tool /
     # function calling (langchain's structured-output method). Picked at runtime

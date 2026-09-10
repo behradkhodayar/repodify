@@ -39,7 +39,9 @@ from repodify.ports.tts import SAMPLE_RATE, Voice
 
 # A short, phonetically varied line spoken by each seed clip. Its only job is to
 # give Fish Audio a consistent voice reference to clone; the words don't matter.
+# Persian seeds must be Persian so the cloned voice speaks Farsi, not English.
 _SEED_TEXT = "Hello there, this is a quick voice sample to keep the speaker steady."
+_SEED_TEXT_FA = "سلام، این یک نمونه کوتاه از صدای من است تا گوینده ثابت بماند."
 
 
 class OpenRouterTTSError(RuntimeError):
@@ -94,6 +96,7 @@ class OpenRouterTTS:
         base_url: str = "https://openrouter.ai/api/v1",
         http: httpx.Client | None = None,
         sample_rate: int = SAMPLE_RATE,
+        language: str = "en",
     ) -> None:
         if not api_key:
             raise ValueError("OpenRouterTTS requires an OpenRouter API key")
@@ -102,9 +105,15 @@ class OpenRouterTTS:
         self._model = model
         self._base_url = base_url.rstrip("/")
         self._sample_rate = sample_rate
+        self._language = language
         self._http = http or httpx.Client(timeout=120.0)
         # speaker key -> (reference data URI, reference text)
         self._seed_refs: dict[str, tuple[str, str]] = {}
+
+    def _seed_text(self) -> str:
+        from repodify.language import normalize_language
+
+        return _SEED_TEXT_FA if normalize_language(self._language) == "fa" else _SEED_TEXT
 
     def synthesize(self, text: str, voice: Voice) -> bytes:
         body: dict = {"model": self._model, "input": text, "response_format": "mp3"}
@@ -138,16 +147,17 @@ class OpenRouterTTS:
 
     def _make_seed(self, description: str) -> tuple[str, str]:
         """Generate one clip from a natural-language description, to clone later."""
+        seed = self._seed_text()
         wav = self._request_audio(
             {
                 "model": self._model,
-                "input": _SEED_TEXT,
+                "input": seed,
                 "response_format": "mp3",
                 "instructions": description,
             },
             label=f"seed:{description}",
         )
-        return (_wav_data_uri(wav), _SEED_TEXT)
+        return (_wav_data_uri(wav), seed)
 
     def _request_audio(self, body: dict, label: str) -> bytes:
         resp = self._http.post(
@@ -173,10 +183,19 @@ class OpenRouterTTS:
         """
         result = subprocess.run(
             [
-                "ffmpeg", "-hide_banner", "-loglevel", "error",
-                "-i", "pipe:0",
-                "-ar", str(self._sample_rate), "-ac", "1",
-                "-f", "s16le", "pipe:1",
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                "pipe:0",
+                "-ar",
+                str(self._sample_rate),
+                "-ac",
+                "1",
+                "-f",
+                "s16le",
+                "pipe:1",
             ],
             input=mp3,
             capture_output=True,

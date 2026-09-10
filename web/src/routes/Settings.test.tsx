@@ -22,6 +22,8 @@ const APP = {
   anthropic_configured: false,
   pyannoteai_model: 'community-1',
   pyannoteai_configured: false,
+  chatterbox_persian_model: 'Thomcles/Chatterbox-TTS-Persian-Farsi',
+  openrouter_tts_model_fa: 'fish-audio/s2.1-pro',
 }
 
 const VOICES = {
@@ -59,6 +61,12 @@ describe('Settings', () => {
     expect(screen.getByLabelText(/ollama model/i)).toHaveValue('qwen2.5-coder:7b')
     expect(screen.getByLabelText(/openrouter stt model/i)).toHaveValue('openai/whisper-large-v3')
     expect(screen.getByLabelText(/openrouter llm model/i)).toHaveValue('openai/gpt-4o-mini')
+    expect(screen.getByLabelText(/^persian tts model$/i)).toHaveValue(
+      'Thomcles/Chatterbox-TTS-Persian-Farsi',
+    )
+    expect(screen.getByLabelText(/^openrouter persian tts model$/i)).toHaveValue(
+      'fish-audio/s2.1-pro',
+    )
   })
 
   it('keeps Local, BYOK, and voice cards visible when their APIs fail', async () => {
@@ -111,6 +119,8 @@ describe('Settings', () => {
         whisper_model: 'base',
         ollama_model: 'llama3.1:8b',
         openrouter_llm_model: 'anthropic/claude-3.5-haiku',
+        chatterbox_persian_model: 'Thomcles/Chatterbox-TTS-Persian-Farsi',
+        openrouter_tts_model_fa: 'fish-audio/s2.1-pro',
       }),
     )
   })

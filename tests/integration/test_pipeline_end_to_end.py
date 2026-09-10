@@ -131,3 +131,77 @@ def test_pipeline_produces_digest_end_to_end(tmp_path, sample_feed_xml, repo):
     assert storage.get_bytes(f"{job_id}/output/digest.mp3")  # non-empty mp3 written
     assert transcriber.calls  # transcriber was actually invoked
     assert len(llm_map.calls) == 2
+
+
+def test_persian_digest_completes_with_fakes(tmp_path, sample_feed_xml, repo):
+    """A Farsi job still runs end-to-end on fakes (no GPU/network)."""
+    storage = FilesystemStorage(tmp_path / "data")
+    transcriber = FakeTranscriber(
+        Transcript(
+            episode_guid="",
+            segments=[TranscriptSegment(start=0.0, end=3.0, text="some spoken words here")],
+        )
+    )
+    llm_map = FakeStructuredLLM(
+        [EpisodeSummary(key_points=["p1"]), EpisodeSummary(key_points=["p2"])]
+    )
+    arc = ArcOutline(
+        title="قوس",
+        throughline="سیر تحول برنامه.",
+        beats=[
+            ArcBeat(heading="آغاز", episode_guids=["ep-1"], narrative="شروع شد."),
+            ArcBeat(heading="رشد", episode_guids=["ep-2"], narrative="رشد کرد."),
+        ],
+    )
+    script = Script(
+        segments=[
+            ScriptSegment(speaker="narrator", text="خوش آمدید به خلاصه برنامه"),
+            ScriptSegment(speaker="narrator", text=" ".join(["واژه"] * 200)),
+        ]
+    )
+    llm_reduce = FakeStructuredLLM([arc, script])
+    options = JobOptions(episode_ids=["ep-1", "ep-2"], target_minutes=1, target_language="fa")
+    job_id = repo.create_job("https://castbox.fm/channel/xyz", options)
+    settings = Settings(_env_file=None)
+
+    with respx.mock:
+        respx.get("https://feed.example.com/feed.xml").respond(content=sample_feed_xml)
+        respx.get("https://cdn.example.com/ep1.mp3").respond(content=b"AUDIO-1")
+        respx.get("https://cdn.example.com/ep2.mp3").respond(content=b"AUDIO-2")
+        with httpx.Client() as http:
+            deps = Deps(
+                resolver_resolve=lambda url, http: "https://feed.example.com/feed.xml",
+                http=http,
+                storage=storage,
+                transcriber=transcriber,
+                diarizer=FakeDiarizer(),
+                transcoder=FakeTranscoder(),
+                llm_map=llm_map,
+                llm_reduce=llm_reduce,
+                tts=FakeTTS(),
+                voices={"narrator": Voice(name="narrator")},
+                voice_cloner=FakeVoiceCloner(),
+                watermarker=FakeWatermarker(),
+                repo=repo,
+                settings=settings,
+            )
+            graph = build_graph(deps)
+            final = invoke_through_gates(
+                graph,
+                {
+                    "job_id": job_id,
+                    "feed_url": "https://castbox.fm/channel/xyz",
+                    "options": options,
+                },
+                job_id,
+            )
+
+    assert "output_uri" in final
+    notes = (final.get("report") or {}).get("show_notes") or {}
+    assert notes.get("summary") == "سیر تحول برنامه."
+    user_prompt = llm_reduce.calls[0][1]
+    assert "Persian" in user_prompt or "Farsi" in user_prompt
+    job = repo.get_job(job_id)
+    states = {s.stage: s.state for s in job.stages}
+    assert states.get("tts") == "done"
+    assert states.get("assemble") == "done"

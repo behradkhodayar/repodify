@@ -9,6 +9,7 @@ import { PageHeader } from '../components/PageHeader'
 import { PodcastSearch } from '../components/PodcastSearch'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Select } from '../components/ui/select'
 import { Separator } from '../components/ui/separator'
 import { Textarea } from '../components/ui/textarea'
 
@@ -31,6 +32,7 @@ export function NewDigest() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [customPrompt, setCustomPrompt] = useState('')
   const [episodePrompts, setEpisodePrompts] = useState<Record<string, string>>({})
+  const [targetLanguage, setTargetLanguage] = useState<'en' | 'fa'>('en')
   const resolve = useResolveFeed()
   const create = useCreateJob()
   const navigate = useNavigate()
@@ -65,6 +67,7 @@ export function NewDigest() {
       episode_ids: [...selected],
       custom_prompt: customPrompt.trim() || undefined,
       episode_prompts,
+      target_language: targetLanguage,
     })
     navigate(`/jobs/${job_id}`)
   }
@@ -132,6 +135,21 @@ export function NewDigest() {
             <Separator />
 
             <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <label className="w-full max-w-xs space-y-1.5">
+                <span className="block text-sm font-medium">Digest language</span>
+                <Select
+                  aria-label="Digest language"
+                  value={targetLanguage}
+                  onChange={(e) => setTargetLanguage(e.target.value as 'en' | 'fa')}
+                >
+                  <option value="en">English</option>
+                  <option value="fa">Persian (Farsi)</option>
+                </Select>
+                <span className="block text-xs text-muted-foreground">
+                  Script, show notes, and spoken audio. Source episodes stay as-is.
+                </span>
+              </label>
+
               <label className="w-full space-y-1.5">
                 <span className="block text-sm font-medium">Custom instructions</span>
                 <Textarea
