@@ -72,5 +72,5 @@ them tends to break the CPU test path. Full detail in [`AGENTS.md`](AGENTS.md).
 ## Reporting bugs & requesting features
 
 Open a GitHub issue. For bugs, include the run mode (fake / real-gpu / real-byok),
-what you did, what you expected, and what happened. For features, check the
-[Roadmap](ROADMAP.md) first.
+what you did, what you expected, and what happened. For features, check
+[open GitHub issues](https://github.com/behradkhodayar/repodify/issues) first.
