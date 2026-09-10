@@ -75,6 +75,7 @@ class CreateJobRequest(BaseModel):
     review_voices: bool = False
     custom_prompt: str | None = None
     episode_prompts: dict[str, str] = {}
+    target_language: str = "en"
 
 
 class CreateJobResponse(BaseModel):
@@ -86,6 +87,7 @@ class StockVoiceOut(BaseModel):
     name: str
     gender: Literal["female", "male"] | None = None
     sample_url: str
+    language: str = "en"
 
 
 class VoicesResponse(BaseModel):
@@ -138,6 +140,7 @@ class JobStatusResponse(BaseModel):
     report: dict
     gate: str | None = None
     gate_info: dict[str, Any] = {}
+    target_language: str = "en"
 
 
 class ChapterOut(BaseModel):
@@ -150,6 +153,7 @@ class ResultResponse(BaseModel):
     audio_wav_url: str
     summary: str
     chapters: list[ChapterOut]
+    language: str = "en"
 
 
 class JobSummaryOut(BaseModel):
@@ -199,6 +203,8 @@ class AppSettingsResponse(BaseModel):
     anthropic_configured: bool
     pyannoteai_model: str
     pyannoteai_configured: bool
+    chatterbox_persian_model: str
+    openrouter_tts_model_fa: str
 
 
 class AppSettingsUpdate(BaseModel):
@@ -218,3 +224,5 @@ class AppSettingsUpdate(BaseModel):
     anthropic_api_key: str | None = None
     pyannoteai_model: str | None = None
     pyannoteai_api_key: str | None = None
+    chatterbox_persian_model: str | None = None
+    openrouter_tts_model_fa: str | None = None

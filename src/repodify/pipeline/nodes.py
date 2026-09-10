@@ -19,6 +19,7 @@ from repodify.ingest.cache import JsonCache
 from repodify.ingest.download import DownloadError, audio_key, download_episode
 from repodify.ingest.feed import parse_feed
 from repodify.ingest.fetch import fetch_feed
+from repodify.language import clone_disclaimer, wpm_for
 from repodify.models.domain import Transcript
 from repodify.models.enums import StageName, StageState
 from repodify.pipeline.progress import (
@@ -41,10 +42,13 @@ from repodify.synth.assemble import (
 )
 from repodify.synth.gender import estimate_cast_registers
 from repodify.synth.stock_voices import (
+    DEFAULT_PERSIAN_STOCK_VOICE,
+    PERSIAN_STOCK_VOICES,
     effective_stock_catalog,
     interleave_by_register,
     match_by_gender,
     stock_voice,
+    voices_for_job,
 )
 from repodify.synth.voice_assignment import MAX_CAST, resolve_voice_assignments
 from repodify.transcribe.diarization import (
@@ -351,6 +355,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                         deps.llm_map,
                         whole_prompt=_whole_prompt(state),
                         episode_prompt=state["options"].episode_prompts.get(e.guid),
+                        target_language=state["options"].target_language,
                     )
                 )
             repo.finish_stage(
@@ -375,6 +380,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 state["summaries"],
                 deps.llm_reduce,
                 whole_prompt=_whole_prompt(state),
+                target_language=state["options"].target_language,
             )
             repo.finish_stage(
                 job_id,
@@ -407,20 +413,18 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
             cast = list(state.get("cast") or [])
             if options.preserve_speakers and not cast:
                 raise ValueError("preserve_speakers: diarization found no speakers")
+            spoken_wpm = wpm_for(options.target_language, deps.settings.wpm)
             script = write_script(
                 state["arc"],
                 deps.llm_reduce,
-                target_minutes=(
-                    None
-                    if options.length_mode == "smart"
-                    else options.target_minutes
-                ),
-                wpm=deps.settings.wpm,
+                target_minutes=(None if options.length_mode == "smart" else options.target_minutes),
+                wpm=spoken_wpm,
                 host_count=options.host_count,
                 cast=cast if options.preserve_speakers else None,
                 whole_prompt=_whole_prompt(state),
+                target_language=options.target_language,
             )
-            est = script.estimated_minutes(deps.settings.wpm)
+            est = script.estimated_minutes(spoken_wpm)
             repo.finish_stage(
                 job_id,
                 StageName.SCRIPT,
@@ -464,6 +468,15 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
         arc = state["arc"]
         options = state["options"]
         cloned_output = False  # drives the disclaimer / watermark / synthetic guardrails
+        extra_warnings: list[str] = []
+        persian = options.target_language == "fa"
+        # Cloning an English host so they "speak Persian" is out of v1.
+        if persian and (options.clone or options.use_original_voices):
+            extra_warnings.append(
+                "Voice cloning is not used for Persian digests; "
+                "stock Persian voices were used instead."
+            )
+            options = options.model_copy(update={"clone": False, "use_original_voices": False})
 
         # --- TTS ---
         tts_label = model_id(deps.tts)
@@ -479,7 +492,12 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 # the register-interleaved catalog, which at least keeps voices
                 # distinct; an explicit user assignment overrides both.
                 preferred_stock: dict[str, str] = {}
-                catalog = effective_stock_catalog(deps.stock_catalog)
+                catalog = effective_stock_catalog(
+                    deps.stock_catalog, language=options.target_language
+                )
+                default_stock = (
+                    DEFAULT_PERSIAN_STOCK_VOICE if persian else deps.settings.default_stock_voice
+                )
                 if not options.clone:
                     registers = estimate_cast_registers(_all_sources(state, job_id), cast_ids)
                     preferred_stock = match_by_gender(cast_ids, registers, catalog)
@@ -487,7 +505,7 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                     cast_ids,
                     options,
                     interleave_by_register(catalog),
-                    deps.settings.default_stock_voice,
+                    default_stock,
                     preferred_stock=preferred_stock,
                 )
                 clone_ids = [i for i in cast_ids if assignments[i].mode == "clone"]
@@ -515,11 +533,17 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                             _record_ref_clip(job_id, key, voice)
                 for sid in cast_ids:
                     if assignments[sid].mode == "stock":
-                        voices[sid] = stock_voice(assignments[sid].stock_voice)
+                        name = assignments[sid].stock_voice
+                        if persian and name not in PERSIAN_STOCK_VOICES:
+                            name = preferred_stock.get(sid) or default_stock
+                        voices[sid] = stock_voice(name)
                 cloned_output = bool(clone_ids)
                 if cloned_output:
-                    script = _prepend_disclaimer(script, deps.settings.clone_disclaimer)
-                    voices["disclaimer"] = stock_voice(deps.settings.default_stock_voice)
+                    spoken = clone_disclaimer(
+                        options.target_language, deps.settings.clone_disclaimer
+                    )
+                    script = _prepend_disclaimer(script, spoken)
+                    voices["disclaimer"] = stock_voice(default_stock)
             elif options.clone:
                 # Legacy opt-in cloning: map the script's roles (host_a/host_b or
                 # narrator) onto the most-talkative detected speakers, clone those,
@@ -537,10 +561,13 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                         voices[role] = cloned[diar]
                         _record_ref_clip(job_id, role, cloned[diar])
                 cloned_output = True
-                script = _prepend_disclaimer(script, deps.settings.clone_disclaimer)
+                spoken = clone_disclaimer(options.target_language, deps.settings.clone_disclaimer)
+                script = _prepend_disclaimer(script, spoken)
                 voices["disclaimer"] = deps.voices["narrator"]
             else:
-                voices = deps.voices
+                voices = voices_for_job(
+                    options.target_language, options.narrator_voice, deps.voices
+                )
 
             def _tts_progress(i: int, n: int) -> None:
                 repo.update_stage_detail(
@@ -578,7 +605,11 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
                 script,
                 segments,
                 synthetic=cloned_output,
-                disclaimer=deps.settings.clone_disclaimer if cloned_output else None,
+                disclaimer=(
+                    clone_disclaimer(options.target_language, deps.settings.clone_disclaimer)
+                    if cloned_output
+                    else None
+                ),
             )
             deps.storage.put_bytes(
                 f"{job_id}/output/show_notes.json",
@@ -616,6 +647,8 @@ def make_nodes(deps: Deps) -> dict[str, NodeFn]:
 
         report = _report(state)
         report["show_notes"] = json.loads(notes.model_dump_json())
+        if extra_warnings:
+            report["warnings"].extend(extra_warnings)
         repo.set_report(job_id, report)
         return {"output_uri": output_uri, "report": report}
 

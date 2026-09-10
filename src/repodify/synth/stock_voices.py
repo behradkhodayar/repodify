@@ -31,6 +31,16 @@ STOCK_VOICES: tuple[str, ...] = (
 
 DEFAULT_STOCK_VOICE = "af_heart"
 
+# Persian catalog for a Farsi digest. Local Chatterbox uses the default model
+# voice (no bundled clip required); hosted backends distinguish them via
+# `instructions`. Cloning an English host into Persian is out of v1.
+PERSIAN_STOCK_VOICES: tuple[str, ...] = ("fa_neda", "fa_arman")
+DEFAULT_PERSIAN_STOCK_VOICE = "fa_neda"
+PERSIAN_VOICE_GENDER: dict[str, Literal["female", "male"]] = {
+    "fa_neda": "female",
+    "fa_arman": "male",
+}
+
 # Natural-language descriptions of each stock voice, used by hosted backends that
 # have no reference clip (e.g. Fish Audio via OpenRouter) to synthesize a voice
 # that approximates the Kokoro catalog voice's gender/accent/character. Local
@@ -47,11 +57,17 @@ STOCK_VOICE_STYLES: dict[str, str] = {
     "am_michael": "a deep, low-pitched, steady American male voice",
     "bf_emma": "a high-pitched, bright and articulate British female voice",
     "bm_george": "a deep, low-pitched, refined British male voice",
+    "fa_neda": "a high-pitched, warm Persian female narrator",
+    "fa_arman": "a deep, low-pitched, clear Persian male narrator",
 }
 
 
-def list_stock_voices() -> list[str]:
-    """The stock voice names available for assignment."""
+def list_stock_voices(language: str = "en") -> list[str]:
+    """The stock voice names available for assignment in `language`."""
+    from repodify.language import normalize_language
+
+    if normalize_language(language) == "fa":
+        return list(PERSIAN_STOCK_VOICES)
     return list(STOCK_VOICES)
 
 
@@ -61,13 +77,21 @@ def bundled_sample_path(name: str) -> Path:
 
 
 def stock_voice_gender(name: str) -> Literal["female", "male"] | None:
-    """A stock voice's gender, from the Kokoro id (``a/b`` accent, ``f/m`` gender).
+    """A stock voice's gender.
 
-    Returns ``None`` when the id doesn't look like a Kokoro voice.
+    Kokoro ids encode gender in the second character (``f``/``m``). Persian
+    catalog ids use an explicit map.
     """
+    if name in PERSIAN_VOICE_GENDER:
+        return PERSIAN_VOICE_GENDER[name]
     if len(name) < 2:
         return None
     return {"f": "female", "m": "male"}.get(name[1])
+
+
+def stock_voice_language(name: str) -> str:
+    """``fa`` for the Persian catalog, otherwise ``en``."""
+    return "fa" if name in PERSIAN_STOCK_VOICES else "en"
 
 
 def stock_voice_display_name(name: str) -> str:
@@ -79,15 +103,22 @@ def stock_voice_display_name(name: str) -> str:
     return label[0].upper() + label[1:]
 
 
-def effective_stock_catalog(preferred: list[str] | None = None) -> list[str]:
+def effective_stock_catalog(preferred: list[str] | None = None, language: str = "en") -> list[str]:
     """The catalog gender-matching and round-robin assignment should use.
 
     A non-empty ``preferred`` list (Settings) is treated as an ordered subset of
-    the built-in catalog; unknown ids are dropped. Empty/unset preferred, or a
-    list that survives filtering as empty, falls back to the full catalog so a
-    misconfigured setting can't leave the pipeline with no voices.
+    the built-in English catalog; unknown ids are dropped. Empty/unset preferred,
+    or a list that survives filtering as empty, falls back to the full catalog
+    so a misconfigured setting can't leave the pipeline with no voices.
+
+    Persian jobs ignore the English preferred list and always use the Persian
+    catalog — those voices are not in the Settings picker.
     """
-    full = list_stock_voices()
+    from repodify.language import normalize_language
+
+    full = list_stock_voices(language)
+    if normalize_language(language) == "fa":
+        return full
     if not preferred:
         return full
     known = set(full)
@@ -96,11 +127,15 @@ def effective_stock_catalog(preferred: list[str] | None = None) -> list[str]:
 
 
 def stock_voice_register(name: str) -> Literal["high", "low"]:
-    """A stock voice's vocal register, from its Kokoro id (``a/b`` accent, ``f/m``).
+    """A stock voice's vocal register.
 
-    ``m`` (male) voices are ``"low"``, ``f`` (female) are ``"high"``; anything that
-    doesn't look like a Kokoro id defaults to ``"high"``.
+    Kokoro ``m`` (male) and Persian ``fa_arman`` are ``"low"``; female catalog
+    voices are ``"high"``. Unknown ids default to ``"high"``.
     """
+    if stock_voice_gender(name) == "male":
+        return "low"
+    if stock_voice_gender(name) == "female":
+        return "high"
     return "low" if len(name) >= 2 and name[1] == "m" else "high"
 
 
@@ -158,10 +193,22 @@ def stock_voice(name: str) -> Voice:
     When a bundled preview clip exists it is attached as ``ref_audio_path`` so
     hosted backends (Fish Audio via OpenRouter) clone the real female/male
     sample instead of guessing gender from a text description. Local Kokoro
-    still keys off ``kokoro_voice`` and ignores the clip.
+    still keys off ``kokoro_voice`` and ignores the clip. Persian catalog
+    voices have no bundled clip; hosted backends use `instructions`.
     """
+    if name in PERSIAN_STOCK_VOICES:
+        sample = bundled_sample_path(name)
+        has_sample = sample.is_file()
+        return Voice(
+            name=name,
+            kokoro_voice=None,
+            instructions=STOCK_VOICE_STYLES.get(name),
+            ref_audio_path=sample if has_sample else None,
+            ref_text=SAMPLE_LINE if has_sample else None,
+        )
     if name not in STOCK_VOICES:
-        raise ValueError(f"unknown stock voice {name!r}; choose from {list(STOCK_VOICES)}")
+        known = list(STOCK_VOICES) + list(PERSIAN_STOCK_VOICES)
+        raise ValueError(f"unknown stock voice {name!r}; choose from {known}")
     sample = bundled_sample_path(name)
     has_sample = sample.is_file()
     return Voice(
@@ -171,3 +218,27 @@ def stock_voice(name: str) -> Voice:
         ref_audio_path=sample if has_sample else None,
         ref_text=SAMPLE_LINE if has_sample else None,
     )
+
+
+def voices_for_job(
+    language: str,
+    narrator_voice: str | None,
+    fallback: dict[str, Voice],
+) -> dict[str, Voice]:
+    """Narrator / host voices for a single- or two-host digest.
+
+    English keeps the wired fallback (F5 reference clips) and overlays a
+    catalog narrator when the TTS gate picked one. Persian always uses the
+    Farsi catalog — Kokoro/F5 English clips cannot speak Persian.
+    """
+    from repodify.language import normalize_language
+
+    if normalize_language(language) == "fa":
+        neda = stock_voice("fa_neda")
+        arman = stock_voice("fa_arman")
+        narrator = stock_voice(narrator_voice) if narrator_voice in PERSIAN_STOCK_VOICES else neda
+        return {"narrator": narrator, "host_a": arman, "host_b": neda}
+    voices = dict(fallback)
+    if narrator_voice:
+        voices["narrator"] = stock_voice(narrator_voice)
+    return voices

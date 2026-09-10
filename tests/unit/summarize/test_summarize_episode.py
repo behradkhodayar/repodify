@@ -10,9 +10,7 @@ def test_summarize_episode_forces_identity_and_passes_transcript():
         segments=[TranscriptSegment(start=0, end=1, text="the quick brown fox")],
     )
     # The model returns content but blank identity fields; we overwrite them.
-    llm = FakeStructuredLLM(
-        [EpisodeSummary(key_points=["a point"], themes=["a theme"])]
-    )
+    llm = FakeStructuredLLM([EpisodeSummary(key_points=["a point"], themes=["a theme"])])
 
     out = summarize_episode(transcript, title="My Episode", order_index=3, llm=llm)
 
@@ -38,9 +36,7 @@ def test_summarize_episode_no_prompts_matches_builtin_exactly():
     summarize_episode(transcript, title="T", order_index=0, llm=llm)
 
     _system, user, _schema = llm.calls[0]
-    expected = prompts.EPISODE_USER.format(
-        title="T", transcript=transcript.speaker_labeled_text
-    )
+    expected = prompts.EPISODE_USER.format(title="T", transcript=transcript.speaker_labeled_text)
     assert user == expected
     assert "[00:05]" not in user  # no timestamps on the default path
 
@@ -53,11 +49,26 @@ def test_summarize_episode_with_prompts_adds_guidance_and_timestamps():
     llm = FakeStructuredLLM([EpisodeSummary(key_points=["p"])])
 
     summarize_episode(
-        transcript, title="T", order_index=0, llm=llm,
-        whole_prompt="skip ads", episode_prompt="cut 4:20 to 6:09",
+        transcript,
+        title="T",
+        order_index=0,
+        llm=llm,
+        whole_prompt="skip ads",
+        episode_prompt="cut 4:20 to 6:09",
     )
 
     _system, user, _schema = llm.calls[0]
-    assert "[04:20]" in user            # timestamped transcript
+    assert "[04:20]" in user  # timestamped transcript
     assert "Whole digest: skip ads" in user
     assert "This episode: cut 4:20 to 6:09" in user
+
+
+def test_summarize_episode_persian_appends_language_instruction():
+    transcript = Transcript(
+        episode_guid="ep-1",
+        segments=[TranscriptSegment(start=0, end=1, text="hello")],
+    )
+    llm = FakeStructuredLLM([EpisodeSummary(key_points=["p"])])
+    summarize_episode(transcript, title="T", order_index=0, llm=llm, target_language="fa")
+    _system, user, _schema = llm.calls[0]
+    assert "Persian" in user or "Farsi" in user

@@ -156,9 +156,23 @@ _GUIDANCE_HEADER = (
 )
 
 
-def with_guidance(
-    base_user: str, *, whole: str | None = None, episode: str | None = None
-) -> str:
+def with_target_language(base_user: str, language: str | None) -> str:
+    """Append a write-in-this-language instruction when the target is not English.
+
+    Returns ``base_user`` unchanged for English/empty so callers that pass the
+    default reproduce the built-in prompt exactly.
+    """
+    from repodify.language import language_instruction, normalize_language
+
+    if language is None:
+        return base_user
+    instruction = language_instruction(normalize_language(language))
+    if not instruction:
+        return base_user
+    return base_user + "\n\n" + instruction
+
+
+def with_guidance(base_user: str, *, whole: str | None = None, episode: str | None = None) -> str:
     """Append an editorial-guidance block to a base user prompt.
 
     Returns ``base_user`` unchanged when no meaningful guidance is given, so

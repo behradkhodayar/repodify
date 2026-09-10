@@ -1,4 +1,4 @@
-from repodify.summarize.prompts import clean_prompt, with_guidance
+from repodify.summarize.prompts import clean_prompt, with_guidance, with_target_language
 
 
 def test_clean_prompt_strips_and_nullifies_empty():
@@ -30,3 +30,14 @@ def test_with_guidance_both_are_labeled():
     out = with_guidance("BASE", whole="skip ads", episode="keep the interview")
     assert "Whole digest: skip ads" in out
     assert "This episode: keep the interview" in out
+
+
+def test_with_target_language_english_leaves_prompt_unchanged():
+    base = "BASE"
+    assert with_target_language(base, "en") is base
+
+
+def test_with_target_language_persian_asks_for_farsi_output():
+    out = with_target_language("BASE", "fa")
+    assert out.startswith("BASE")
+    assert "Persian" in out or "Farsi" in out

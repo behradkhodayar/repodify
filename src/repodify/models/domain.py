@@ -264,6 +264,18 @@ class JobOptions(BaseModel):
     custom_prompt: str | None = Field(default=None, max_length=MAX_PROMPT_CHARS)
     episode_prompts: dict[str, str] = Field(default_factory=dict)
 
+    # Output language of the digest (script, notes, spoken audio). Source
+    # transcripts stay in the show's language. Default English keeps today's
+    # behavior; Persian (`fa`) is the first extra language.
+    target_language: str = "en"
+
+    @field_validator("target_language", mode="before")
+    @classmethod
+    def _normalize_target_language(cls, value: object) -> str:
+        from repodify.language import normalize_language
+
+        return normalize_language(None if value is None else str(value))
+
     @field_validator("episode_prompts")
     @classmethod
     def _clean_episode_prompts(cls, value: dict[str, str]) -> dict[str, str]:

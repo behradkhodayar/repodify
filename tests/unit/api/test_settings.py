@@ -43,6 +43,8 @@ def test_get_settings_returns_env_defaults(repo, tmp_path):
     assert body["openrouter_stt_model"] == "openai/whisper-large-v3"
     assert body["openrouter_llm_model"] == "openai/gpt-4o-mini"
     assert body["openrouter_tts_model"] == "fish-audio/s2.1-pro"
+    assert body["chatterbox_persian_model"] == "Thomcles/Chatterbox-TTS-Persian-Farsi"
+    assert body["openrouter_tts_model_fa"] == "fish-audio/s2.1-pro"
     assert body["openrouter_configured"] is False
     assert body["anthropic_configured"] is False
     assert body["pyannoteai_configured"] is False
@@ -84,6 +86,8 @@ def test_put_persists_local_and_byok_models(repo, tmp_path):
             "openrouter_stt_model": "openai/whisper-large-v3",
             "openrouter_llm_model": "anthropic/claude-3.5-haiku",
             "openrouter_tts_model": "fish-audio/s2.1-pro",
+            "chatterbox_persian_model": "Thomcles/Chatterbox-TTS-Persian-Farsi",
+            "openrouter_tts_model_fa": "fish-audio/s1",
             "map_model": "claude-haiku-4-5-20251001",
             "reduce_model": "claude-opus-4-8",
         },
@@ -94,7 +98,10 @@ def test_put_persists_local_and_byok_models(repo, tmp_path):
     assert body["ollama_model"] == "llama3.1:8b"
     assert body["ollama_base_url"] == "http://gpu:11434"
     assert body["openrouter_llm_model"] == "anthropic/claude-3.5-haiku"
+    assert body["chatterbox_persian_model"] == "Thomcles/Chatterbox-TTS-Persian-Farsi"
+    assert body["openrouter_tts_model_fa"] == "fish-audio/s1"
     assert client.get("/settings").json()["ollama_model"] == "llama3.1:8b"
+    assert client.get("/settings").json()["openrouter_tts_model_fa"] == "fish-audio/s1"
 
 
 def test_put_keys_set_configured_flags_without_echoing(repo, tmp_path):

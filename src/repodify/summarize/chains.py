@@ -15,6 +15,7 @@ def summarize_episode(
     *,
     whole_prompt: str | None = None,
     episode_prompt: str | None = None,
+    target_language: str | None = None,
 ) -> EpisodeSummary:
     """Summarize one episode transcript into a structured `EpisodeSummary`.
 
@@ -30,6 +31,7 @@ def summarize_episode(
         transcript_text = transcript.speaker_labeled_text
     user = prompts.EPISODE_USER.format(title=title, transcript=transcript_text)
     user = prompts.with_guidance(user, whole=whole, episode=episode)
+    user = prompts.with_target_language(user, target_language)
     summary = llm.generate(prompts.EPISODE_SYSTEM, user, EpisodeSummary)
     # The model summarizes content; identity fields are authoritative from us.
     return summary.model_copy(
@@ -58,9 +60,11 @@ def synthesize_arc(
     llm: StructuredLLM,
     *,
     whole_prompt: str | None = None,
+    target_language: str | None = None,
 ) -> ArcOutline:
     """Combine per-episode summaries into one chronological narrative arc."""
     ordered = sorted(summaries, key=lambda s: s.order_index)
     user = prompts.ARC_USER.format(summaries=_format_summaries(ordered))
     user = prompts.with_guidance(user, whole=whole_prompt)
+    user = prompts.with_target_language(user, target_language)
     return llm.generate(prompts.ARC_SYSTEM, user, ArcOutline)

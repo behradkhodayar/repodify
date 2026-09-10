@@ -34,3 +34,12 @@ def test_synthesize_arc_appends_whole_prompt():
 
     _system, user, _schema = llm.calls[0]
     assert "Whole digest: focus on funding" in user
+
+
+def test_synthesize_arc_persian_appends_language_instruction():
+    summaries = [EpisodeSummary(episode_guid="a", order_index=0, title="First")]
+    arc = ArcOutline(title="T", throughline="x", beats=[])
+    llm = FakeStructuredLLM([arc])
+    synthesize_arc(summaries, llm, target_language="fa")
+    _system, user, _schema = llm.calls[0]
+    assert "Persian" in user or "Farsi" in user
