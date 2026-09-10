@@ -47,6 +47,15 @@ gpu = [
     "nvidia-cuda-runtime-cu12",
 ]
 
+# chatterbox-tts 0.1.7 pins torch==2.6 on Python <3.14. That would yank the
+# CUDA 13 stack this extra otherwise installs. The adapter runs on torch 2.13
+# (verified); override the pin so `uv sync --extra gpu` keeps one Torch.
+[tool.uv]
+override-dependencies = [
+    "torch>=2.13",
+    "torchaudio>=2.11",
+]
+
 [dependency-groups]
 # Dev tooling — installed by `uv sync` by default, excluded from the built wheel.
 dev = [

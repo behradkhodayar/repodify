@@ -6,7 +6,11 @@ import io
 import wave
 
 from repodify.ports.tts import SAMPLE_RATE, Voice
-from repodify.synth.chatterbox_tts import ChatterboxPersianTTS, chunk_text
+from repodify.synth.chatterbox_tts import (
+    ChatterboxPersianTTS,
+    _ensure_perth_watermarker,
+    chunk_text,
+)
 
 
 class _Tensor:
@@ -41,6 +45,22 @@ class _StubModel:
         self.calls.append((text, kwargs))
         n = max(4, min(len(text), 16))
         return _Tensor([0.1] * n)
+
+
+def test_ensure_perth_watermarker_uses_dummy_when_implicit_missing(monkeypatch):
+    import sys
+    import types
+
+    fake = types.ModuleType("perth")
+
+    class Dummy:
+        pass
+
+    fake.DummyWatermarker = Dummy
+    fake.PerthImplicitWatermarker = None
+    monkeypatch.setitem(sys.modules, "perth", fake)
+    _ensure_perth_watermarker()
+    assert fake.PerthImplicitWatermarker is Dummy
 
 
 def test_model_not_loaded_until_first_synthesize():

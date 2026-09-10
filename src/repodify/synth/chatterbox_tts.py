@@ -1,5 +1,9 @@
 """Chatterbox Persian-Farsi synthesizer (real backend; needs the [gpu] extra).
 
+PyPI `chatterbox-tts` pins an older Torch; this repo overrides that so the GPU
+extra keeps a single CUDA 13 stack. resemble-perth's implicit watermarker is
+optional — we fall back to its dummy if it cannot import.
+
 Loads Resemble's multilingual Chatterbox, then overlays
 ``Thomcles/Chatterbox-TTS-Persian-Farsi`` T3 weights (``t3_fa.safetensors``).
 Heavy imports are deferred to first use. Output is 24kHz mono 16-bit WAV.
@@ -56,6 +60,19 @@ def chunk_text(text: str, max_chars: int = _MAX_CHARS) -> list[str]:
     return chunks or [text]
 
 
+def _ensure_perth_watermarker() -> None:
+    """Chatterbox always constructs `perth.PerthImplicitWatermarker()`.
+
+    resemble-perth 1.0 leaves that name as None when its implicit net cannot
+    import (e.g. missing `pkg_resources`). Fall back to the bundled dummy so
+    load still succeeds; Repodify already watermarks cloned output itself.
+    """
+    import perth
+
+    if getattr(perth, "PerthImplicitWatermarker", None) is None:
+        perth.PerthImplicitWatermarker = perth.DummyWatermarker
+
+
 def load_persian_chatterbox(
     *,
     repo_id: str,
@@ -71,6 +88,7 @@ def load_persian_chatterbox(
     from huggingface_hub import hf_hub_download
     from safetensors.torch import load_file as load_safetensors
 
+    _ensure_perth_watermarker()
     model = ChatterboxMultilingualTTS.from_pretrained(device=device)
     path = hf_hub_download(repo_id=repo_id, filename=_T3_FILENAME, token=hf_token)
     t3_state = load_safetensors(path, device="cpu")
