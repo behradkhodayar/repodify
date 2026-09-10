@@ -65,17 +65,29 @@ def _build_real_llms(
     )
 
 
-def _build_real_tts(settings: Settings):
-    """Return the real TTS backend per settings.tts_backend."""
+def _build_real_tts(settings: Settings, *, language: str = "en"):
+    """Return the real TTS backend per settings.tts_backend and job language."""
+    from repodify.language import normalize_language
+
+    lang = normalize_language(language)
     if settings.tts_backend == "openrouter":
         from repodify.synth.openrouter_tts import OpenRouterTTS
 
         if not settings.openrouter_api_key:
             raise RuntimeError("OPENROUTER_API_KEY is required when TTS_BACKEND=openrouter")
+        model = settings.openrouter_tts_model_fa if lang == "fa" else settings.openrouter_tts_model
         return OpenRouterTTS(
             api_key=settings.openrouter_api_key,
-            model=settings.openrouter_tts_model,
+            model=model,
             base_url=settings.openrouter_base_url,
+            language=lang,
+        )
+    if lang == "fa":
+        from repodify.synth.chatterbox_tts import ChatterboxPersianTTS
+
+        return ChatterboxPersianTTS(
+            repo_id=settings.chatterbox_persian_model,
+            hf_token=settings.hf_token,
         )
     from repodify.synth.f5_tts import F5TTS
     from repodify.synth.kokoro import KokoroTTS
@@ -247,19 +259,31 @@ def apply_job_backends(deps: Deps, settings: Settings, options: JobOptions) -> D
             llm_map, llm_reduce = _build_real_llms(settings, ov)
         deps.llm_map = llm_map
         deps.llm_reduce = llm_reduce
+    lang = options.target_language or "en"
     if options.tts is not None:
         if options.tts.mode == "byok":
+            from repodify.language import normalize_language
             from repodify.synth.openrouter_tts import OpenRouterTTS
 
             if not settings.openrouter_api_key:
                 raise RuntimeError("OPENROUTER_API_KEY is required for BYOK TTS")
+            default_model = (
+                settings.openrouter_tts_model_fa
+                if normalize_language(lang) == "fa"
+                else settings.openrouter_tts_model
+            )
             deps.tts = OpenRouterTTS(
                 api_key=settings.openrouter_api_key,
-                model=options.tts.model or settings.openrouter_tts_model,
+                model=options.tts.model or default_model,
                 base_url=settings.openrouter_base_url,
+                language=lang,
             )
         else:
-            deps.tts = _build_real_tts(settings.model_copy(update={"tts_backend": "f5"}))
+            deps.tts = _build_real_tts(
+                settings.model_copy(update={"tts_backend": "f5"}), language=lang
+            )
+    elif lang != "en":
+        deps.tts = _build_real_tts(settings, language=lang)
     return deps
 
 

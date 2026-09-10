@@ -37,6 +37,7 @@ gpu = [
     "faster-whisper",
     "f5-tts",
     "kokoro",
+    "chatterbox-tts",
     "pyannote.audio",
     "audioseal",
     # CUDA 12 runtime for faster-whisper's CTranslate2 backend. A CUDA 13 PyTorch
