@@ -116,6 +116,8 @@ export interface GateInfo {
   openrouter_tts_model?: string
   openrouter_stt_model?: string
   pyannoteai_model?: string
+  persian_tts_engine?: 'pocket' | 'chatterbox'
+  pocket_persian_model?: string
   chatterbox_persian_model?: string
   openrouter_tts_model_fa?: string
   speakers?: SpeakerOut[]
@@ -195,6 +197,8 @@ export interface AppSettingsResponse {
   anthropic_configured: boolean
   pyannoteai_model: string
   pyannoteai_configured: boolean
+  persian_tts_engine: 'pocket' | 'chatterbox'
+  pocket_persian_model: string
   chatterbox_persian_model: string
   openrouter_tts_model_fa: string
 }
@@ -214,6 +218,8 @@ export interface AppSettingsUpdate {
   anthropic_api_key?: string
   pyannoteai_model?: string
   pyannoteai_api_key?: string
+  persian_tts_engine?: 'pocket' | 'chatterbox'
+  pocket_persian_model?: string
   chatterbox_persian_model?: string
   openrouter_tts_model_fa?: string
 }
