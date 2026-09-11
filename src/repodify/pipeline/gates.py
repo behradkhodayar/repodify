@@ -7,13 +7,20 @@ from typing import Any
 from repodify.models.domain import ExecutionChoice, JobOptions, VoiceAssignment
 
 GATES = ("transcribe", "diarize", "voices", "summarize", "tts")
+_LLM_BACKENDS = frozenset({"anthropic", "ollama", "openrouter"})
+_TTS_LOCAL_BACKENDS = frozenset({"pocket", "chatterbox"})
 
 
 class GateError(ValueError):
     """User-facing continue-payload problem."""
 
 
-def _choice(payload: dict[str, Any], *, require_mode: bool = True) -> ExecutionChoice | None:
+def _choice(
+    payload: dict[str, Any],
+    *,
+    require_mode: bool = True,
+    allowed_backends: frozenset[str] | None = None,
+) -> ExecutionChoice | None:
     mode = payload.get("mode")
     if mode is None:
         if require_mode:
@@ -22,7 +29,8 @@ def _choice(payload: dict[str, Any], *, require_mode: bool = True) -> ExecutionC
     if mode not in ("local", "byok"):
         raise GateError("mode must be local or byok")
     backend = payload.get("backend")
-    if backend is not None and backend not in ("anthropic", "ollama", "openrouter"):
+    allowed = _LLM_BACKENDS if allowed_backends is None else allowed_backends
+    if backend is not None and backend not in allowed:
         raise GateError(f"unknown backend: {backend}")
     return ExecutionChoice(
         mode=mode,
@@ -57,9 +65,7 @@ def apply_gate_payload(options: JobOptions, gate: str, payload: dict[str, Any]) 
         assignments = [VoiceAssignment.model_validate(a) for a in raw]
         if use_original:
             assignments = [
-                VoiceAssignment(speaker_id=a.speaker_id, mode="clone")
-                if a.mode != "clone"
-                else a
+                VoiceAssignment(speaker_id=a.speaker_id, mode="clone") if a.mode != "clone" else a
                 for a in assignments
             ] or assignments
         return options.model_copy(
@@ -90,7 +96,7 @@ def apply_gate_payload(options: JobOptions, gate: str, payload: dict[str, Any]) 
     if gate == "tts":
         return options.model_copy(
             update={
-                "tts": _choice(payload),
+                "tts": _choice(payload, allowed_backends=_TTS_LOCAL_BACKENDS),
                 "narrator_voice": payload.get("narrator_voice"),
             }
         )

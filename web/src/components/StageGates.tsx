@@ -399,6 +399,9 @@ function TtsGate({
   const voices = useVoices()
   const persian = targetLanguage === 'fa'
   const [mode, setMode] = useState<'local' | 'byok'>('local')
+  const [engine, setEngine] = useState<'pocket' | 'chatterbox'>(
+    info?.persian_tts_engine === 'chatterbox' ? 'chatterbox' : 'pocket',
+  )
   const [model, setModel] = useState(
     persian
       ? (info?.openrouter_tts_model_fa ?? info?.openrouter_tts_model ?? 'fish-audio/s2.1-pro')
@@ -425,9 +428,33 @@ function TtsGate({
         <ModeToggle
           value={mode}
           onChange={setMode}
-          localLabel={persian ? 'Local · Chatterbox Persian' : 'Local · Kokoro / F5'}
+          localLabel={
+            persian
+              ? engine === 'chatterbox'
+                ? 'Local · Chatterbox'
+                : 'Local · Pocket TTS'
+              : 'Local · Kokoro / F5'
+          }
           byokLabel="BYOK · OpenRouter"
         />
+        {persian && mode === 'local' && (
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={engine === 'pocket' ? 'default' : 'outline'}
+              onClick={() => setEngine('pocket')}
+            >
+              Pocket TTS
+            </Button>
+            <Button
+              type="button"
+              variant={engine === 'chatterbox' ? 'default' : 'outline'}
+              onClick={() => setEngine('chatterbox')}
+            >
+              Chatterbox
+            </Button>
+          </div>
+        )}
         {mode === 'byok' && (
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Speech model</span>
@@ -456,7 +483,12 @@ function TtsGate({
             onClick={() =>
               cont.mutate({
                 gate: 'tts',
-                payload: { mode, model: mode === 'byok' ? model : undefined, narrator_voice: narratorValue },
+                payload: {
+                  mode,
+                  backend: mode === 'local' && persian ? engine : undefined,
+                  model: mode === 'byok' ? model : undefined,
+                  narrator_voice: narratorValue,
+                },
               })
             }
           >

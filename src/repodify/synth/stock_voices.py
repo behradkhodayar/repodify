@@ -16,6 +16,9 @@ from repodify.ports.tts import Voice
 # Spoken by the bundled 5-second previews in assets/voice-samples/. Hosted TTS
 # clones those clips, so this transcript must stay in lockstep with the WAVs.
 SAMPLE_LINE = "Hello, this is a short preview of how I sound when I speak to you today."
+# Transcript for the bundled Farsi catalog clips. Hosted backends clone the WAV
+# plus this line; local Pocket/Chatterbox use the clip only.
+SAMPLE_LINE_FA = "سلام، این یک نمونه کوتاه از صدای من است."
 
 # Curated, stable Kokoro voice ids we expose. Kokoro ships more; this is a
 # sensible, gender-balanced default set (a*/b* = American/British, f/m = voice).
@@ -31,9 +34,10 @@ STOCK_VOICES: tuple[str, ...] = (
 
 DEFAULT_STOCK_VOICE = "af_heart"
 
-# Persian catalog for a Farsi digest. Local Chatterbox uses the default model
-# voice (no bundled clip required); hosted backends distinguish them via
-# `instructions`. Cloning an English host into Persian is out of v1.
+# Persian catalog for a Farsi digest. Bundled clips in assets/voice-samples/
+# (`fa_neda.wav`, `fa_arman.wav`) are the speaker prompts for Pocket TTS and
+# Chatterbox; hosted backends also use `instructions`. Cloning an English host
+# into Persian is out of v1.
 PERSIAN_STOCK_VOICES: tuple[str, ...] = ("fa_neda", "fa_arman")
 DEFAULT_PERSIAN_STOCK_VOICE = "fa_neda"
 PERSIAN_VOICE_GENDER: dict[str, Literal["female", "male"]] = {
@@ -194,7 +198,8 @@ def stock_voice(name: str) -> Voice:
     hosted backends (Fish Audio via OpenRouter) clone the real female/male
     sample instead of guessing gender from a text description. Local Kokoro
     still keys off ``kokoro_voice`` and ignores the clip. Persian catalog
-    voices have no bundled clip; hosted backends use `instructions`.
+    voices ship clips; local Pocket/Chatterbox clone them, hosted backends
+    also use `instructions`.
     """
     if name in PERSIAN_STOCK_VOICES:
         sample = bundled_sample_path(name)
@@ -204,7 +209,7 @@ def stock_voice(name: str) -> Voice:
             kokoro_voice=None,
             instructions=STOCK_VOICE_STYLES.get(name),
             ref_audio_path=sample if has_sample else None,
-            ref_text=SAMPLE_LINE if has_sample else None,
+            ref_text=SAMPLE_LINE_FA if has_sample else None,
         )
     if name not in STOCK_VOICES:
         known = list(STOCK_VOICES) + list(PERSIAN_STOCK_VOICES)

@@ -88,6 +88,8 @@ type FormState = {
   anthropic_api_key: string
   pyannoteai_api_key: string
   hf_token: string
+  persian_tts_engine: 'pocket' | 'chatterbox'
+  pocket_persian_model: string
   chatterbox_persian_model: string
   openrouter_tts_model_fa: string
 }
@@ -107,6 +109,8 @@ const EMPTY: FormState = {
   anthropic_api_key: '',
   pyannoteai_api_key: '',
   hf_token: '',
+  persian_tts_engine: 'pocket',
+  pocket_persian_model: '',
   chatterbox_persian_model: '',
   openrouter_tts_model_fa: '',
 }
@@ -124,6 +128,8 @@ function fromResponse(data: AppSettingsResponse): FormState {
     map_model: data.anthropic_map_model,
     reduce_model: data.anthropic_reduce_model,
     pyannoteai_model: data.pyannoteai_model,
+    persian_tts_engine: data.persian_tts_engine,
+    pocket_persian_model: data.pocket_persian_model,
     chatterbox_persian_model: data.chatterbox_persian_model,
     openrouter_tts_model_fa: data.openrouter_tts_model_fa,
   }
@@ -157,6 +163,8 @@ function RuntimeSettings() {
       map_model: form.map_model,
       reduce_model: form.reduce_model,
       pyannoteai_model: form.pyannoteai_model,
+      persian_tts_engine: form.persian_tts_engine,
+      pocket_persian_model: form.pocket_persian_model,
       chatterbox_persian_model: form.chatterbox_persian_model,
       openrouter_tts_model_fa: form.openrouter_tts_model_fa,
     }
@@ -257,15 +265,39 @@ function RuntimeSettings() {
             <Stage title="Text to speech">
               <p className="text-sm text-muted-foreground">
                 English: Kokoro for stock catalog voices, F5-TTS for clones. Persian:
-                Chatterbox Farsi. A Hugging Face token above is needed to download the
-                gated checkpoint.
+                Pocket TTS by default, Chatterbox optional. A Hugging Face token above
+                is needed to download gated checkpoints.
               </p>
+              <Field label="Persian TTS engine">
+                <Select
+                  aria-label="Persian TTS engine"
+                  value={form.persian_tts_engine}
+                  onChange={(e) =>
+                    patch({ persian_tts_engine: e.target.value as 'pocket' | 'chatterbox' })
+                  }
+                >
+                  <option value="pocket">Pocket TTS</option>
+                  <option value="chatterbox">Chatterbox</option>
+                </Select>
+              </Field>
               <Field label="Persian TTS model">
                 <Input
                   aria-label="Persian TTS model"
-                  value={form.chatterbox_persian_model}
-                  onChange={(e) => patch({ chatterbox_persian_model: e.target.value })}
-                  placeholder="Thomcles/Chatterbox-TTS-Persian-Farsi"
+                  value={
+                    form.persian_tts_engine === 'chatterbox'
+                      ? form.chatterbox_persian_model
+                      : form.pocket_persian_model
+                  }
+                  onChange={(e) =>
+                    form.persian_tts_engine === 'chatterbox'
+                      ? patch({ chatterbox_persian_model: e.target.value })
+                      : patch({ pocket_persian_model: e.target.value })
+                  }
+                  placeholder={
+                    form.persian_tts_engine === 'chatterbox'
+                      ? 'Thomcles/Chatterbox-TTS-Persian-Farsi'
+                      : 'mehdi-hf/pocket-tts-farsi'
+                  }
                 />
               </Field>
             </Stage>

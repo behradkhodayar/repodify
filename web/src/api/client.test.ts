@@ -84,6 +84,8 @@ describe('api client', () => {
           anthropic_configured: false,
           pyannoteai_model: 'community-1',
           pyannoteai_configured: false,
+          persian_tts_engine: 'pocket',
+          pocket_persian_model: 'mehdi-hf/pocket-tts-farsi',
           chatterbox_persian_model: 'Thomcles/Chatterbox-TTS-Persian-Farsi',
           openrouter_tts_model_fa: 'fish-audio/s2.1-pro',
         }),
@@ -106,6 +108,8 @@ describe('api client', () => {
           anthropic_configured: false,
           pyannoteai_model: 'community-1',
           pyannoteai_configured: false,
+          persian_tts_engine: 'pocket',
+          pocket_persian_model: 'mehdi-hf/pocket-tts-farsi',
           chatterbox_persian_model: 'Thomcles/Chatterbox-TTS-Persian-Farsi',
           openrouter_tts_model_fa: 'fish-audio/s2.1-pro',
         })

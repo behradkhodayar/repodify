@@ -44,6 +44,8 @@ def test_get_settings_returns_env_defaults(repo, tmp_path):
     assert body["openrouter_llm_model"] == "openai/gpt-4o-mini"
     assert body["openrouter_tts_model"] == "fish-audio/s2.1-pro"
     assert body["chatterbox_persian_model"] == "Thomcles/Chatterbox-TTS-Persian-Farsi"
+    assert body["pocket_persian_model"] == "mehdi-hf/pocket-tts-farsi"
+    assert body["persian_tts_engine"] == "pocket"
     assert body["openrouter_tts_model_fa"] == "fish-audio/s2.1-pro"
     assert body["openrouter_configured"] is False
     assert body["anthropic_configured"] is False
@@ -87,6 +89,8 @@ def test_put_persists_local_and_byok_models(repo, tmp_path):
             "openrouter_llm_model": "anthropic/claude-3.5-haiku",
             "openrouter_tts_model": "fish-audio/s2.1-pro",
             "chatterbox_persian_model": "Thomcles/Chatterbox-TTS-Persian-Farsi",
+            "pocket_persian_model": "mehdi-hf/pocket-tts-farsi",
+            "persian_tts_engine": "chatterbox",
             "openrouter_tts_model_fa": "fish-audio/s1",
             "map_model": "claude-haiku-4-5-20251001",
             "reduce_model": "claude-opus-4-8",
@@ -99,6 +103,8 @@ def test_put_persists_local_and_byok_models(repo, tmp_path):
     assert body["ollama_base_url"] == "http://gpu:11434"
     assert body["openrouter_llm_model"] == "anthropic/claude-3.5-haiku"
     assert body["chatterbox_persian_model"] == "Thomcles/Chatterbox-TTS-Persian-Farsi"
+    assert body["persian_tts_engine"] == "chatterbox"
+    assert body["pocket_persian_model"] == "mehdi-hf/pocket-tts-farsi"
     assert body["openrouter_tts_model_fa"] == "fish-audio/s1"
     assert client.get("/settings").json()["ollama_model"] == "llama3.1:8b"
     assert client.get("/settings").json()["openrouter_tts_model_fa"] == "fish-audio/s1"
@@ -137,6 +143,13 @@ def test_put_rejects_unknown_whisper_model(repo, tmp_path):
     settings = Settings(_env_file=None)
     client = _client(repo, tmp_path, settings)
     resp = client.put("/settings", json={"whisper_model": "huge-v4"})
+    assert resp.status_code == 422
+
+
+def test_put_rejects_unknown_persian_tts_engine(repo, tmp_path):
+    settings = Settings(_env_file=None)
+    client = _client(repo, tmp_path, settings)
+    resp = client.put("/settings", json={"persian_tts_engine": "xtts"})
     assert resp.status_code == 422
 
 

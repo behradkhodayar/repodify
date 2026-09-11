@@ -203,6 +203,8 @@ class AppSettingsResponse(BaseModel):
     anthropic_configured: bool
     pyannoteai_model: str
     pyannoteai_configured: bool
+    persian_tts_engine: Literal["pocket", "chatterbox"]
+    pocket_persian_model: str
     chatterbox_persian_model: str
     openrouter_tts_model_fa: str
 
@@ -224,5 +226,7 @@ class AppSettingsUpdate(BaseModel):
     anthropic_api_key: str | None = None
     pyannoteai_model: str | None = None
     pyannoteai_api_key: str | None = None
+    persian_tts_engine: Literal["pocket", "chatterbox"] | None = None
+    pocket_persian_model: str | None = None
     chatterbox_persian_model: str | None = None
     openrouter_tts_model_fa: str | None = None

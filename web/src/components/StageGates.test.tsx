@@ -66,7 +66,8 @@ describe('StageGates', () => {
     expect(minutes).toBeDisabled()
   })
 
-  it('offers Chatterbox and Persian voices on a Farsi TTS gate', async () => {
+  it('offers Pocket TTS, Chatterbox, and Persian voices on a Farsi TTS gate', async () => {
+    let body: { gate?: string; payload?: { mode?: string; backend?: string } } | null = null
     server.use(
       http.get('/voices', () =>
         HttpResponse.json({
@@ -77,8 +78,12 @@ describe('StageGates', () => {
           ],
         }),
       ),
-      http.post('/jobs/j1/continue', () => HttpResponse.json({ job_id: 'j1' })),
+      http.post('/jobs/j1/continue', async ({ request }) => {
+        body = (await request.json()) as typeof body
+        return HttpResponse.json({ job_id: 'j1' })
+      }),
     )
+    const user = userEvent.setup()
     renderGate(
       base({
         gate: 'tts',
@@ -87,12 +92,18 @@ describe('StageGates', () => {
           openrouter_configured: true,
           openrouter_tts_model: 'fish-audio/s2.1-pro',
           openrouter_tts_model_fa: 'fish-audio/s2.1-pro',
+          persian_tts_engine: 'pocket',
         },
       }),
     )
-    expect(screen.getByRole('button', { name: /chatterbox/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^pocket tts$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^chatterbox$/i })).toBeInTheDocument()
     const narrator = await screen.findByLabelText(/narrator voice/i)
     await waitFor(() => expect(narrator).toHaveValue('fa_neda'))
     expect(screen.queryByRole('option', { name: /heart/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /continue/i }))
+    await waitFor(() => expect(body).not.toBeNull())
+    expect(body!.payload?.mode).toBe('local')
+    expect(body!.payload?.backend).toBe('pocket')
   })
 })

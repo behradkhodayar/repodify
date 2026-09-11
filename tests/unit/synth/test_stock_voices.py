@@ -159,6 +159,23 @@ def test_persian_stock_voice_has_style_and_no_required_sample():
     assert stock_voice_language("af_heart") == "en"
 
 
+def test_every_persian_catalog_voice_ships_a_preview_clip():
+    import wave
+
+    from repodify.synth.stock_voices import SAMPLE_LINE_FA
+
+    for name in PERSIAN_STOCK_VOICES:
+        path = bundled_sample_path(name)
+        assert path.is_file(), f"missing preview for {name}"
+        v = stock_voice(name)
+        assert v.ref_audio_path == path
+        assert v.ref_text == SAMPLE_LINE_FA
+        assert v.ref_text != SAMPLE_LINE
+        with wave.open(str(path), "rb") as w:
+            duration = w.getnframes() / float(w.getframerate())
+        assert 1.5 <= duration <= 6.0, f"{name} preview is {duration:.2f}s"
+
+
 def test_effective_stock_catalog_persian_ignores_english_preferred():
     assert effective_stock_catalog(["af_heart"], language="fa") == list(PERSIAN_STOCK_VOICES)
 

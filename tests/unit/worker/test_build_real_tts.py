@@ -59,14 +59,36 @@ def _deps(settings: Settings) -> Deps:
     )
 
 
-def test_local_persian_uses_chatterbox(monkeypatch):
+def test_local_persian_uses_pocket_by_default(monkeypatch):
     monkeypatch.setattr(
-        "repodify.synth.chatterbox_tts.ChatterboxPersianTTS",
+        "repodify.synth.pocket_tts.PocketPersianTTS",
         _StubTTS,
     )
     tts = _build_real_tts(_settings(tts_backend="f5"), language="fa")
     assert isinstance(tts, _StubTTS)
+    assert tts.kwargs["repo_id"] == "mehdi-hf/pocket-tts-farsi"
+
+
+def test_local_persian_uses_chatterbox_when_engine_set(monkeypatch):
+    monkeypatch.setattr(
+        "repodify.synth.chatterbox_tts.ChatterboxPersianTTS",
+        _StubTTS,
+    )
+    tts = _build_real_tts(
+        _settings(tts_backend="f5", persian_tts_engine="chatterbox"),
+        language="fa",
+    )
+    assert isinstance(tts, _StubTTS)
     assert tts.kwargs["repo_id"] == "Thomcles/Chatterbox-TTS-Persian-Farsi"
+
+
+def test_unknown_persian_engine_raises():
+    import pytest
+
+    settings = _settings(tts_backend="f5")
+    object.__setattr__(settings, "persian_tts_engine", "xtts")
+    with pytest.raises(RuntimeError, match="unknown Persian TTS engine"):
+        _build_real_tts(settings, language="fa")
 
 
 def test_byok_persian_uses_openrouter_fa_model(monkeypatch):
@@ -82,7 +104,7 @@ def test_byok_persian_uses_openrouter_fa_model(monkeypatch):
 
 def test_apply_job_backends_local_persian_swaps_tts(monkeypatch):
     monkeypatch.setattr(
-        "repodify.synth.chatterbox_tts.ChatterboxPersianTTS",
+        "repodify.synth.pocket_tts.PocketPersianTTS",
         _StubTTS,
     )
     settings = _settings()
@@ -92,6 +114,26 @@ def test_apply_job_backends_local_persian_swaps_tts(monkeypatch):
             episode_ids=["e"],
             target_language="fa",
             tts=ExecutionChoice(mode="local"),
+        )
+        out = apply_job_backends(deps, settings, options)
+        assert isinstance(out.tts, _StubTTS)
+        assert out.tts.kwargs["repo_id"] == "mehdi-hf/pocket-tts-farsi"
+    finally:
+        deps.http.close()
+
+
+def test_apply_job_backends_local_persian_honors_chatterbox_backend(monkeypatch):
+    monkeypatch.setattr(
+        "repodify.synth.chatterbox_tts.ChatterboxPersianTTS",
+        _StubTTS,
+    )
+    settings = _settings(persian_tts_engine="pocket")
+    deps = _deps(settings)
+    try:
+        options = JobOptions(
+            episode_ids=["e"],
+            target_language="fa",
+            tts=ExecutionChoice(mode="local", backend="chatterbox"),
         )
         out = apply_job_backends(deps, settings, options)
         assert isinstance(out.tts, _StubTTS)

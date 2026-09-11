@@ -231,7 +231,7 @@ class ExecutionChoice(BaseModel):
 
     mode: Literal["local", "byok"]
     model: str | None = None
-    backend: str | None = None  # LLM only: anthropic | ollama | openrouter
+    backend: str | None = None  # LLM: anthropic|ollama|openrouter; TTS local: pocket|chatterbox
 
 
 class JobOptions(BaseModel):
