@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import wave
+from pathlib import Path
 
 from repodify.ports.tts import SAMPLE_RATE, Voice
 from repodify.synth.chatterbox_tts import (
@@ -133,14 +134,38 @@ def test_synthesize_chunks_long_text():
     assert len(model.calls) > 1
 
 
+def _silent_wav(path, seconds: float, sample_rate: int = SAMPLE_RATE) -> None:
+    n = max(1, int(seconds * sample_rate))
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sample_rate)
+        w.writeframes(b"\x00\x00" * n)
+
+
 def test_uses_reference_clip_when_present(tmp_path):
     model = _StubModel()
     clip = tmp_path / "ref.wav"
-    clip.write_bytes(b"fake")
+    _silent_wav(clip, 1.0)
 
     def loader(**kwargs):
         return model
 
     tts = ChatterboxPersianTTS(loader=loader)
     tts.synthesize("سلام", Voice(name="n", ref_audio_path=clip))
-    assert model.calls[0][1].get("audio_prompt_path") == str(clip)
+    used = model.calls[0][1].get("audio_prompt_path")
+    assert used == str(clip)
+
+
+def test_trims_long_reference_clip_for_chatterbox(tmp_path):
+    model = _StubModel()
+    clip = tmp_path / "long.wav"
+    _silent_wav(clip, 5.0)
+
+    tts = ChatterboxPersianTTS(loader=lambda **k: model)
+    tts.synthesize("سلام", Voice(name="n", ref_audio_path=clip))
+    used = Path(model.calls[0][1]["audio_prompt_path"])
+    assert used != clip
+    with wave.open(str(used), "rb") as w:
+        duration = w.getnframes() / float(w.getframerate())
+    assert duration <= 1.51

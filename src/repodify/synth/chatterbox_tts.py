@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import array
 import io
+import os
 import re
 import sys
+import tempfile
 import wave
 from collections.abc import Callable
 from typing import Any
@@ -27,6 +29,10 @@ _T3_FILENAME = "t3_fa.safetensors"
 # Chatterbox T3 is not a long-form model; chunk on sentence boundaries.
 _MAX_CHARS = 300
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?؟؛\n])\s+")
+# A 2.5s+ catalog clip plus a normal sentence trips s3gen ("out-of-range
+# special tokens" / CUDA assert). 1.5s is enough to keep gender and stays
+# inside the flow encoder's token budget.
+_PROMPT_MAX_S = 1.5
 
 Loader = Callable[..., Any]
 
@@ -119,6 +125,7 @@ class ChatterboxPersianTTS:
         self._sample_rate = sample_rate
         self._loader = loader or load_persian_chatterbox
         self._model = None
+        self._trimmed_prompts: dict[str, str] = {}
 
     def _ensure_model(self):
         if self._model is None:
@@ -131,7 +138,11 @@ class ChatterboxPersianTTS:
 
     def synthesize(self, text: str, voice: Voice) -> bytes:
         model = self._ensure_model()
-        prompt = str(voice.ref_audio_path) if voice.ref_audio_path is not None else None
+        prompt = (
+            _trimmed_prompt_path(str(voice.ref_audio_path), self._trimmed_prompts)
+            if voice.ref_audio_path is not None
+            else None
+        )
         pieces: list[bytes] = []
         for chunk in chunk_text(text):
             kwargs: dict[str, Any] = {"language_id": None}
@@ -145,7 +156,41 @@ class ChatterboxPersianTTS:
 
     def release(self) -> None:
         self._model = None
+        for src, dest in self._trimmed_prompts.items():
+            if dest != src:
+                try:
+                    os.unlink(dest)
+                except OSError:
+                    pass
+        self._trimmed_prompts = {}
         empty_cuda_cache()
+
+
+def _trimmed_prompt_path(path: str, cache: dict[str, str], max_s: float = _PROMPT_MAX_S) -> str:
+    """Return `path`, or a temp WAV of the first `max_s` seconds if longer."""
+    cached = cache.get(path)
+    if cached is not None:
+        return cached
+    try:
+        with wave.open(path, "rb") as w:
+            rate = w.getframerate()
+            n_frames = w.getnframes()
+            max_frames = int(rate * max_s)
+            if n_frames <= max_frames:
+                cache[path] = path
+                return path
+            params = w.getparams()
+            frames = w.readframes(max_frames)
+    except wave.Error:
+        cache[path] = path
+        return path
+    fd, dest = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    with wave.open(dest, "wb") as w:
+        w.setparams(params)
+        w.writeframes(frames)
+    cache[path] = dest
+    return dest
 
 
 def _as_float_list(audio: Any) -> list[float]:
