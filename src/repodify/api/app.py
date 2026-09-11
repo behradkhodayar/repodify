@@ -260,6 +260,8 @@ def create_app(
             "openrouter_tts_model": eff.openrouter_tts_model,
             "openrouter_stt_model": eff.openrouter_stt_model,
             "pyannoteai_model": eff.pyannoteai_model,
+            "persian_tts_engine": eff.persian_tts_engine,
+            "pocket_persian_model": eff.pocket_persian_model,
             "chatterbox_persian_model": eff.chatterbox_persian_model,
             "openrouter_tts_model_fa": eff.openrouter_tts_model_fa,
             "speakers": report.get("speakers") or [],
@@ -283,6 +285,8 @@ def create_app(
             anthropic_configured=bool(eff.anthropic_api_key),
             pyannoteai_model=eff.pyannoteai_model,
             pyannoteai_configured=bool(eff.pyannoteai_api_key),
+            persian_tts_engine=eff.persian_tts_engine,
+            pocket_persian_model=eff.pocket_persian_model,
             chatterbox_persian_model=eff.chatterbox_persian_model,
             openrouter_tts_model_fa=eff.openrouter_tts_model_fa,
         )

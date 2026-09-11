@@ -75,7 +75,10 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     openrouter_tts_model: str = "fish-audio/s2.1-pro"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    # Local Persian TTS: Chatterbox multilingual with the T3 Farsi finetune.
+    # Local Persian TTS engine. Pocket TTS (CPU, default) or Chatterbox (GPU).
+    persian_tts_engine: Literal["pocket", "chatterbox"] = "pocket"
+    pocket_persian_model: str = "mehdi-hf/pocket-tts-farsi"
+    # Chatterbox multilingual with the T3 Farsi finetune (when engine=chatterbox).
     chatterbox_persian_model: str = "Thomcles/Chatterbox-TTS-Persian-Farsi"
     # Hosted Persian TTS on OpenRouter. Fish Audio S2.1-Pro is multilingual and
     # auto-detects Persian; override if you want a dedicated model.

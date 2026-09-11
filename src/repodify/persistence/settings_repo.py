@@ -23,6 +23,8 @@ OVERRIDE_FIELDS: frozenset[str] = frozenset(
         "diarization_model",
         "openrouter_stt_model",
         "openrouter_tts_model",
+        "persian_tts_engine",
+        "pocket_persian_model",
         "chatterbox_persian_model",
         "openrouter_tts_model_fa",
         "openrouter_api_key",

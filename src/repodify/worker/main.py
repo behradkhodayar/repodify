@@ -83,12 +83,22 @@ def _build_real_tts(settings: Settings, *, language: str = "en"):
             language=lang,
         )
     if lang == "fa":
-        from repodify.synth.chatterbox_tts import ChatterboxPersianTTS
+        engine = settings.persian_tts_engine
+        if engine == "pocket":
+            from repodify.synth.pocket_tts import PocketPersianTTS
 
-        return ChatterboxPersianTTS(
-            repo_id=settings.chatterbox_persian_model,
-            hf_token=settings.hf_token,
-        )
+            return PocketPersianTTS(
+                repo_id=settings.pocket_persian_model,
+                hf_token=settings.hf_token,
+            )
+        if engine == "chatterbox":
+            from repodify.synth.chatterbox_tts import ChatterboxPersianTTS
+
+            return ChatterboxPersianTTS(
+                repo_id=settings.chatterbox_persian_model,
+                hf_token=settings.hf_token,
+            )
+        raise RuntimeError(f"unknown Persian TTS engine: {engine}")
     from repodify.synth.f5_tts import F5TTS
     from repodify.synth.kokoro import KokoroTTS
     from repodify.synth.routing_tts import RoutingTTS
@@ -279,9 +289,15 @@ def apply_job_backends(deps: Deps, settings: Settings, options: JobOptions) -> D
                 language=lang,
             )
         else:
-            deps.tts = _build_real_tts(
-                settings.model_copy(update={"tts_backend": "f5"}), language=lang
-            )
+            from repodify.language import normalize_language
+
+            update: dict = {"tts_backend": "f5"}
+            if normalize_language(lang) == "fa":
+                engine = options.tts.backend or settings.persian_tts_engine
+                if engine not in ("pocket", "chatterbox"):
+                    raise RuntimeError(f"unknown Persian TTS engine: {engine}")
+                update["persian_tts_engine"] = engine
+            deps.tts = _build_real_tts(settings.model_copy(update=update), language=lang)
     elif lang != "en":
         deps.tts = _build_real_tts(settings, language=lang)
     return deps
